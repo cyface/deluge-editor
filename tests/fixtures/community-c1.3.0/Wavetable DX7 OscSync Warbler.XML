@@ -1,0 +1,214 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sound
+	firmwareVersion="c1.3.0"
+	earliestCompatibleFirmware="4.1.0-alpha"
+	polyphonic="poly"
+	voicePriority="1"
+	mode="subtractive"
+	modFXType="none"
+	lpfMode="24dB"
+	hpfMode="HPLadder"
+	filterRoute="H2L"
+	maxVoices="8">
+	<osc1
+		type="wavetable"
+		transpose="0"
+		cents="0"
+		retrigPhase="-1"
+		fileName="SAMPLES/WAVETABLES/Echo Sound Works/Instruments/ESW Real - Electric Guitar.wav" />
+	<osc2
+		type="dx7"
+		transpose="-12"
+		cents="0"
+		oscillatorSync="1"
+		retrigPhase="-1"
+		dx7patch="2419311F6344000000000000000000033E00104B072516163263160F000000000000000004630005000D2424162C632A250000000000000001002C001C000B2A10212963200000000005000000000263000500061918161B63420000000000000000000024000F000B2312162363502B00000000000000000363000500004B504B3C323232320404012700062600040114496365205061642020203F" />
+	<lfo1 type="saw" syncLevel="5" syncType="0" />
+	<lfo2 type="warbler" syncLevel="0" syncType="10" />
+	<lfo3 type="triangle" syncLevel="0" syncType="0" />
+	<lfo4 type="triangle" syncLevel="0" syncType="0" />
+	<unison num="1" detune="8" spread="0" />
+	<delay
+		pingPong="1"
+		analog="0"
+		syncLevel="7"
+		syncType="0" />
+	<sidechain
+		syncLevel="6"
+		syncType="0"
+		attack="327244"
+		release="936" />
+	<defaultParams
+		arpeggiatorGate="0x00000000"
+		portamento="0x80000000"
+		compressorShape="0xDC28F5B2"
+		oscAVolume="0x547AE147"
+		oscAPulseWidth="0x00000000"
+		oscAWavetablePosition="0x2147AE14"
+		oscBVolume="0x1EB851EB"
+		oscBPulseWidth="0x00000000"
+		oscBWavetablePosition="0x00000000"
+		noiseVolume="0x9999999A"
+		volume="0x4CCCCCA8"
+		pan="0x00000000"
+		lpfFrequency="0x7FFFFFFF"
+		lpfResonance="0x80000000"
+		lpfMorph="0x80000000"
+		hpfFrequency="0x80000000"
+		hpfResonance="0x80000000"
+		hpfMorph="0x80000000"
+		lfo1Rate="0x9EB851D0"
+		lfo2Rate="0x2147AE14"
+		lfo3Rate="0x1999997E"
+		lfo4Rate="0x00000000"
+		modulator1Amount="0x80000000"
+		modulator1Feedback="0x80000000"
+		modulator2Amount="0x80000000"
+		modulator2Feedback="0x80000000"
+		carrier1Feedback="0x80000000"
+		carrier2Feedback="0x80000000"
+		modFXRate="0x00000000"
+		modFXDepth="0x00000000"
+		delayRate="0x00000000"
+		delayFeedback="0x80000000"
+		reverbAmount="0xB851EB85"
+		arpeggiatorRate="0x00000000"
+		stutterRate="0x00000000"
+		sampleRateReduction="0x80000000"
+		bitCrush="0x80000000"
+		modFXOffset="0x00000000"
+		modFXFeedback="0x00000000"
+		waveFold="0x80000000"
+		compressorThreshold="0x00000000"
+		noteProbability="0x7FFFFFFF"
+		bassProbability="0x80000000"
+		swapProbability="0x80000000"
+		glideProbability="0x80000000"
+		reverseProbability="0x80000000"
+		chordProbability="0x80000000"
+		ratchetProbability="0x80000000"
+		ratchetAmount="0x80000000"
+		sequenceLength="0x80000000"
+		chordPolyphony="0x80000000"
+		rhythm="0x80000000"
+		spreadVelocity="0x80000000"
+		spreadGate="0x80000000"
+		spreadOctave="0x80000000">
+		<envelope1
+			attack="0x80000000"
+			decay="0xE6666654"
+			sustain="0x7FFFFFFF"
+			release="0x80000000" />
+		<envelope2
+			attack="0xE6666654"
+			decay="0xE6666654"
+			sustain="0xFFFFFFE9"
+			release="0xE6666654" />
+		<envelope3
+			attack="0x00000000"
+			decay="0x00000000"
+			sustain="0x00000000"
+			release="0x00000000" />
+		<envelope4
+			attack="0x00000000"
+			decay="0x00000000"
+			sustain="0x00000000"
+			release="0x00000000" />
+		<patchCables>
+			<patchCable
+				source="velocity"
+				destination="volume"
+				amount="0x3FFFFFE8"
+				polarity="unipolar" />
+			<patchCable
+				source="aftertouch"
+				destination="volume"
+				amount="0x2A3D7094"
+				polarity="unipolar" />
+			<patchCable
+				source="y"
+				destination="oscAWavetablePosition"
+				amount="0x4F5C28F5"
+				polarity="bipolar" />
+			<patchCable
+				source="lfo2"
+				destination="oscAPitch"
+				amount="0xF5C28F5C" />
+			<patchCable
+				source="lfo1"
+				destination="lfo2Rate"
+				amount="0x7AE147AD" />
+		</patchCables>
+		<equalizer
+			bass="0x00000000"
+			treble="0x00000000"
+			bassFrequency="0x00000000"
+			trebleFrequency="0x00000000" />
+	</defaultParams>
+	<arpeggiator
+		mode="off"
+		syncLevel="7"
+		numOctaves="2"
+		syncType="0"
+		arpMode="off"
+		chordType="0"
+		noteMode="up"
+		octaveMode="up"
+		mpeVelocity="off"
+		stepRepeat="1"
+		randomizerLock="0"
+		kitArp="1"
+		lastLockedNoteProb="0"
+		lockedNoteProbArray="00000000000000000000000000000000"
+		lastLockedBassProb="0"
+		lockedBassProbArray="00000000000000000000000000000000"
+		lastLockedSwapProb="0"
+		lockedSwapProbArray="00000000000000000000000000000000"
+		lastLockedGlideProb="0"
+		lockedGlideProbArray="00000000000000000000000000000000"
+		lastLockedReverseProb="0"
+		lockedReverseProbArray="00000000000000000000000000000000"
+		lastLockedChordProb="0"
+		lockedChordProbArray="00000000000000000000000000000000"
+		lastLockedRatchetProb="0"
+		lockedRatchetProbArray="00000000000000000000000000000000"
+		lastLockedVelocitySpread="0"
+		lockedVelocitySpreadArray="00000000000000000000000000000000"
+		lastLockedGateSpread="0"
+		lockedGateSpreadArray="00000000000000000000000000000000"
+		lastLockedOctaveSpread="0"
+		lockedOctaveSpreadArray="00000000000000000000000000000000"
+		notePattern="000001010403060306050609010A0B00" />
+	<modKnobs>
+		<modKnob controlsParam="pan" />
+		<modKnob controlsParam="volumePostFX" />
+		<modKnob controlsParam="lpfResonance" />
+		<modKnob controlsParam="lpfFrequency" />
+		<modKnob controlsParam="env1Release" />
+		<modKnob controlsParam="env1Attack" />
+		<modKnob controlsParam="delayFeedback" />
+		<modKnob controlsParam="delayRate" />
+		<modKnob controlsParam="reverbAmount" />
+		<modKnob controlsParam="volumePostReverbSend" patchAmountFromSource="compressor" />
+		<modKnob controlsParam="pitch" patchAmountFromSource="lfo1" />
+		<modKnob controlsParam="lfo1Rate" />
+		<modKnob controlsParam="portamento" />
+		<modKnob controlsParam="stutterRate" />
+		<modKnob controlsParam="bitcrushAmount" />
+		<modKnob controlsParam="sampleRateReduction" />
+	</modKnobs>
+	<midiOutput
+		channel="255"
+		noteForDrum="255" />
+	<audioCompressor
+		attack="83886080"
+		release="83886080"
+		thresh="0"
+		ratio="1073741824"
+		compHPF="0"
+		compBlend="2147483647" />
+	<stutter
+		quantized="1"
+		reverse="0"
+		pingPong="0" />
+</sound>

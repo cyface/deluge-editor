@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="234" height="234" viewBox="0 0 234 234" xmlns="http://www.w3.org/2000/svg">
+    <g fill="#d4a34d">
+        <path id="Rectangle" d="M 89 45 L 107 45 L 107 27 L 89 27 Z"/>
+        <path id="Rectangle-copy" d="M 107 63 L 125 63 L 125 45 L 107 45 Z"/>
+        <path id="Rectangle-copy-2" d="M 125 81 L 143 81 L 143 63 L 125 63 Z"/>
+        <path id="Rectangle-copy-3" d="M 143 99 L 161 99 L 161 81 L 143 81 Z"/>
+        <path id="Rectangle-copy-7" d="M 35 44 L 53 44 L 53 26 L 35 26 Z"/>
+        <path id="Rectangle-copy-6" d="M 53 62 L 71 62 L 71 44 L 53 44 Z"/>
+        <path id="Rectangle-copy-5" d="M 71 80 L 89 80 L 89 62 L 71 62 Z"/>
+        <path id="Rectangle-copy-4" d="M 89 98 L 107 98 L 107 80 L 89 80 Z"/>
+        <path id="Rectangle-copy-11" d="M 18 81 L 36 81 L 36 63 L 18 63 Z"/>
+        <path id="Rectangle-copy-10" d="M 36 99 L 54 99 L 54 81 L 36 81 Z"/>
+        <path id="Rectangle-copy-9" d="M 54 117 L 72 117 L 72 99 L 54 99 Z"/>
+        <path id="Rectangle-copy-8" d="M 72 135 L 90 135 L 90 117 L 72 117 Z"/>
+        <path id="Rectangle-copy-15" d="M 35 153 L 53 153 L 53 135 L 35 135 Z"/>
+        <path id="Rectangle-copy-14" d="M 53 171 L 71 171 L 71 153 L 53 153 Z"/>
+        <path id="Rectangle-copy-13" d="M 71 189 L 89 189 L 89 171 L 71 171 Z"/>
+        <path id="Rectangle-copy-12" d="M 89 207 L 107 207 L 107 189 L 89 189 Z"/>
+        <path id="Rectangle-copy-19" d="M 109 135 L 127 135 L 127 117 L 109 117 Z"/>
+        <path id="Rectangle-copy-18" d="M 127 153 L 145 153 L 145 135 L 127 135 Z"/>
+        <path id="Rectangle-copy-17" d="M 145 171 L 163 171 L 163 153 L 145 153 Z"/>
+        <path id="Rectangle-copy-22" d="M 162 134 L 180 134 L 180 116 L 162 116 Z"/>
+        <path id="Rectangle-copy-21" d="M 180 152 L 198 152 L 198 134 L 180 134 Z"/>
+        <path id="Rectangle-copy-20" d="M 198 170 L 216 170 L 216 152 L 198 152 Z"/>
+        <path id="Rectangle-copy-25" d="M 108 173 L 126 173 L 126 155 L 108 155 Z"/>
+        <path id="Rectangle-copy-24" d="M 126 191 L 144 191 L 144 173 L 126 173 Z"/>
+        <path id="Rectangle-copy-23" d="M 144 209 L 162 209 L 162 191 L 144 191 Z"/>
+    </g>
+</svg>
