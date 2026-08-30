@@ -8,15 +8,9 @@ Deluge's SD card over Web MIDI SysEx.
 
 ## Inspired by
 
-This project is inspired by
-[solaris76/Deluge-Synth-Editor](https://github.com/solaris76/Deluge-Synth-Editor)
-by Chris Griggs, and by the [DEx](https://github.com/silicakes/deluge-extensions)
-smSysex protocol work by silicakes. It began as a fork of the former and
-diverged far enough — new UI, new architecture, no shared code — to become its
-own project. Credit where due; blame stays here.
+This project is inspired by [solaris76/Deluge-Synth-Editor](https://github.com/solaris76/Deluge-Synth-Editor) by Chris Griggs, and by the [DEx](https://github.com/silicakes/deluge-extensions) smSysex protocol work by silicakes
 
-The XML format's ground truth is the
-[Deluge community firmware](https://github.com/SynthstromAudible/DelugeFirmware).
+The XML format's ground truth is the [Deluge community firmware](https://github.com/SynthstromAudible/DelugeFirmware).
 
 ## Develop
 
@@ -38,6 +32,7 @@ Web MIDI SysEx needs Chrome or Edge. XML editing works anywhere.
 src/core/     framework-free TypeScript: params, xml, sysex. No Svelte imports.
 src/ui/       Svelte 5 components.
 tests/        cross-cutting tests and Deluge-authored XML fixtures.
+docs/         decisions log and how the fixtures are captured from DelugEmu.
 ```
 
 The test that matters is the round-trip: parse a Deluge-authored preset,
