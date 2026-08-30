@@ -1,6 +1,6 @@
 <script lang="ts">
   import { LFO_SCOPE } from '../../core/firmware/features'
-  import { ENVELOPE_ATTR_ORDER, LFO_ATTR_ORDER, SOUND_CHILD_ORDER, SOUND_PARAM_ATTRS, type SoundElement } from '../../core/preset'
+  import { ENVELOPE_ATTR_ORDER, LFO_ATTR_ORDER, paramLabel, SOUND_CHILD_ORDER, SOUND_PARAM_ATTRS, type SoundElement } from '../../core/preset'
   import { cablesFrom, ensureEnvelope, ensureParams, envelope, lfo, params } from '../../core/preset/sound'
   import { ensureChild, setAttr } from '../../core/xml'
   import EnvGraph from '../controls/EnvGraph.svelte'
@@ -25,7 +25,7 @@
     envs.map((n) => ({
       id: n,
       label: String(n),
-      sup: n === 1 ? 'AMP' : undefined,
+      // Env 1's hardwired role reads in the graph's corner label, not a tiny sup.
       dot: cablesFrom(sound, `envelope${n}`).length ? sourceColor(`envelope${n}`) : undefined,
       idle: !envelope(sound, n as N),
       title: n === 1 ? 'Envelope 1 is hardwired to volume' : `Envelope ${n}`,
@@ -35,12 +35,17 @@
     lfos.map((n) => ({
       id: n,
       label: String(n),
-      sup: LFO_SCOPE[`lfo${n}` as keyof typeof LFO_SCOPE] === 'global' ? 'GLB' : 'VCE',
+      // Scope and cables read in the note under the tabs, not a tiny sup.
       dot: cablesFrom(sound, `lfo${n}`).length ? sourceColor(`lfo${n}`) : undefined,
       idle: !lfo(sound, n as N),
       title: LFO_SCOPE[`lfo${n}` as keyof typeof LFO_SCOPE] === 'global' ? 'Runs once per sound: can reach global parameters and sync to tempo' : 'Runs per voice',
     })),
   )
+  const lfoNote = $derived.by(() => {
+    const scope = LFO_SCOPE[`lfo${lfoSel}` as keyof typeof LFO_SCOPE] === 'global' ? 'Global' : 'Voice'
+    const dests = [...new Set(cablesFrom(sound, `lfo${lfoSel}`).map((c) => paramLabel(c.attrs.destination ?? '?')))]
+    return `${scope} — ${dests.length ? `modifying ${dests.join(', ')}` : 'modifying nothing (no cables)'}`
+  })
   const env = $derived(envelope(sound, envSel as N))
   const theLfo = $derived(lfo(sound, lfoSel as N))
   const ensureLfo = () => ensureChild(sound, `lfo${lfoSel as N}`, SOUND_CHILD_ORDER)
@@ -48,7 +53,7 @@
   const lfoSyncs = $derived(lfoSel === 1 || lfoSel === 3 || (lfoSel === 2 && editor.supports('lfo2Sync')) || (lfoSel === 4 && editor.supports('lfo4')))
 </script>
 
-<div class="h3">Envelopes <span class="sub">{envs.filter((n) => envelope(sound, n as N)).length} in file</span></div>
+<div class="h3">Envelopes</div>
 <Seg items={envItems} selected={envSel} onselect={(n) => (envSel = n)} />
 <EnvGraph {sound} selected={envSel} available={envs} />
 <div class="knobrow">
@@ -57,8 +62,9 @@
   {/each}
 </div>
 
-<div class="h3">LFOs <span class="sub">{lfos.filter((n) => lfo(sound, n as N)).length} in file</span></div>
+<div class="h3">LFOs</div>
 <Seg items={lfoItems} selected={lfoSel} onselect={(n) => (lfoSel = n)} />
+<p class="lfonote">{lfoNote}</p>
 <div class="fields">
   <Select label="Shape" name="lfo{lfoSel}.type" value={theLfo?.attrs.type} options={lfoTypeOptions(editor.supports)} onchange={(v) => setAttr(ensureLfo(), 'type', v, LFO_ATTR_ORDER)} />
   {#if lfoSyncs}
@@ -71,3 +77,7 @@
 <div class="knobrow">
   <HexKnob el={params(sound)} ensure={() => ensureParams(sound)} attr={lfoRateAttr} label="Rate" order={SOUND_PARAM_ATTRS} {sound} />
 </div>
+
+<style>
+  .lfonote { margin: 5px 0 0 4px; font-family: var(--mono); font-size: 9.5px; color: var(--faint); }
+</style>

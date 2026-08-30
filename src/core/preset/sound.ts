@@ -19,7 +19,7 @@ import {
 import { child, childrenOf, element } from '../xml/element'
 import { ensureChild, insertChild, removeChild, setAttr } from '../xml/edit'
 import type { ParamName, PatchSource, Polarity } from './index'
-import { CABLE_ATTR_ORDER, PARAMS_CHILD_ORDER, SOUND_CHILD_ORDER } from './order'
+import { CABLE_ATTR_ORDER, ENVELOPE_ATTR_ORDER, PARAMS_CHILD_ORDER, SOUND_CHILD_ORDER } from './order'
 import { SOUND_PARAM_ATTRS, type SoundParamAttr } from './params'
 import type {
   EnvelopeElement,
@@ -92,6 +92,11 @@ export const ensureEnvelope = (sound: SoundElement, n: 1 | 2 | 3 | 4): EnvelopeE
 export function envelopeMenu(sound: SoundElement, n: 1 | 2 | 3 | 4, stage: keyof EnvelopeElement['attrs']) {
   const hex = envelope(sound, n)?.attrs[stage]
   return hex === undefined ? undefined : standardToMenu(hexToInt(hex))
+}
+
+/** Write an envelope stage from its 0–50 menu value, creating the envelope where the firmware writes it. */
+export function setEnvelopeMenu(sound: SoundElement, n: 1 | 2 | 3 | 4, stage: keyof EnvelopeElement['attrs'], menu: number): void {
+  setAttr(ensureEnvelope(sound, n), stage, intToHex(menuToStandard(menu)), ENVELOPE_ATTR_ORDER)
 }
 
 // ---- patch cables ---------------------------------------------------------

@@ -11,6 +11,7 @@ import {
   paramMenu,
   removeCable,
   setCableMenu,
+  setEnvelopeMenu,
   setParamMenu,
 } from './sound'
 import type { SoundElement } from './types'
@@ -57,6 +58,16 @@ describe('writing', () => {
     expect(d.changed).toEqual([
       { path: 'sound/defaultParams@lpfFrequency', expected: '0x10000000', actual: '0x4CCCCCA8' },
     ])
+  })
+  it('an envelope stage writes as one changed value and reads back', () => {
+    const { src, sound } = load('Default Synth')
+    setEnvelopeMenu(sound, 1, 'decay', 33)
+    expect(envelopeMenu(sound, 1, 'decay')).toBe(33)
+    const d = diffFlat(flattenXML(src), flattenXML(generateXML(sound)))
+    expect(d.missing).toEqual([])
+    expect(d.added).toEqual([])
+    expect(d.changed).toHaveLength(1)
+    expect(d.changed[0].path).toBe('sound/defaultParams/envelope1@decay')
   })
   it('a param the file lacks is added where the firmware writes it', () => {
     const { sound } = load('Attribute Format Baseline')

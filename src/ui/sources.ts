@@ -29,7 +29,7 @@ export const sourceName = (s: string | undefined): string =>
 /** Short description shown under a modulator when it has no cables. */
 export function sourceHint(s: PatchSource): string {
   if (s in LFO_SCOPE) return LFO_SCOPE[s as keyof typeof LFO_SCOPE] === 'global' ? 'global' : 'per voice'
-  if (s === 'envelope1') return 'amp'
+  if (s === 'envelope1') return 'volume'
   if (s.startsWith('envelope')) return 'free'
   const hints: Partial<Record<PatchSource, string>> = { velocity: 'per note', note: 'key track', aftertouch: 'channel', random: 'per note', compressor: 'ducking', x: 'MPE', y: 'MPE' }
   return hints[s] ?? ''
