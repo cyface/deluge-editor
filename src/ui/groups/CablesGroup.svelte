@@ -1,14 +1,13 @@
 <script lang="ts">
-  import { CABLE_ATTR_ORDER, paramLabel, type ParamName, type PatchSource, type SoundElement } from '../../core/preset'
+  import { CABLE_ATTR_ORDER, type ParamName, type PatchSource, type SoundElement } from '../../core/preset'
   import { addCable, cableMenu, cables, removeCable, setCableMenu } from '../../core/preset/sound'
   import { formatCable } from '../../core/params/scale'
   import { setAttr } from '../../core/xml'
   import Knob from '../controls/Knob.svelte'
   import Select from '../controls/Select.svelte'
-  import { destinationOptions, polarityOptions, sourceOptions } from '../options'
-  import { sourceColor, sourceName } from '../sources'
+  import { destinationOptions, sourceOptions } from '../options'
+  import { sourceColor } from '../sources'
   import { editor } from '../state/editor.svelte'
-  import { groupOf } from '../groups'
 
   interface Props { sound: SoundElement }
   let { sound }: Props = $props()
@@ -18,21 +17,33 @@
 
 <div class="cables">
   {#each list as c, i (c)}
+    {@const effPolarity = c.attrs.polarity ?? (c.attrs.source === 'aftertouch' ? 'unipolar' : 'bipolar')}
     <div class="cable" class:hl={editor.inspect === c.attrs.source} data-cable={i}>
-      <span class="sw" style="background:{sourceColor(c.attrs.source)}"></span>
+      <!-- The elbow leaves the source field's centre, squares down, and squares
+           back in to the destination field's centre: signal flow, not decoration. -->
+      <svg class="arrow" width="20" height="96" viewBox="0 0 20 96" aria-hidden="true">
+        <path d="M20 33 H 5 V 84 H 9" fill="none" stroke={sourceColor(c.attrs.source)} stroke-width="2" stroke-linejoin="miter" />
+        <path d="M9 79 L 17 84 L 9 89 Z" fill={sourceColor(c.attrs.source)} />
+      </svg>
       <div class="sel">
         <Select label="Source" name="cable{i}.source" value={c.attrs.source} options={sourceOptions(editor.supports)} onchange={(v) => setAttr(c, 'source', v, CABLE_ATTR_ORDER)} />
         <Select label="Destination" name="cable{i}.destination" value={c.attrs.destination} options={destinationOptions(editor.supports)} onchange={(v) => setAttr(c, 'destination', v, CABLE_ATTR_ORDER)} />
+      </div>
+      <div class="amt">
+        <Knob label="Amount" value={Math.round(cableMenu(c) / 100)} min={-50} max={50} onchange={(n) => setCableMenu(c, n * 100)} param="cable{i}.amount" title={formatCable(cableMenu(c))} />
         {#if polarity}
-          <Select label="Polarity" name="cable{i}.polarity" value={c.attrs.polarity} options={polarityOptions()} onchange={(v) => setAttr(c, 'polarity', v, CABLE_ATTR_ORDER)} />
+          <!-- An absent polarity is bipolar, except an aftertouch source which
+               defaults unipolar (readPatchCablesFromFile, patch_cable_set.cpp:827-833). -->
+          <div class="pol" class:default={c.attrs.polarity === undefined}>
+            <button type="button" class:on={effPolarity === 'bipolar'} data-attr="cable{i}.polarity.bipolar" title={c.attrs.polarity === undefined && effPolarity === 'bipolar' ? 'Bipolar (the default — the file omits polarity)' : 'Bipolar'} onclick={() => setAttr(c, 'polarity', 'bipolar', CABLE_ATTR_ORDER)}>± bi</button>
+            <button type="button" class:on={effPolarity === 'unipolar'} data-attr="cable{i}.polarity.unipolar" title={c.attrs.polarity === undefined && effPolarity === 'unipolar' ? 'Unipolar (the default for aftertouch — the file omits polarity)' : 'Unipolar'} onclick={() => setAttr(c, 'polarity', 'unipolar', CABLE_ATTR_ORDER)}>+ uni</button>
+          </div>
         {/if}
       </div>
-      <Knob label="Amount" value={Math.round(cableMenu(c) / 100)} min={-50} max={50} onchange={(n) => setCableMenu(c, n * 100)} param="cable{i}.amount" title={formatCable(cableMenu(c))} />
       <button type="button" class="btn small x" title="Remove cable" onclick={() => removeCable(sound, c)}>✕</button>
       {#if c.children.length}
         <div class="nested">{c.children.length} cable{c.children.length === 1 ? '' : 's'} modulate this depth (kept as is)</div>
       {/if}
-      <div class="where">{sourceName(c.attrs.source)} → {paramLabel(c.attrs.destination ?? '?')}{#if groupOf(c.attrs.destination)} · {groupOf(c.attrs.destination)?.name}{/if}</div>
     </div>
   {:else}
     <p class="empty">Nothing patched. Every knob is exactly its stored value.</p>
@@ -44,11 +55,21 @@
 
 <style>
   .cables { margin: 6px 0 0 4px; }
-  .cable { display: grid; grid-template-columns: 6px 1fr auto auto; gap: 8px; align-items: end; padding: 7px 8px; border-radius: 3px; background: #1b1815; border: 1px solid var(--edge); margin-bottom: 6px; }
+  .cable { display: grid; grid-template-columns: 12px 1fr auto auto; gap: 6px 8px; align-items: start; padding: 7px 8px; border-radius: 3px; background: #1b1815; border: 1px solid var(--edge); margin-bottom: 6px; }
   .cable.hl { border-color: var(--brass-dim); }
-  .sw { width: 6px; height: 100%; min-height: 40px; border-radius: 2px; }
-  .sel { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 6px; }
+  .sel { display: grid; gap: 5px; }
+  /* The svg overhangs its column so the elbow's ends actually touch the fields. */
+  .arrow { display: block; margin-right: -8px; }
+  .amt { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .pol { display: flex; gap: 2px; }
+  .pol button {
+    background: #100e0c; border: 1px solid var(--edge-hi); border-radius: 3px; color: var(--muted); cursor: pointer;
+    font-family: var(--cond); font-size: 9.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; padding: 2px 6px;
+  }
+  .pol button.on { background: linear-gradient(180deg, #3d2f15, #251c0e); border-color: var(--brass-dim); color: var(--brass-hi); }
+  /* A default (file omits polarity) shows dimmed, not italic — small caps stay legible. */
+  .pol.default button.on { opacity: .75; }
   .x { color: var(--faint); }
-  .nested, .where { grid-column: 2 / -1; font-family: var(--mono); font-size: 9.5px; color: var(--faint); }
+  .nested { grid-column: 1 / -1; font-family: var(--mono); font-size: 9.5px; color: var(--faint); }
   .add { margin: 4px 0 0 4px; }
 </style>
