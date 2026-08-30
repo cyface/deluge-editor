@@ -1,0 +1,5 @@
+# esbuild is Vite's compiler and workerd is wrangler's runtime; both ship a
+# native binary via an install script, which pnpm blocks unless listed here.
+allowBuilds:
+  esbuild: true
+  workerd: true
