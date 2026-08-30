@@ -3,13 +3,14 @@
     AUDIO_COMPRESSOR_ATTR_ORDER, EQUALIZER_ATTR_ORDER, MIDI_OUTPUT_ATTR_ORDER, PARAMS_CHILD_ORDER,
     SIDECHAIN_ATTR_ORDER, SOUND_CHILD_ORDER, SOUND_PARAM_ATTRS, STUTTER_ATTR_ORDER, type SoundElement,
   } from '../../core/preset'
-  import { ensureParams, params } from '../../core/preset/sound'
+  import { addCable, cableMenu, cables, ensureParams, params, setCableMenu } from '../../core/preset/sound'
   import {
-    blendToKnob, compressorToKnob, knobToBlend, knobToCompressor, menuToSidechainAttack, menuToSidechainRelease,
+    blendToKnob, compressorToKnob, formatCable, knobToBlend, knobToCompressor, menuToSidechainAttack, menuToSidechainRelease,
     sidechainAttackToMenu, sidechainReleaseToMenu,
   } from '../../core/params/scale'
   import { child, ensureChild, setAttr } from '../../core/xml'
   import HexKnob from '../controls/HexKnob.svelte'
+  import Knob from '../controls/Knob.svelte'
   import IntKnob from '../controls/IntKnob.svelte'
   import NumberField from '../controls/NumberField.svelte'
   import Select from '../controls/Select.svelte'
@@ -24,6 +25,15 @@
   const EQ = () => ensureChild(P(), 'equalizer', PARAMS_CHILD_ORDER)
   // Community ≥ 1.1 writes <sidechain>, official <compressor>; the reader takes either.
   const sc = $derived(child(sound, 'sidechain') ?? child(sound, 'compressor'))
+  // The ducking amount is the sidechain → volumePostReverbSend cable (its source
+  // is spelled "compressor" in XML), same value the device's VOLUME DUCKING edits.
+  const duckCable = $derived(
+    cables(sound).find((c) => c.attrs.source === 'compressor' && c.attrs.destination === 'volumePostReverbSend'),
+  )
+  const setDucking = (n: number) => {
+    if (duckCable) setCableMenu(duckCable, n * 100)
+    else setCableMenu(addCable(sound, 'compressor', 'volumePostReverbSend'), n * 100)
+  }
   const SC = () => ensureChild(sound, editor.supports('sidechainTag') ? 'sidechain' : 'compressor', SOUND_CHILD_ORDER)
   const comp = $derived(child(sound, 'audioCompressor'))
   const COMP = () => ensureChild(sound, 'audioCompressor', SOUND_CHILD_ORDER)
@@ -47,8 +57,13 @@
   <HexKnob el={eq} ensure={EQ} attr="trebleFrequency" label="Treble Freq" order={EQUALIZER_ATTR_ORDER} {sound} dest="trebleFreq" />
 </div>
 
-<div class="h3">Sidechain <span class="sub">ducking from the song's sidechain</span></div>
+<div class="h3">Sidechain</div>
+<p class="hint">Ducking from the song's sidechain.</p>
 <div class="knobrow">
+  <!-- The device's VOLUME DUCKING knob is really the strength of the
+       sidechain → volumePostReverbSend patch cable (sidechain::VolumeShortcut,
+       gui/ui/menus.cpp:561), so this knob edits that cable. -->
+  <Knob label="Ducking" value={duckCable ? Math.round(cableMenu(duckCable) / 100) : 0} min={-50} max={50} param="sidechain.ducking" title={duckCable ? formatCable(cableMenu(duckCable)) : 'no cable yet'} onchange={setDucking} />
   <IntKnob el={sc} ensure={SC} attr="attack" label="Attack" read={sidechainAttackToMenu} write={menuToSidechainAttack} order={SIDECHAIN_ATTR_ORDER} />
   <IntKnob el={sc} ensure={SC} attr="release" label="Release" read={sidechainReleaseToMenu} write={menuToSidechainRelease} order={SIDECHAIN_ATTR_ORDER} />
   <HexKnob el={params(sound)} ensure={P} attr="compressorShape" label="Shape" order={SOUND_PARAM_ATTRS} {sound} />
@@ -75,7 +90,8 @@
 {/if}
 
 {#if editor.supports('stutterConfig')}
-  <div class="h3">Stutter <span class="sub">used only when the sound's own stutter is selected on the device</span></div>
+  <div class="h3">Stutter</div>
+  <p class="hint">Used only when the sound's own stutter is selected on the device.</p>
   <div class="knobrow">
     <HexKnob el={params(sound)} ensure={P} attr="stutterRate" label="Rate" order={SOUND_PARAM_ATTRS} {sound} />
   </div>
