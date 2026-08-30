@@ -53,6 +53,11 @@ pnpm build   # static bundle     pnpm dev     # vite
   Serializer: `src/deluge/processing/sound/sound.cpp` (`Sound::writeToFile`),
   `src/deluge/model/instrument/kit.cpp`; enum string tables in
   `src/deluge/util/functions.cpp` and `storage/storage_manager.cpp`.
+  Official 4.1.4 source is the same repo's `synthstrom-official` branch
+  (flat `src/`, writes `firmwareVersion="4.1.4-alpha"`); community releases
+  are tags `release_1_0` … `release_1_2_1`. To date a feature, `git grep` the
+  XML name at the release tag — `git tag --contains` misses cherry-picks onto
+  the `release/1.x` branches.
 - The firmware checkout's `.claude/skills/deluge-preset-xml/SKILL.md`
   (`local-fixes` branch) documents patcher arithmetic, envelope tables, sample
   range rules and serializer element order, all verified against source.
