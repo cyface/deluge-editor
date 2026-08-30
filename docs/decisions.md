@@ -120,3 +120,28 @@ tested against the fixtures, and the UI renders the result verbatim. It reads
 the model through the same accessors the panels edit with, so it can't
 disagree with a knob. Its thresholds are judgement calls ("half-open" below 32)
 but each is one number in one place.
+
+## A save to the card is verified, not assumed
+
+Card access speaks the community firmware's smSysex protocol
+(`src/core/sysex/`, from `storage/smsysex.cpp`; community 1.3.0+, cited in
+the `smSysex` feature entry). Three of its behaviours are easy to build a
+data-loser on, so the client treats the card as hostile:
+
+- A request can vanish with no reply — the firmware silently drops SysEx over
+  its 1024-byte receive buffer and queues requests behind card access — so
+  every command runs on a timeout ladder and a resend takes a fresh message
+  id. Write chunks are 512 bytes (~645 packed), never near the buffer.
+- A short write is **not an error**: the firmware commits what arrived and
+  replies `err=0` with the real count in `size`. The count is checked and the
+  chunk rewritten, or the file would be silently holed with zeros.
+- After the last chunk, the file is read back and byte-compared. A file with
+  the right name and size proves nothing; only the read-back does, and the
+  panel says "read back byte-identical" because that is literally the test.
+
+The client is framework-free and its tests run against a fake Deluge
+(`src/core/sysex/fake-deluge.ts`) transcribed from `smsysex.cpp` — the fake
+drops oversized frames, short-writes, and pages directories at 25 lines,
+because those are the firmware behaviours worth testing against. Loading from
+the card goes through the same `editor.load` as drag-drop, so the round-trip
+guarantees are identical.

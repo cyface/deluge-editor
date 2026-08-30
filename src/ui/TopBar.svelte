@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { card } from './state/card.svelte'
   import { editor } from './state/editor.svelte'
   import Mark from './Mark.svelte'
 
@@ -39,6 +40,7 @@
     </select>
   </label>
   <input bind:this={fileInput} type="file" accept=".xml,.XML,text/xml,application/xml" hidden data-testid="file-input" onchange={pick} />
+  <button type="button" class="btn" class:on={card.open} data-testid="card-button" title={card.supported ? "Browse the Deluge's SD card over MIDI" : 'Web MIDI needs Chrome or Edge'} onclick={() => card.toggle()}>Card</button>
   <button type="button" class="btn" onclick={() => fileInput?.click()}>Open</button>
   <button type="button" class="btn" disabled={!editor.preset} onclick={download}>Download</button>
   <button type="button" class="btn" class:on={editor.showChanges} disabled={!editor.preset} data-testid="changes-button" onclick={() => (editor.showChanges = !editor.showChanges)}>

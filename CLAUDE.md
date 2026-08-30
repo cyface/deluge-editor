@@ -15,7 +15,8 @@ issues in dependency order (`gh issue list`).
   `preset/` is the typed view over it (enum string tables, param names,
   element shapes).
 - `src/ui/` — Svelte 5 (runes) components. `state/editor.svelte.ts` is the
-  one store (the tree is a `$state` proxy; core accessors write through it);
+  main store (the tree is a `$state` proxy; core accessors write through it);
+  `state/card.svelte.ts` wires `src/core/sysex` to Web MIDI (`CardPanel.svelte`);
   `groups.ts` defines the flow blocks; `controls/` are the knob, selects,
   graphs; `groups/` one panel per block. Values are read and written only
   through `src/core/preset/sound.ts` and `src/core/xml/edit.ts`, never by

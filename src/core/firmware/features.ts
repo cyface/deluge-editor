@@ -294,6 +294,18 @@ export const FEATURES = {
       'a495e10e "Reverse probability" (2025-02-15), 54792979 "Glide probability" (2025-06-21), ' +
       'e3233a56 "Rename STEP PROBABILITY to SWAP PROBABILITY" (2025-07-05).',
   },
+  /**
+   * The smSysex JSON-over-SysEx protocol for card access (`session`, `open`,
+   * `read`, `write`, `dir`, …). Not preset content — this gates the card
+   * panel's honesty note, not a control.
+   */
+  smSysex: {
+    community: 'c1.3.0',
+    source:
+      '7759705a #2853 "Add SysEx protocol for file browsing and transfer between the Deluge & the ' +
+      "'vuefinder' web application\" (2024-11-11), src/deluge/storage/smsysex.cpp; after release_1_2_1, " +
+      'so community 1.3.0 only. Inbound SysEx spanning USB transfers also only works from the 1.3.0 fixes (#4633).',
+  },
   /** `<arpeggiator kitArp>`: include this row in the kit-level arpeggiator. */
   kitArp: {
     community: 'c1.3.0',

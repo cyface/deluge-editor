@@ -1,4 +1,5 @@
 <script lang="ts">
+  import CardPanel from './CardPanel.svelte'
   import ChangesDock from './ChangesDock.svelte'
   import EmptyState from './EmptyState.svelte'
   import FlowStrip from './FlowStrip.svelte'
@@ -42,6 +43,7 @@
     <EmptyState />
   {/if}
   <ChangesDock />
+  <CardPanel />
 </div>
 
 <style>
