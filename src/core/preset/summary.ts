@@ -42,7 +42,9 @@ const oscWord = (sound: SoundElement, n: 1 | 2): string => {
   const o = osc(sound, n)
   const t = o?.attrs.type
   if (sound.attrs.mode === 'fm') return 'sine'
-  if (t === undefined) return 'saw'
+  // An absent type plays square: the Source constructor default survives file
+  // load (src/deluge/processing/source.cpp:41).
+  if (t === undefined) return 'square'
   if (t === 'sample') {
     const file = o?.attrs.fileName ?? child(o!, 'sampleRanges')?.children[0]?.attrs.fileName
     return file ? `sample ${file.split('/').pop()}` : 'sample'
@@ -51,7 +53,7 @@ const oscWord = (sound: SoundElement, n: 1 | 2): string => {
 }
 const oscShort = (sound: SoundElement, n: 1 | 2): string => {
   const t = osc(sound, n)?.attrs.type
-  return sound.attrs.mode === 'fm' ? 'SIN' : t === undefined ? 'SAW' : (OSC_TYPE_SHORT[t] ?? t.toUpperCase())
+  return sound.attrs.mode === 'fm' ? 'SIN' : t === undefined ? 'SQR' : (OSC_TYPE_SHORT[t] ?? t.toUpperCase())
 }
 
 const srcName = (src: string): string => PATCH_SOURCE_NAMES[src as keyof typeof PATCH_SOURCE_NAMES] ?? src

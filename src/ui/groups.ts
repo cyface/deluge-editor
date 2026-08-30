@@ -80,7 +80,7 @@ export const GROUPS: readonly Group[] = [
       const noise = paramMenu(s, 'noiseVolume') ?? 0
       return `${bits.join(' + ')}${noise > 0 ? ` + noise ${noise}` : ''}`
     },
-    value: (s) => (s.attrs.mode === 'fm' ? 'FM' : (OSC_TYPE_SHORT[osc(s, 1)?.attrs.type ?? 'saw'] ?? '')),
+    value: (s) => (s.attrs.mode === 'fm' ? 'FM' : (OSC_TYPE_SHORT[osc(s, 1)?.attrs.type ?? 'square'] ?? '')),
   },
   {
     id: 'voice',
@@ -211,8 +211,7 @@ export const GROUPS: readonly Group[] = [
     owns: [],
     summary: (s) => {
       const c = cables(s)
-      if (!c.length) return 'no cables'
-      return `${c.length} cable${c.length === 1 ? '' : 's'}: ${c.slice(0, 3).map((x) => `${x.attrs.source} → ${paramLabel(x.attrs.destination ?? '?')}`).join(', ')}${c.length > 3 ? '…' : ''}`
+      return c.length ? `${c.length} cable${c.length === 1 ? '' : 's'}` : 'no cables'
     },
     value: (s) => String(cables(s).length),
   },

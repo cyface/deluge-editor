@@ -17,27 +17,29 @@
   const modern = $derived(editor.supports('arpModes'))
 </script>
 
+<!-- Fallbacks are ArpeggiatorSettings' member defaults (modulation/arpeggiator.h:73-99,
+     syncType from the constructor); syncLevel is derived from the song, so no constant. -->
 <div class="fields">
   {#if modern}
-    <Select label="Arp" name="arpeggiator.arpMode" value={arp?.attrs.arpMode} options={arpModeOptions()} onchange={set('arpMode')} />
-    <Select label="Note Order" name="arpeggiator.noteMode" value={arp?.attrs.noteMode} options={arpNoteModeOptions(editor.supports)} onchange={set('noteMode')} />
-    <Select label="Octave Order" name="arpeggiator.octaveMode" value={arp?.attrs.octaveMode} options={arpOctaveModeOptions()} onchange={set('octaveMode')} />
+    <Select label="Arp" name="arpeggiator.arpMode" value={arp?.attrs.arpMode} options={arpModeOptions()} fallback="off" onchange={set('arpMode')} />
+    <Select label="Note Order" name="arpeggiator.noteMode" value={arp?.attrs.noteMode} options={arpNoteModeOptions(editor.supports)} fallback="up" onchange={set('noteMode')} />
+    <Select label="Octave Order" name="arpeggiator.octaveMode" value={arp?.attrs.octaveMode} options={arpOctaveModeOptions()} fallback="up" onchange={set('octaveMode')} />
   {:else}
-    <Select label="Mode" name="arpeggiator.mode" value={arp?.attrs.mode} options={oldArpModeOptions()} onchange={set('mode')} />
+    <Select label="Mode" name="arpeggiator.mode" value={arp?.attrs.mode} options={oldArpModeOptions()} fallback="off" onchange={set('mode')} />
   {/if}
   <Select label="Sync" name="arpeggiator.syncLevel" value={arp?.attrs.syncLevel} options={syncLevelOptions()} onchange={set('syncLevel')} />
   {#if editor.supports('syncType')}
-    <Select label="Sync Type" name="arpeggiator.syncType" value={arp?.attrs.syncType} options={syncTypeOptions()} onchange={set('syncType')} />
+    <Select label="Sync Type" name="arpeggiator.syncType" value={arp?.attrs.syncType} options={syncTypeOptions()} fallback="0" onchange={set('syncType')} />
   {/if}
-  <NumberField label="Octaves" name="arpeggiator.numOctaves" value={arp?.attrs.numOctaves} min={1} max={8} onchange={set('numOctaves')} />
+  <NumberField label="Octaves" name="arpeggiator.numOctaves" value={arp?.attrs.numOctaves} min={1} max={8} fallback={2} onchange={set('numOctaves')} />
   {#if editor.supports('arpMpeVelocity')}
-    <Select label="MPE → Velocity" name="arpeggiator.mpeVelocity" value={arp?.attrs.mpeVelocity} options={arpMpeOptions()} onchange={set('mpeVelocity')} />
+    <Select label="MPE → Velocity" name="arpeggiator.mpeVelocity" value={arp?.attrs.mpeVelocity} options={arpMpeOptions()} fallback="off" onchange={set('mpeVelocity')} />
   {/if}
   {#if editor.supports('arpChordType')}
-    <NumberField label="Chord Type" name="arpeggiator.chordType" value={arp?.attrs.chordType} min={0} max={32} onchange={set('chordType')} />
+    <NumberField label="Chord Type" name="arpeggiator.chordType" value={arp?.attrs.chordType} min={0} max={32} fallback={0} onchange={set('chordType')} />
   {/if}
   {#if editor.supports('arp3')}
-    <NumberField label="Step Repeat" name="arpeggiator.stepRepeat" value={arp?.attrs.stepRepeat} min={1} max={16} onchange={set('stepRepeat')} />
+    <NumberField label="Step Repeat" name="arpeggiator.stepRepeat" value={arp?.attrs.stepRepeat} min={1} max={16} fallback={1} onchange={set('stepRepeat')} />
   {/if}
 </div>
 <div class="knobrow">

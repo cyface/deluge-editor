@@ -6,7 +6,7 @@
   import IntKnob from '../controls/IntKnob.svelte'
   import NumberField from '../controls/NumberField.svelte'
   import Select from '../controls/Select.svelte'
-  import { polyphonyOptions, synthModeOptions, voicePriorityOptions } from '../options'
+  import { polyphonyOptions, voicePriorityOptions } from '../options'
   import { editor } from '../state/editor.svelte'
 
   interface Props { sound: SoundElement }
@@ -21,7 +21,6 @@
   {#if editor.supports('maxVoices')}
     <NumberField label="Max Voices" name="maxVoices" value={sound.attrs.maxVoices} min={1} max={16} onchange={set('maxVoices')} />
   {/if}
-  <Select label="Synth Mode" name="mode" value={sound.attrs.mode} options={synthModeOptions()} onchange={set('mode')} />
   <NumberField label="Transpose" name="transpose" value={sound.attrs.transpose} min={-96} max={96} onchange={set('transpose')} />
   <Select label="Voice Priority" name="voicePriority" value={sound.attrs.voicePriority} options={voicePriorityOptions()} onchange={set('voicePriority')} />
 </div>

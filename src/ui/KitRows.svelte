@@ -13,7 +13,7 @@
     if (r.tag === 'midiOutput') return `MIDI ch ${Number(r.attrs.channel ?? 0) + 1} · note ${r.attrs.note ?? '?'}`
     if (r.tag === 'gateOutput') return `Gate ${Number(r.attrs.channel ?? 0) + 1}`
     const o = osc(r, 1)
-    const t = o?.attrs.type ?? 'saw'
+    const t = o?.attrs.type ?? 'square' // Source ctor default survives load (source.cpp:41)
     if (t === 'sample') {
       const file = o?.attrs.fileName ?? child(o!, 'sampleRanges')?.children[0]?.attrs.fileName ?? ''
       return `${file || '(no file)'}${o?.attrs.loopMode ? ` · ${LOOP_MODE_NAMES[o.attrs.loopMode] ?? o.attrs.loopMode}` : ''}`

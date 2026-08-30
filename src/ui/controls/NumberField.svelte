@@ -9,8 +9,10 @@
     onchange: (n: number) => void
     name?: string
     format?: (n: number) => string
+    /** The firmware's default value, when its source has been cited. */
+    fallback?: number
   }
-  let { label, value, min, max, onchange, name, format }: Props = $props()
+  let { label, value, min, max, onchange, name, format, fallback }: Props = $props()
   const id = `num-${Math.random().toString(36).slice(2, 8)}`
   const shown = $derived(value === undefined ? '' : String(value))
   function change(e: Event) {
@@ -24,7 +26,7 @@
 
 <div class="f">
   <label for={id}>{label}{#if format && value !== undefined}<span class="fmt"> · {format(Number(value))}</span>{/if}</label>
-  <input {id} type="number" data-attr={name} value={shown} placeholder="default" {min} {max} step="1" onchange={change} />
+  <input {id} type="number" data-attr={name} value={shown} placeholder={fallback === undefined ? 'default' : `default · ${fallback}`} {min} {max} step="1" onchange={change} />
 </div>
 
 <style>

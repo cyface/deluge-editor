@@ -1,6 +1,6 @@
 <script lang="ts">
   import {
-    OSC_ATTR_ORDER, MODULATOR_ATTR_ORDER, SOUND_CHILD_ORDER, SOUND_PARAM_ATTRS,
+    OSC_ATTR_ORDER, MODULATOR_ATTR_ORDER, SOUND_ATTR_ORDER, SOUND_CHILD_ORDER, SOUND_PARAM_ATTRS,
     type OscElement, type SoundElement,
   } from '../../core/preset'
   import { ensureParams, osc, params } from '../../core/preset/sound'
@@ -10,7 +10,7 @@
   import NumberField from '../controls/NumberField.svelte'
   import Select from '../controls/Select.svelte'
   import Toggle from '../controls/Toggle.svelte'
-  import { loopModeOptions, oscTypeOptions } from '../options'
+  import { loopModeOptions, oscTypeOptions, synthModeOptions } from '../options'
   import { editor } from '../state/editor.svelte'
 
   interface Props { sound: SoundElement }
@@ -34,15 +34,25 @@
   const attr = (n: 1 | 2, s: string) => `osc${label[n]}${s}` as (typeof SOUND_PARAM_ATTRS)[number]
 </script>
 
+<!-- The mode reshapes this whole panel (subtractive / FM / ringmod), so it lives here. -->
+<div class="fields">
+  <Select label="Synth Mode" name="mode" value={sound.attrs.mode} options={synthModeOptions()} onchange={(v) => setAttr(sound, 'mode', v, SOUND_ATTR_ORDER)} />
+</div>
+
 {#each [1, 2] as const as n (n)}
   {@const o = osc(sound, n)}
-  {@const type = fm ? 'sine' : (o?.attrs.type ?? 'saw')}
-  <div class="h3">Osc {label[n]}{#if fm}<span class="sub">carrier · sine</span>{/if}</div>
+  <!-- An absent type plays square: the Source constructor default survives file
+       load (source.cpp:41) — setupAsDefaultSynth's saw is only for new synths. -->
+  {@const type = fm ? 'sine' : (o?.attrs.type ?? 'square')}
+  <!-- In FM the firmware hides the osc type menu entirely — carriers are always
+       sine (osc::Type::isRelevant, gui/menu_item/osc/type.h) — so no Waveform select. -->
+  <div class="h3">Osc {label[n]}{#if fm}<span class="sub">FM carrier · always sine</span>{/if}</div>
   {#if !fm}
     <div class="fields">
-      <Select label="Waveform" name="osc{n}.type" value={o?.attrs.type} options={oscTypeOptions(editor.supports)} onchange={(v) => setAttr(ensureOsc(n)(), 'type', v, OSC_ATTR_ORDER)} />
+      <Select label="Waveform" name="osc{n}.type" value={o?.attrs.type} options={oscTypeOptions(editor.supports)} fallback="square" onchange={(v) => setAttr(ensureOsc(n)(), 'type', v, OSC_ATTR_ORDER)} />
       {#if type === 'sample'}
-        <Select label="Loop" name="osc{n}.loopMode" value={o?.attrs.loopMode} options={loopModeOptions()} onchange={(v) => setAttr(ensureOsc(n)(), 'loopMode', v, OSC_ATTR_ORDER)} />
+        <!-- repeatMode = SampleRepeatMode::CUT in the Source constructor (source.cpp:38). -->
+        <Select label="Loop" name="osc{n}.loopMode" value={o?.attrs.loopMode} options={loopModeOptions()} fallback="0" onchange={(v) => setAttr(ensureOsc(n)(), 'loopMode', v, OSC_ATTR_ORDER)} />
       {/if}
     </div>
   {/if}
