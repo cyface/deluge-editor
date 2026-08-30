@@ -1,10 +1,28 @@
+import type { Preset } from '../preset/types'
+import { serialize } from './generate'
+import { parseTree } from './parse'
+
 export { diffFlat, flattenXML, isClean } from './flatten'
 export type { FlatDiff, FlatXML } from './flatten'
+export { child, childrenOf, element } from './element'
+export type { Attrs, ChildMap, XmlElement } from './element'
+export { parseTree } from './parse'
+export { serialize } from './generate'
 
-/** Placeholder until the preset model exists. The round-trip test targets these. */
-export function parseXML(_xml: string): unknown {
-  throw new Error('parseXML: not implemented')
+/**
+ * Parse a Deluge synth (`<sound>`) or kit (`<kit>`) preset, in either the
+ * pre-3.0 nested format or the current attribute format. Everything in the
+ * file is kept; see `element.ts`.
+ */
+export function parseXML(xml: string): Preset {
+  const roots = parseTree(xml)
+  if (roots.length !== 1) throw new SyntaxError(`expected one root element, found ${roots.length}`)
+  const root = roots[0]
+  if (root.tag !== 'sound' && root.tag !== 'kit') throw new SyntaxError(`not a Deluge preset: <${root.tag}>`)
+  return root as Preset
 }
-export function generateXML(_preset: unknown): string {
-  throw new Error('generateXML: not implemented')
+
+/** Write a preset in the current attribute format, laid out as the firmware lays it out. */
+export function generateXML(preset: Preset): string {
+  return serialize([preset])
 }

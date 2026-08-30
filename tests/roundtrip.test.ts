@@ -27,5 +27,12 @@ describe('round trip', () => {
       const twice = generateXML(parseXML(once))
       expect(twice).toBe(once)
     })
+    // The pre-3.0 nested format is read but never written, so only files in
+    // the attribute format can come back byte for byte.
+    if (!name.includes('old-format')) {
+      it(`${name}: is reproduced byte for byte`, () => {
+        expect(generateXML(parseXML(src))).toBe(src)
+      })
+    }
   }
 })

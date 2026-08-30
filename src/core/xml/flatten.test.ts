@@ -15,11 +15,14 @@ const src = `<?xml version="1.0" encoding="UTF-8"?>
 
 describe('flattenXML', () => {
   const f = flattenXML(src)
-  it('maps attributes, text, and nested elements to paths', () => {
+  it('maps attributes and nested elements to paths', () => {
     expect(f.get('sound@firmwareVersion')).toBe('c1.3.0')
     expect(f.get('sound/osc1@type')).toBe('saw')
     expect(f.get('sound/defaultParams@lpfResonance')).toBe('0x80000000')
-    expect(f.get('sound/name#text')).toBe('Init')
+  })
+  it('gives a value written as a leaf element the attribute path', () => {
+    expect(f.get('sound@name')).toBe('Init')
+    expect(f.has('sound/name#text')).toBe(false)
   })
   it('indexes repeated siblings by position and leaves singletons unindexed', () => {
     expect(f.get('sound/defaultParams/patchCables/patchCable[0]@source')).toBe('lfo1')
@@ -28,6 +31,52 @@ describe('flattenXML', () => {
   })
   it('throws on malformed XML', () => {
     expect(() => flattenXML('<sound><osc1></sound>')).toThrow(SyntaxError)
+  })
+  it('reads the pre-3.0 format as the attribute format', () => {
+    const old = `<?xml version="1.0" encoding="UTF-8"?>
+<firmwareVersion>2.0.0-beta</firmwareVersion>
+<earliestCompatibleFirmware>2.0.0-beta</earliestCompatibleFirmware>
+<sound>
+	<osc1>
+		<type>saw</type>
+		<transpose>0</transpose>
+	</osc1>
+	<polyphonic>poly</polyphonic>
+	<defaultParams>
+		<lpfFrequency>0x7FFFFFFF</lpfFrequency>
+		<patchCables>
+			<patchCable>
+				<source>lfo1</source>
+				<amount>0x19999999</amount>
+			</patchCable>
+		</patchCables>
+	</defaultParams>
+	<midiKnobs>
+	</midiKnobs>
+	<name></name>
+</sound>`
+    const current = `<?xml version="1.0" encoding="UTF-8"?>
+<sound
+	firmwareVersion="2.0.0-beta"
+	earliestCompatibleFirmware="2.0.0-beta"
+	polyphonic="poly"
+	name="">
+	<osc1 type="saw" transpose="0" />
+	<defaultParams lpfFrequency="0x7FFFFFFF">
+		<patchCables>
+			<patchCable source="lfo1" amount="0x19999999" />
+		</patchCables>
+	</defaultParams>
+	<midiKnobs>
+	</midiKnobs>
+</sound>`
+    expect(isClean(diffFlat(flattenXML(old), flattenXML(current)))).toBe(true)
+    expect(flattenXML(old).get('sound@firmwareVersion')).toBe('2.0.0-beta')
+    expect(flattenXML(old).get('sound@name')).toBe('')
+  })
+  it('takes an ampersand literally, as the firmware does', () => {
+    expect(flattenXML('<sound><osc1 fileName="SAMPLES/Drums &amp; Perc/k.wav" /></sound>').get('sound/osc1@fileName')).toBe('SAMPLES/Drums &amp; Perc/k.wav')
+    expect(flattenXML('<sound><osc1 fileName="SAMPLES/Drums & Perc/k.wav" /></sound>').get('sound/osc1@fileName')).toBe('SAMPLES/Drums & Perc/k.wav')
   })
 })
 

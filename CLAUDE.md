@@ -9,8 +9,11 @@ A from-scratch Svelte 5 + TypeScript preset editor for the Synthstrom Deluge.
 Public at github.com/cyface/deluge-editor, MIT. Work is tracked as GitHub
 issues in dependency order (`gh issue list`).
 
-- `src/core/` — framework-free TypeScript (params, xml, sysex, firmware). No
-  Svelte or DOM imports beyond `DOMParser`; tests run in Node via happy-dom.
+- `src/core/` — framework-free TypeScript (params, xml, preset, sysex,
+  firmware). No Svelte or DOM imports beyond `DOMParser`; tests run in Node
+  via happy-dom. `xml/` is the ordered element tree and its parser/writer;
+  `preset/` is the typed view over it (enum string tables, param names,
+  element shapes).
 - `src/ui/` — Svelte 5 (runes) components.
 - `tests/` — cross-cutting tests and the Deluge-authored XML fixtures.
 
