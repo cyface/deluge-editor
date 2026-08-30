@@ -6,6 +6,7 @@ export { diffFlat, flattenXML, isClean } from './flatten'
 export type { FlatDiff, FlatXML } from './flatten'
 export { child, childrenOf, element } from './element'
 export type { Attrs, ChildMap, XmlElement } from './element'
+export { ensureChild, insertChild, removeAttr, removeChild, setAttr } from './edit'
 export { parseTree } from './parse'
 export { serialize } from './generate'
 

@@ -263,3 +263,25 @@ export const KIT_PARAM_ATTRS = [
   'arpeggiatorRate',
 ] as const
 export type KitParamAttr = (typeof KIT_PARAM_ATTRS)[number]
+
+/**
+ * `<defaultParams>` attribute → the name a cable or knob uses for the same
+ * parameter, where they differ (`Sound::writeParamsToFile` literal vs
+ * `paramNameForFileConst`). Identity for everything else. `volume` in
+ * `<defaultParams>` is `GLOBAL_VOLUME_POST_FX`, whose file name is
+ * `volumePostFX`; a cable to `volume` reaches `LOCAL_VOLUME`, which is never
+ * written and is still the audible level.
+ */
+export const PARAM_ATTR_TO_NAME: Partial<Record<SoundParamAttr | KitParamAttr, ParamName>> = {
+  oscAPulseWidth: 'oscAPhaseWidth',
+  oscBPulseWidth: 'oscBPhaseWidth',
+  bitCrush: 'bitcrushAmount',
+  arpeggiatorRate: 'arpRate',
+  arpeggiatorGate: 'arpGate',
+  volume: 'volumePostFX',
+  modulator1Amount: 'modulator1Volume',
+  modulator2Amount: 'modulator2Volume',
+}
+
+export const paramNameOfAttr = (attr: string): string =>
+  (PARAM_ATTR_TO_NAME as Record<string, string>)[attr] ?? attr

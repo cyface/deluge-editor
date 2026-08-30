@@ -80,3 +80,43 @@ The firmware writes attribute values verbatim (`XMLSerializer::writeAttribute`,
 would load as the literal text `&amp;`. The editor does the same: every `&` is
 literal on the way in and written raw on the way out. Producing "valid" XML
 here would corrupt names on the instrument.
+
+## Numbers are shown as the Deluge shows them
+
+A knob reads 0–50 (pan −25..25, a cable −50.00..50.00, a sidechain rate 0–50,
+a compressor value 0–127) because that is what the instrument's menu shows for
+the same stored value, computed with the same integer arithmetic
+(`src/core/params/scale.ts`, from `gui/menu_item/value_scaling.cpp` and the
+menu items that call it). Setting a knob to 25 stores the int32 the Deluge
+would store for 25.
+
+Why: two editors that disagree about what "25" means make presets that drift
+when re-saved on the other. The firmware is the only reference that can't be
+argued with, and its conversions are small and lossless per menu step.
+
+Consequences:
+- A stored value between two menu steps reads as the nearer step and is only
+  rewritten when the knob is moved, so an untouched knob never changes a file.
+- A value the file omits reads as `—` and the knob's arc is empty: the
+  firmware's default applies and the editor does not guess what it is.
+  Moving the knob creates the attribute where the firmware writes it
+  (`src/core/preset/order.ts`).
+- `syncLevel` names (`16th`, `1-bar`) follow `syncValueToString` for the file
+  value, which is absolute; `syncType` is written as the enum value 0/10/19.
+
+## The selected firmware defaults to the file's, else to 4.1.4
+
+The controls are gated for the version in the top-bar pill. It starts as the
+loaded file's `firmwareVersion`; a file without one (the pre-3.0 nested format)
+or with one the editor can't parse starts at official `4.1.4`, the most
+conservative target, so no community-only control is offered for a file
+whose origin is unknown. Changing the pill changes nothing in the file — only
+which controls exist — and the values behind hidden controls still round-trip.
+
+## The summariser is a pure function in core
+
+The OLED sentence and its chips come from `src/core/preset/summary.ts`,
+tested against the fixtures, and the UI renders the result verbatim. It reads
+the model through the same accessors the panels edit with, so it can't
+disagree with a knob. Its thresholds are judgement calls ("half-open" below 32)
+but each is one number in one place.

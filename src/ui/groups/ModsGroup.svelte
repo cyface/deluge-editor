@@ -1,0 +1,73 @@
+<script lang="ts">
+  import { LFO_SCOPE } from '../../core/firmware/features'
+  import { ENVELOPE_ATTR_ORDER, LFO_ATTR_ORDER, SOUND_CHILD_ORDER, SOUND_PARAM_ATTRS, type SoundElement } from '../../core/preset'
+  import { cablesFrom, ensureEnvelope, ensureParams, envelope, lfo, params } from '../../core/preset/sound'
+  import { ensureChild, setAttr } from '../../core/xml'
+  import EnvGraph from '../controls/EnvGraph.svelte'
+  import HexKnob from '../controls/HexKnob.svelte'
+  import Seg from '../controls/Seg.svelte'
+  import Select from '../controls/Select.svelte'
+  import { lfoTypeOptions, syncLevelOptions, syncTypeOptions } from '../options'
+  import { sourceColor } from '../sources'
+  import { editor } from '../state/editor.svelte'
+
+  interface Props { sound: SoundElement }
+  let { sound }: Props = $props()
+  let envSel = $state(1)
+  let lfoSel = $state(1)
+  type N = 1 | 2 | 3 | 4
+  const envs = $derived([1, 2, 3, 4].filter((n) => n <= 2 || editor.supports(`env${n}`)))
+  const lfos = $derived([1, 2, 3, 4].filter((n) => n <= 2 || editor.supports(`lfo${n}`)))
+  $effect(() => { if (!envs.includes(envSel)) envSel = 1 })
+  $effect(() => { if (!lfos.includes(lfoSel)) lfoSel = 1 })
+
+  const envItems = $derived(
+    envs.map((n) => ({
+      id: n,
+      label: String(n),
+      sup: n === 1 ? 'AMP' : undefined,
+      dot: cablesFrom(sound, `envelope${n}`).length ? sourceColor(`envelope${n}`) : undefined,
+      idle: !envelope(sound, n as N),
+      title: n === 1 ? 'Envelope 1 is hardwired to volume' : `Envelope ${n}`,
+    })),
+  )
+  const lfoItems = $derived(
+    lfos.map((n) => ({
+      id: n,
+      label: String(n),
+      sup: LFO_SCOPE[`lfo${n}` as keyof typeof LFO_SCOPE] === 'global' ? 'GLB' : 'VCE',
+      dot: cablesFrom(sound, `lfo${n}`).length ? sourceColor(`lfo${n}`) : undefined,
+      idle: !lfo(sound, n as N),
+      title: LFO_SCOPE[`lfo${n}` as keyof typeof LFO_SCOPE] === 'global' ? 'Runs once per sound: can reach global parameters and sync to tempo' : 'Runs per voice',
+    })),
+  )
+  const env = $derived(envelope(sound, envSel as N))
+  const theLfo = $derived(lfo(sound, lfoSel as N))
+  const ensureLfo = () => ensureChild(sound, `lfo${lfoSel as N}`, SOUND_CHILD_ORDER)
+  const lfoRateAttr = $derived(`lfo${lfoSel}Rate` as (typeof SOUND_PARAM_ATTRS)[number])
+  const lfoSyncs = $derived(lfoSel === 1 || lfoSel === 3 || (lfoSel === 2 && editor.supports('lfo2Sync')) || (lfoSel === 4 && editor.supports('lfo4')))
+</script>
+
+<div class="h3">Envelopes <span class="sub">{envs.filter((n) => envelope(sound, n as N)).length} in file</span></div>
+<Seg items={envItems} selected={envSel} onselect={(n) => (envSel = n)} />
+<EnvGraph {sound} selected={envSel} available={envs} />
+<div class="knobrow">
+  {#each ENVELOPE_ATTR_ORDER as stage (stage)}
+    <HexKnob el={env} ensure={() => ensureEnvelope(sound, envSel as N)} attr={stage} label={stage} order={ENVELOPE_ATTR_ORDER} {sound} dest="env{envSel}{stage[0].toUpperCase()}{stage.slice(1)}" />
+  {/each}
+</div>
+
+<div class="h3">LFOs <span class="sub">{lfos.filter((n) => lfo(sound, n as N)).length} in file</span></div>
+<Seg items={lfoItems} selected={lfoSel} onselect={(n) => (lfoSel = n)} />
+<div class="fields">
+  <Select label="Shape" name="lfo{lfoSel}.type" value={theLfo?.attrs.type} options={lfoTypeOptions(editor.supports)} onchange={(v) => setAttr(ensureLfo(), 'type', v, LFO_ATTR_ORDER)} />
+  {#if lfoSyncs}
+    <Select label="Sync" name="lfo{lfoSel}.syncLevel" value={theLfo?.attrs.syncLevel} options={syncLevelOptions()} onchange={(v) => setAttr(ensureLfo(), 'syncLevel', v, LFO_ATTR_ORDER)} />
+    {#if editor.supports('syncType')}
+      <Select label="Sync Type" name="lfo{lfoSel}.syncType" value={theLfo?.attrs.syncType} options={syncTypeOptions()} onchange={(v) => setAttr(ensureLfo(), 'syncType', v, LFO_ATTR_ORDER)} />
+    {/if}
+  {/if}
+</div>
+<div class="knobrow">
+  <HexKnob el={params(sound)} ensure={() => ensureParams(sound)} attr={lfoRateAttr} label="Rate" order={SOUND_PARAM_ATTRS} {sound} />
+</div>

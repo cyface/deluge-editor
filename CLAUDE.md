@@ -14,12 +14,18 @@ issues in dependency order (`gh issue list`).
   via happy-dom. `xml/` is the ordered element tree and its parser/writer;
   `preset/` is the typed view over it (enum string tables, param names,
   element shapes).
-- `src/ui/` — Svelte 5 (runes) components.
+- `src/ui/` — Svelte 5 (runes) components. `state/editor.svelte.ts` is the
+  one store (the tree is a `$state` proxy; core accessors write through it);
+  `groups.ts` defines the flow blocks; `controls/` are the knob, selects,
+  graphs; `groups/` one panel per block. Values are read and written only
+  through `src/core/preset/sound.ts` and `src/core/xml/edit.ts`, never by
+  poking `attrs` directly, so a new attribute lands where the firmware writes it.
 - `tests/` — cross-cutting tests and the Deluge-authored XML fixtures.
 
 ```sh
 pnpm test    # vitest, once      pnpm check   # svelte-check + tsc
 pnpm build   # static bundle     pnpm dev     # vite
+pnpm test:e2e  # Playwright smoke test (tests/e2e/), builds and previews first
 ```
 
 ## Rules that are easy to get wrong
@@ -36,6 +42,10 @@ pnpm build   # static bundle     pnpm dev     # vite
   zero missing/added/changed entries, then a byte-identical second save.
   Everything unmodelled passes through; element order is preserved; hex
   strings stay strings in state.
+- **Displayed numbers are the Deluge's own.** `src/core/params/scale.ts` is
+  the firmware's menu arithmetic (0–50, pan ±25, cable ±50.00, sidechain rate
+  tables, compressor knob positions); don't invent a mapping for a new control,
+  find the menu item's `readCurrentValue` and cite it.
 - **Enum strings match the firmware's string tables character for character.**
   The Deluge accepts bad XML silently: an unknown enum string resolves to the
   *last* table entry, `<unison num="0">` loads and is silent.

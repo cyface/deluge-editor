@@ -22,3 +22,5 @@ dist-ssr
 
 # test artefacts
 coverage
+test-results
+playwright-report
