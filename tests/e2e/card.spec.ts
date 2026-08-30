@@ -19,7 +19,7 @@ test('card: connect, browse, load, edit, save with verification, reload', async 
   await expect(page.getByTestId('card-button')).toHaveText('Connect')
   await page.getByTestId('card-button').click()
   await expect(page.getByTestId('card-panel')).toBeVisible()
-  await expect(page.getByTestId('card-button')).toHaveText('Device')
+  await expect(page.getByTestId('card-button')).toHaveText('Browse Card')
   await expect(page.getByTestId('card-path')).toHaveText('/SYNTHS')
   await expect(page.getByTestId('card-panel')).toContainText('fw 1.3.0')
 

@@ -51,9 +51,9 @@
   </label>
   <input bind:this={fileInput} type="file" accept=".xml,.XML,text/xml,application/xml" hidden data-testid="file-input" onchange={pick} />
   <button type="button" class="btn" class:on={card.open} data-testid="card-button" title={card.supported ? "Connect to the Deluge and browse its SD card over MIDI" : 'Web MIDI needs Chrome or Edge'} onclick={() => card.toggle()}>
-    {#if card.status === 'connected'}<span class="dot"></span>Device{:else}Connect{/if}
+    {#if card.status === 'connected'}<span class="dot"></span>Browse Card{:else}Connect{/if}
   </button>
-  <button type="button" class="btn" onclick={() => fileInput?.click()}>Open</button>
+  <button type="button" class="btn" title="Open a preset XML from this computer" onclick={() => fileInput?.click()}>Open File</button>
   <button type="button" class="btn" disabled={!editor.preset} onclick={download}>Download</button>
   <button type="button" class="btn" class:on={editor.showChanges} disabled={!editor.preset} data-testid="changes-button" onclick={() => (editor.showChanges = !editor.showChanges)}>
     Changes {#if editor.preset}<span class="badge" data-testid="change-count">{editor.changeCount}</span>{/if}
