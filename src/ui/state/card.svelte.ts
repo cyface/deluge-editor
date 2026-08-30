@@ -85,11 +85,25 @@ class Card {
         const id = parseIdentityReply(data)
         if (id) {
           this.identity = `${id.major}.${id.minor}.${id.patch}`
+          // Official firmware discards all incoming SysEx (synthstrom-official
+          // src/midiengine.cpp:531), so a Deluge that answers the inquiry runs
+          // community firmware: lineage `c`.
+          editor.setDeviceFirmware(`c${this.identity}`)
           return
         }
         client.receive(data)
       }
       this.client = client
+      access.onstatechange = (e) => {
+        const port = (e as MIDIConnectionEvent).port
+        if (!port || port.state !== 'disconnected') return
+        if (port.id !== input.id && port.id !== output.id) return
+        if (this.status !== 'connected' && this.status !== 'connecting') return
+        this.client = null
+        this.busy = null
+        this.status = 'error'
+        this.error = 'Deluge disconnected — reconnect over USB and retry.'
+      }
       output.send(IDENTITY_REQUEST)
       await client.ping()
       this.status = 'connected'

@@ -112,6 +112,8 @@ or with one the editor can't parse starts at official `4.1.4`, the most
 conservative target, so no community-only control is offered for a file
 whose origin is unknown. Changing the pill changes nothing in the file — only
 which controls exist — and the values behind hidden controls still round-trip.
+Once a real device has been seen, the file's attribute stops being a default at
+all — see "The connected Deluge outranks the file's firmware attribute".
 
 ## The summariser is a pure function in core
 
@@ -145,3 +147,22 @@ drops oversized frames, short-writes, and pages directories at 25 lines,
 because those are the firmware behaviours worth testing against. Loading from
 the card goes through the same `editor.load` as drag-drop, so the round-trip
 guarantees are identical.
+
+## The connected Deluge outranks the file's firmware attribute
+
+`firmwareVersion` in a preset says who *wrote* the file; a connected device
+says what will *run* it. When a Deluge answers the identity inquiry, the
+firmware selector locks to its version — a static pill, no dropdown, because
+the device is the ground truth and overriding it would only mislead. The lock
+**sticks**: after disconnect the dropdown returns with the last-connected
+version still selected, and loading a file no longer resets it from its
+attribute (the "saved by firmware …" label still shows provenance). The Connect
+button becomes "Device" with a green dot while connected.
+
+Two firmware facts make this sound: the identity reply carries
+`FIRMWARE_VERSION_MAJOR/MINOR/PATCH` (`src/deluge/io/midi/midi_engine.cpp:784`),
+and official 4.1.4 throws away all incoming SysEx (`synthstrom-official`
+`src/midiengine.cpp:531`), so a Deluge that answers at all runs community
+firmware — mapping the reply to lineage `c` is cited, not guessed. Unplugging
+is noticed via `MIDIAccess.onstatechange`, which drops the card panel to an
+error with a retry rather than letting a dead connection look alive.

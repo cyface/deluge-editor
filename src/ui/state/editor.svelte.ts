@@ -34,6 +34,8 @@ class Editor {
   fileName = $state('')
   preset = $state<Preset | null>(null)
   firmware = $state<string>(FALLBACK_FIRMWARE)
+  /** Firmware of the connected (or last-connected) Deluge; set by the card store, sticky after disconnect. */
+  deviceFirmware = $state<string | null>(null)
   /** Pinned flow blocks; empty means every section is expanded. */
   focus = $state<string[]>([])
   /** Selected kit row (pad order). */
@@ -66,11 +68,12 @@ class Editor {
     this.diff ? this.diff.missing.length + this.diff.added.length + this.diff.changed.length : 0,
   )
   readonly identical = $derived(this.source !== null && this.output === this.source)
-  readonly firmwareChoices = $derived<string[]>(
-    FIRMWARE_CHOICES.includes(this.firmware as (typeof FIRMWARE_CHOICES)[number])
-      ? [...FIRMWARE_CHOICES]
-      : [...FIRMWARE_CHOICES, this.firmware].sort(),
-  )
+  readonly firmwareChoices = $derived.by<string[]>(() => {
+    const set = new Set<string>(FIRMWARE_CHOICES)
+    if (this.deviceFirmware !== null) set.add(this.deviceFirmware)
+    set.add(this.firmware)
+    return [...set].sort()
+  })
 
   load(text: string, name: string): void {
     try {
@@ -82,14 +85,25 @@ class Editor {
       this.focus = []
       this.row = 0
       this.inspect = null
-      const v = preset.attrs.firmwareVersion
-      this.firmware = v !== undefined && isParseable(v) ? v : FALLBACK_FIRMWARE
+      // The file's own version is only a default until a real device has been
+      // seen; the device (or the user's explicit choice) outranks provenance.
+      if (this.deviceFirmware === null) {
+        const v = preset.attrs.firmwareVersion
+        this.firmware = v !== undefined && isParseable(v) ? v : FALLBACK_FIRMWARE
+      }
     } catch (e) {
       this.error = `${name}: ${e instanceof Error ? e.message : String(e)}`
     }
   }
 
   supports = (feature: string): boolean => featureSupported(this.version, feature)
+
+  /** A Deluge answered the identity inquiry: select its firmware. The choice sticks after disconnect. */
+  setDeviceFirmware(v: string): void {
+    if (!isParseable(v)) return
+    this.deviceFirmware = v
+    this.firmware = v
+  }
 
   /** A flow block was clicked: filter to it, or with `additive` add it to the pinned set. */
   toggleFocus(id: string, additive = false): void {

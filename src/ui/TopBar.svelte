@@ -21,6 +21,13 @@
     URL.revokeObjectURL(url)
   }
   const kind = $derived(editor.preset?.tag === 'kit' ? 'Kit' : editor.preset ? 'Synth' : 'Editor')
+  /** While a Deluge is connected the selector is locked to it: the device is the ground truth. */
+  const fwLocked = $derived(card.status === 'connected' && editor.deviceFirmware !== null)
+  const fwTitle = $derived(
+    fwLocked
+      ? 'Firmware of the connected Deluge. A control this firmware can’t honour is omitted.'
+      : 'Firmware the controls are shown for. A control this firmware can’t honour is omitted.',
+  )
 </script>
 
 <div class="bar">
@@ -28,19 +35,24 @@
   <div class="namewrap">
     {#if editor.preset}
       <span class="name" data-testid="file-name">{editor.fileName}</span>
-      {#if editor.preset.attrs.firmwareVersion}<span class="path">written by {editor.preset.attrs.firmwareVersion}</span>{/if}
+      {#if editor.preset.attrs.firmwareVersion}<span class="path">saved by firmware {editor.preset.attrs.firmwareVersion}</span>{/if}
     {:else}
       <span class="path">no preset loaded</span>
     {/if}
   </div>
-  <label class="pill" title="Firmware the controls are shown for. A control this firmware can't honour is omitted.">
-    <span class="dot"></span>
-    <select data-testid="firmware" bind:value={editor.firmware}>
-      {#each editor.firmwareChoices as v (v)}<option value={v}>{v}</option>{/each}
-    </select>
+  <label class="pill" title={fwTitle}>
+    {#if fwLocked}
+      <span class="fw" data-testid="firmware-locked">{editor.firmware}</span>
+    {:else}
+      <select data-testid="firmware" bind:value={editor.firmware}>
+        {#each editor.firmwareChoices as v (v)}<option value={v}>{v}</option>{/each}
+      </select>
+    {/if}
   </label>
   <input bind:this={fileInput} type="file" accept=".xml,.XML,text/xml,application/xml" hidden data-testid="file-input" onchange={pick} />
-  <button type="button" class="btn" class:on={card.open} data-testid="card-button" title={card.supported ? "Browse the Deluge's SD card over MIDI" : 'Web MIDI needs Chrome or Edge'} onclick={() => card.toggle()}>Card</button>
+  <button type="button" class="btn" class:on={card.open} data-testid="card-button" title={card.supported ? "Connect to the Deluge and browse its SD card over MIDI" : 'Web MIDI needs Chrome or Edge'} onclick={() => card.toggle()}>
+    {#if card.status === 'connected'}<span class="dot"></span>Device{:else}Connect{/if}
+  </button>
   <button type="button" class="btn" onclick={() => fileInput?.click()}>Open</button>
   <button type="button" class="btn" disabled={!editor.preset} onclick={download}>Download</button>
   <button type="button" class="btn" class:on={editor.showChanges} disabled={!editor.preset} data-testid="changes-button" onclick={() => (editor.showChanges = !editor.showChanges)}>
@@ -61,7 +73,9 @@
   .name { color: #efe6d7; font-family: var(--cond); font-size: 19px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .path { font-family: var(--mono); font-size: 10.5px; color: var(--faint); white-space: nowrap; }
   .pill { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 6px 0 10px; border-radius: 12px; border: 1px solid #2f4a2c; background: #0e1410; flex: none; }
-  .pill .dot { width: 6px; height: 6px; border-radius: 50%; background: #67c45c; box-shadow: 0 0 6px #67c45c; }
+  /* Locked to the connected device: same face as the select, but it is just text. */
+  .pill .fw { color: #a9d9a1; font-family: var(--cond); font-size: 12px; letter-spacing: .09em; text-transform: uppercase; }
+  .btn .dot { display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: 50%; background: #67c45c; box-shadow: 0 0 6px #67c45c; vertical-align: 1px; }
   .pill select { background: transparent; border: 0; color: #a9d9a1; font-family: var(--cond); font-size: 12px; letter-spacing: .09em; text-transform: uppercase; cursor: pointer; }
   .pill select:focus { outline: none; }
 </style>
