@@ -1,9 +1,12 @@
 /* Deluge Editor theme: dark chassis, cherry cheeks, brass encoders, OLED. */
 :root {
-  --ink: #0b0a09; --panel: #161412; --panel2: #1e1b17; --edge: #2b2620; --edge-hi: #3c3529;
+  /* Panels a step darker and the label tones a step brighter than the first cut:
+     --muted (field/knob labels) reads at ~6.3:1 on the panel face, --faint
+     (section rules, hints, table headers) at ~3.5:1 — quiet but legible. */
+  --ink: #0b0a09; --panel: #121110; --panel2: #191714; --edge: #2b2620; --edge-hi: #3c3529;
   --brass: #d4a34d; --brass-hi: #f2c67b; --brass-dim: #7a5f2b; --brass-face: #2b2317;
   --oled: #dff0e4; --oled-dim: #4f6d59; --oled-bg: #050706;
-  --text: #c9c2b7; --muted: #867d70; --faint: #5d564d;
+  --text: #cfc8bd; --muted: #a19788; --faint: #756d61;
   --wood-1: #4a2712; --wood-2: #8a5230; --wood-3: #a9663d; --wood-4: #6b3d22;
   --hpf: #4fc8e8;
   --osc: #e8563f; --flt: #e89b3f; --env: #93d152; --lfo: #3fc9c2; --mod: #6d90e8; --fx: #b06ce8; --arp: #e85f9c; --mst: #d4a34d;
