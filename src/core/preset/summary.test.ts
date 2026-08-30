@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { parseXML } from '../xml'
 import { isKit, isSound } from './index'
-import { cablePhrase, envelopeWord, summarise, summariseSound } from './summary'
+import { cablePhrase, cablePhrases, envelopeWord, summarise, summariseSound } from './summary'
 
 const fixtures = import.meta.glob<string>('../../../tests/fixtures/**/*.XML', {
   query: '?raw',
@@ -21,8 +21,7 @@ describe('summariseSound', () => {
     const s = summariseSound(p)
     expect(s.sentence).toBe(
       'Saw and square, 4 voices thick and detuned, sustained, through a half-open 24 dB ladder, ' +
-        'with Note on lpf freq, Env 2 opening the filter, Velocity on lpf freq, MPE Y on lpf freq, ' +
-        'Aftertouch on volume and velocity on the level.',
+        'with Note, Env 2, Velocity and MPE Y on the cutoff and Aftertouch and Velocity on the level.',
     )
     expect(s.chips.slice(0, 3)).toEqual(['SAW+SQR', 'UNI4', 'SUSTAINED'])
     expect(s.chips).toContain('LPF24')
@@ -77,5 +76,18 @@ describe('words', () => {
     expect(cablePhrase(cable('envelope2', 'lpfFrequency'))).toBe('Env 2 opening the filter')
     expect(cablePhrase(cable('velocity', 'volume'))).toBe('velocity on the level')
     expect(cablePhrase(cable('random', 'oscAPitch'))).toBe('Random on osc a pitch')
+  })
+  it('a pre-3.2 "range" destination resolves to the cable it deepens', () => {
+    const cable = (source: string, destination: string, extra: Record<string, string> = {}) =>
+      ({ tag: 'patchCable', attrs: { source, destination, ...extra }, children: [] }) as never
+    // As Dream.XML (fw 3.1.1) writes it: lfo1→range modulates the depth of
+    // the rangeAdjustable lfo1→pitch cable.
+    const all = [cable('lfo1', 'range'), cable('lfo1', 'pan'), cable('lfo1', 'pitch', { rangeAdjustable: '1' })]
+    expect(cablePhrase(all[0], all)).toBe('LFO 1 on its own pitch depth')
+    expect(cablePhrases(all)).toEqual(['LFO 1 on pan, pitch and its own pitch depth'])
+    expect(cablePhrase(cable('envelope2', 'range'), [cable('lfo1', 'pitch', { rangeAdjustable: '1' })])).toBe(
+      'Env 2 on the LFO 1 pitch depth',
+    )
+    expect(cablePhrase(cable('lfo2', 'range'))).toBe("LFO 2 on a cable's depth")
   })
 })

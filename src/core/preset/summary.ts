@@ -54,17 +54,72 @@ const oscShort = (sound: SoundElement, n: 1 | 2): string => {
   return sound.attrs.mode === 'fm' ? 'SIN' : t === undefined ? 'SAW' : (OSC_TYPE_SHORT[t] ?? t.toUpperCase())
 }
 
-/** How a cable reads in prose. */
-export function cablePhrase(c: PatchCableElement): string {
+const srcName = (src: string): string => PATCH_SOURCE_NAMES[src as keyof typeof PATCH_SOURCE_NAMES] ?? src
+
+/** Destinations that have a better word than their menu label. */
+const DEST_WORDS: Record<string, string> = { lpfFrequency: 'the cutoff', volume: 'the level' }
+
+/**
+ * A cable destination in prose. `destination="range"` is the pre-3.2 format
+ * for depth modulation: it modulates the depth of the one sibling cable marked
+ * `rangeAdjustable="1"` (firmware readPatchCablesFromFile,
+ * src/deluge/modulation/patch/patch_cable_set.cpp:915,949).
+ */
+function destPhrase(c: PatchCableElement, all: PatchCableElement[], groupSrc?: string): string {
+  const dst = c.attrs.destination ?? '?'
+  if (dst === 'range') {
+    const target = all.find((x) => x.attrs.rangeAdjustable === '1')
+    if (!target) return "a cable's depth"
+    const word = `${DEST_WORDS[target.attrs.destination ?? '?'] ?? paramLabel(target.attrs.destination ?? '?').toLowerCase()} depth`
+    return (target.attrs.source ?? '?') === groupSrc ? `its own ${word}` : `the ${srcName(target.attrs.source ?? '?')} ${word}`
+  }
+  return DEST_WORDS[dst] ?? paramLabel(dst).toLowerCase()
+}
+
+/** How a lone cable reads in prose. `all` resolves pre-3.2 "range" destinations. */
+export function cablePhrase(c: PatchCableElement, all: PatchCableElement[] = []): string {
   const src = c.attrs.source ?? '?'
   const dst = c.attrs.destination ?? '?'
-  const name = PATCH_SOURCE_NAMES[src as keyof typeof PATCH_SOURCE_NAMES] ?? src
+  const name = srcName(src)
   if (dst === 'pitch' && src.startsWith('lfo')) return `vibrato from ${name}`
   if (dst === 'lpfFrequency' && src.startsWith('lfo')) return `${name} sweeping the cutoff`
   if (dst === 'lpfFrequency' && src.startsWith('envelope')) return `${name} opening the filter`
   if (dst === 'volume' && src === 'velocity') return 'velocity on the level'
   if (dst === 'volume' && src.startsWith('lfo')) return `tremolo from ${name}`
-  return `${name} on ${paramLabel(dst).toLowerCase()}`
+  return `${name} on ${destPhrase(c, all, src)}`
+}
+
+/**
+ * Cables as prose, grouped so shared routes read as one clause: first several
+ * sources on one destination ("Note, Env 2 and MPE Y on the cutoff"), then one
+ * source fanning out ("LFO 1 on pan, pitch and its own pitch depth"), then the
+ * leftovers with their idioms.
+ */
+export function cablePhrases(live: PatchCableElement[]): string[] {
+  const phrases: string[] = []
+  const used = new Set<PatchCableElement>()
+  const groupBy = (items: PatchCableElement[], key: (c: PatchCableElement) => string) => {
+    const m = new Map<string, PatchCableElement[]>()
+    for (const c of items) {
+      const k = key(c)
+      m.set(k, [...(m.get(k) ?? []), c])
+    }
+    return m
+  }
+  for (const [dst, group] of groupBy(live, (c) => c.attrs.destination ?? '?')) {
+    if (group.length < 2 || dst === 'range') continue
+    phrases.push(`${list(group.map((c) => srcName(c.attrs.source ?? '?')))} on ${destPhrase(group[0], live)}`)
+    for (const c of group) used.add(c)
+  }
+  for (const [src, group] of groupBy(live.filter((c) => !used.has(c)), (c) => c.attrs.source ?? '?')) {
+    if (group.length < 2) continue
+    // "its own … depth" reads best at the end of the list.
+    const sorted = [...group].sort((a, b) => Number(a.attrs.destination === 'range') - Number(b.attrs.destination === 'range'))
+    phrases.push(`${srcName(src)} on ${list(sorted.map((c) => destPhrase(c, live, src)))}`)
+    for (const c of group) used.add(c)
+  }
+  for (const c of live) if (!used.has(c)) phrases.push(cablePhrase(c, live))
+  return phrases
 }
 
 export function summariseSound(sound: SoundElement): Summary {
@@ -115,12 +170,14 @@ export function summariseSound(sound: SoundElement): Summary {
   parts.push(env)
   chips.push(env.toUpperCase().replace(/[ -]/g, ''))
 
-  // Filters. An absent lpfMode/hpfMode is the firmware default (on).
+  // Filters. An absent lpfMode/hpfMode is the firmware default (on). A filter
+  // parked wide open is the init state and does not shape the sound, so it is
+  // not worth a word — unless the resonance is high enough to ring on its own.
   const lpfMode = sound.attrs.lpfMode ?? '24dB'
   const lpf = m('lpfFrequency') ?? 50
   const res = m('lpfResonance') ?? 0
-  if (lpfMode !== 'Off') {
-    const open = lpf < 13 ? 'a nearly closed' : lpf < 32 ? 'a half-open' : 'a wide-open'
+  if (lpfMode !== 'Off' && (lpf < 48 || res > 32)) {
+    const open = lpf < 13 ? 'a nearly closed' : lpf < 32 ? 'a half-open' : lpf < 48 ? 'a mostly open' : 'a wide-open'
     const q = res > 32 ? 'screaming ' : res > 14 ? 'resonant ' : ''
     parts.push(`through ${open} ${q}${FILTER_MODE_WORDS[lpfMode] ?? lpfMode}`)
     chips.push(`${FILTER_MODE_SHORT[lpfMode] ?? lpfMode}${res > 14 ? ' RES' : ''}`)
@@ -131,13 +188,13 @@ export function summariseSound(sound: SoundElement): Summary {
     chips.push('HPF')
   }
 
-  // Modulation: cables of at least 3.00 either way.
+  // Modulation: cables of at least 3.00 either way, grouped by shared routes.
   const live = cables(sound).filter((c) => Math.abs(cableMenu(c)) >= 300)
-  if (live.length) parts.push(`with ${list(live.map(cablePhrase))}`)
+  if (live.length) parts.push(`with ${list(cablePhrases(live))}`)
   for (const c of live) {
-    const src = c.attrs.source ?? '?'
-    const name = PATCH_SOURCE_NAMES[src as keyof typeof PATCH_SOURCE_NAMES] ?? src
-    chips.push(`${name.replace(/ /g, '').toUpperCase()}→${paramLabel(c.attrs.destination ?? '?').replace(/ /g, '').toUpperCase()}`)
+    const name = srcName(c.attrs.source ?? '?')
+    const dst = c.attrs.destination === 'range' ? 'DEPTH' : paramLabel(c.attrs.destination ?? '?').replace(/ /g, '').toUpperCase()
+    chips.push(`${name.replace(/ /g, '').toUpperCase()}→${dst}`)
   }
 
   // Effects
@@ -147,9 +204,11 @@ export function summariseSound(sound: SoundElement): Summary {
   if (modFx !== 'none' && depth > 4) fx.push(MOD_FX_WORDS[modFx] || 'modulated')
   const fb = m('delayFeedback') ?? 0
   if (fb > 4) fx.push(fb > 28 ? 'trailing a long delay' : 'with delay')
+  // Only the send amount lives in the preset; the room itself (size, damping,
+  // width) is song-level, so no words about the space.
   const reverb = m('reverbAmount') ?? 0
-  if (reverb > 26) fx.push('in a large hall')
-  else if (reverb > 8) fx.push('in a small room')
+  if (reverb > 26) fx.push('drenched in reverb')
+  else if (reverb > 8) fx.push('a little reverb')
   const crush = m('bitCrush') ?? 0
   const decim = m('sampleRateReduction') ?? 0
   if (crush > 6 || decim > 6) fx.push('crushed')

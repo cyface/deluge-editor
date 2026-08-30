@@ -201,7 +201,10 @@ export type EqualizerElement = XmlElement<EqualizerAttrs>
 export type PatchCablesElement = XmlElement<Attrs, { patchCable: PatchCableElement }>
 export type PatchCableAttrs = {
   source?: PatchSource
-  destination?: ParamName
+  /** `range` is the pre-3.2 depth-modulation format: this cable modulates the depth of the sibling marked `rangeAdjustable="1"`. */
+  destination?: ParamName | 'range'
+  /** Pre-3.2 only ("Files before V3.2 had this", patch_cable_set.cpp:842); modern firmware nests `depthControlledBy` instead. */
+  rangeAdjustable?: string
   /** Community 1.3 and later. */
   polarity?: Polarity
   amount?: HexParam
