@@ -65,12 +65,16 @@
 <div class="h3">LFOs</div>
 <Seg items={lfoItems} selected={lfoSel} onselect={(n) => (lfoSel = n)} />
 <p class="lfonote">{lfoNote}</p>
+<!-- Absent-attribute defaults: shape stays LFOConfig()'s TRIANGLE
+     (modulation/lfo.h, tag `beta`); the <lfoN> readers preset
+     SYNC_LEVEL_NONE / SYNC_TYPE_EVEN before reading (sound.cpp, tag `beta`,
+     "Set default values in case they are not configured"). -->
 <div class="fields">
-  <Select label="Shape" name="lfo{lfoSel}.type" value={theLfo?.attrs.type} options={lfoTypeOptions(editor.supports)} onchange={(v) => setAttr(ensureLfo(), 'type', v, LFO_ATTR_ORDER)} />
+  <Select label="Shape" name="lfo{lfoSel}.type" value={theLfo?.attrs.type} fallback="triangle" options={lfoTypeOptions(editor.supports)} onchange={(v) => setAttr(ensureLfo(), 'type', v, LFO_ATTR_ORDER)} />
   {#if lfoSyncs}
-    <Select label="Sync" name="lfo{lfoSel}.syncLevel" value={theLfo?.attrs.syncLevel} options={syncLevelOptions()} onchange={(v) => setAttr(ensureLfo(), 'syncLevel', v, LFO_ATTR_ORDER)} />
+    <Select label="Sync" name="lfo{lfoSel}.syncLevel" value={theLfo?.attrs.syncLevel} fallback="0" options={syncLevelOptions()} onchange={(v) => setAttr(ensureLfo(), 'syncLevel', v, LFO_ATTR_ORDER)} />
     {#if editor.supports('syncType')}
-      <Select label="Sync Type" name="lfo{lfoSel}.syncType" value={theLfo?.attrs.syncType} options={syncTypeOptions()} onchange={(v) => setAttr(ensureLfo(), 'syncType', v, LFO_ATTR_ORDER)} />
+      <Select label="Sync Type" name="lfo{lfoSel}.syncType" value={theLfo?.attrs.syncType} fallback="0" options={syncTypeOptions()} onchange={(v) => setAttr(ensureLfo(), 'syncType', v, LFO_ATTR_ORDER)} />
     {/if}
   {/if}
 </div>

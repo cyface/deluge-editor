@@ -68,10 +68,13 @@
   <IntKnob el={sc} ensure={SC} attr="release" label="Release" read={sidechainReleaseToMenu} write={menuToSidechainRelease} order={SIDECHAIN_ATTR_ORDER} />
   <HexKnob el={params(sound)} ensure={P} attr="compressorShape" label="Shape" order={SOUND_PARAM_ATTRS} {sound} />
 </div>
+<!-- The <sidechain>/<compressor> reader presets SYNC_LEVEL_NONE /
+     SYNC_TYPE_EVEN before reading (mod_controllable_audio.cpp, tag `beta`,
+     "Set default values in case they are not configured"). -->
 <div class="fields">
-  <Select label="Sync" name="sidechain.syncLevel" value={sc?.attrs.syncLevel} options={syncLevelOptions()} onchange={(v) => setAttr(SC(), 'syncLevel', v, SIDECHAIN_ATTR_ORDER)} />
+  <Select label="Sync" name="sidechain.syncLevel" value={sc?.attrs.syncLevel} fallback="0" options={syncLevelOptions()} onchange={(v) => setAttr(SC(), 'syncLevel', v, SIDECHAIN_ATTR_ORDER)} />
   {#if editor.supports('syncType')}
-    <Select label="Sync Type" name="sidechain.syncType" value={sc?.attrs.syncType} options={syncTypeOptions()} onchange={(v) => setAttr(SC(), 'syncType', v, SIDECHAIN_ATTR_ORDER)} />
+    <Select label="Sync Type" name="sidechain.syncType" value={sc?.attrs.syncType} fallback="0" options={syncTypeOptions()} onchange={(v) => setAttr(SC(), 'syncType', v, SIDECHAIN_ATTR_ORDER)} />
   {/if}
 </div>
 
@@ -95,18 +98,24 @@
   <div class="knobrow">
     <HexKnob el={params(sound)} ensure={P} attr="stutterRate" label="Rate" order={SOUND_PARAM_ATTRS} {sound} />
   </div>
+  <!-- StutterConfig's member defaults stand when the attribute is missing:
+       quantized = true, reversed = false, pingPong = false
+       (model/fx/stutterer.h, tag `beta`). -->
   <div class="fields">
-    <div class="f"><span class="lbl">Quantise</span><Toggle label="Quantized" name="stutter.quantized" value={stutter?.attrs.quantized} onchange={(v) => setAttr(ST(), 'quantized', v, STUTTER_ATTR_ORDER)} /></div>
-    <div class="f"><span class="lbl">Direction</span><Toggle label="Reverse" name="stutter.reverse" value={stutter?.attrs.reverse} onchange={(v) => setAttr(ST(), 'reverse', v, STUTTER_ATTR_ORDER)} /></div>
-    <div class="f"><span class="lbl">Stereo</span><Toggle label="Ping-pong" name="stutter.pingPong" value={stutter?.attrs.pingPong} onchange={(v) => setAttr(ST(), 'pingPong', v, STUTTER_ATTR_ORDER)} /></div>
+    <div class="f"><span class="lbl">Quantise</span><Toggle label="Quantized" name="stutter.quantized" value={stutter?.attrs.quantized} fallback="1" onchange={(v) => setAttr(ST(), 'quantized', v, STUTTER_ATTR_ORDER)} /></div>
+    <div class="f"><span class="lbl">Direction</span><Toggle label="Reverse" name="stutter.reverse" value={stutter?.attrs.reverse} fallback="0" onchange={(v) => setAttr(ST(), 'reverse', v, STUTTER_ATTR_ORDER)} /></div>
+    <div class="f"><span class="lbl">Stereo</span><Toggle label="Ping-pong" name="stutter.pingPong" value={stutter?.attrs.pingPong} fallback="0" onchange={(v) => setAttr(ST(), 'pingPong', v, STUTTER_ATTR_ORDER)} /></div>
   </div>
 {/if}
 
 {#if editor.supports('midiOutput')}
   <div class="h3">MIDI Out</div>
+  <!-- Sound's members default to the 255 sentinels: outputMidiChannel =
+       MIDI_CHANNEL_NONE, outputMidiNoteForDrum = MIDI_NOTE_NONE (sound.h and
+       definitions_cxx.hpp, tag `beta`); the format functions name them. -->
   <div class="fields">
-    <NumberField label="Channel" name="midiOutput.channel" value={midi?.attrs.channel} min={0} max={255} format={chan} onchange={(v) => setAttr(MIDI(), 'channel', String(v), MIDI_OUTPUT_ATTR_ORDER)} />
-    <NumberField label="Note" name="midiOutput.noteForDrum" value={midi?.attrs.noteForDrum} min={0} max={255} format={(n) => (n === 255 ? 'as played' : String(n))} onchange={(v) => setAttr(MIDI(), 'noteForDrum', String(v), MIDI_OUTPUT_ATTR_ORDER)} />
+    <NumberField label="Channel" name="midiOutput.channel" value={midi?.attrs.channel} min={0} max={255} fallback={255} format={chan} onchange={(v) => setAttr(MIDI(), 'channel', String(v), MIDI_OUTPUT_ATTR_ORDER)} />
+    <NumberField label="Note" name="midiOutput.noteForDrum" value={midi?.attrs.noteForDrum} min={0} max={255} fallback={255} format={(n) => (n === 255 ? 'as played' : String(n))} onchange={(v) => setAttr(MIDI(), 'noteForDrum', String(v), MIDI_OUTPUT_ATTR_ORDER)} />
   </div>
 {/if}
 

@@ -16,13 +16,17 @@
   const set = (name: string) => (v: string | number) => setAttr(sound, name, String(v), SOUND_ATTR_ORDER)
 </script>
 
+<!-- Absent-attribute defaults are the deserializer's: Sound's member
+     initialisers stand when the file omits the attribute (sound.h, tag
+     `beta`: polyphonic = PolyphonyMode::POLY, maxVoiceCount = 8,
+     transpose = 0, voicePriority = VoicePriority::MEDIUM). -->
 <div class="fields">
-  <Select label="Polyphony" name="polyphonic" value={sound.attrs.polyphonic} options={polyphonyOptions()} onchange={set('polyphonic')} />
+  <Select label="Polyphony" name="polyphonic" value={sound.attrs.polyphonic} fallback="poly" options={polyphonyOptions()} onchange={set('polyphonic')} />
   {#if editor.supports('maxVoices')}
-    <NumberField label="Max Voices" name="maxVoices" value={sound.attrs.maxVoices} min={1} max={16} onchange={set('maxVoices')} />
+    <NumberField label="Max Voices" name="maxVoices" value={sound.attrs.maxVoices} min={1} max={16} fallback={8} onchange={set('maxVoices')} />
   {/if}
-  <NumberField label="Transpose" name="transpose" value={sound.attrs.transpose} min={-96} max={96} onchange={set('transpose')} />
-  <Select label="Voice Priority" name="voicePriority" value={sound.attrs.voicePriority} options={voicePriorityOptions()} onchange={set('voicePriority')} />
+  <NumberField label="Transpose" name="transpose" value={sound.attrs.transpose} min={-96} max={96} fallback={0} onchange={set('transpose')} />
+  <Select label="Voice Priority" name="voicePriority" value={sound.attrs.voicePriority} fallback="1" options={voicePriorityOptions()} onchange={set('voicePriority')} />
 </div>
 <div class="knobrow">
   <IntKnob el={unison} ensure={ensureUnison} attr="num" label="Unison" min={1} max={8} order={UNISON_ATTR_ORDER} />

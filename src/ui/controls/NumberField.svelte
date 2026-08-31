@@ -26,7 +26,7 @@
 
 <div class="f">
   <label for={id}>{label}{#if format && value !== undefined}<span class="fmt"> · {format(Number(value))}</span>{/if}</label>
-  <input {id} type="number" data-attr={name} value={shown} placeholder={fallback === undefined ? 'default' : `default · ${fallback}`} {min} {max} step="1" onchange={change} />
+  <input {id} type="number" data-attr={name} value={shown} placeholder={fallback === undefined ? 'default' : `default · ${format ? format(fallback) : fallback}`} {min} {max} step="1" onchange={change} />
 </div>
 
 <style>
