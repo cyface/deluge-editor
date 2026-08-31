@@ -27,6 +27,12 @@ export interface FakeOptions {
   failOpen?: number
   /** Corrupt the first byte of every file after it is written (verify must catch it). */
   corruptWrites?: boolean
+  /**
+   * Queue write replies instead of sending them (the write itself still
+   * commits, like a slow card); `releaseWrite()` sends the oldest. Lets a
+   * test observe how many requests the client keeps in flight.
+   */
+  holdWrites?: boolean
 }
 
 interface OpenFile {
@@ -46,6 +52,8 @@ export class FakeDeluge {
   private fidCounter = 1
   private open = new Map<number, OpenFile>()
   private dropLeft: number
+  private held: Uint8Array[] = []
+  private holding = false
 
   constructor(
     private readonly reply: (bytes: Uint8Array) => void,
@@ -147,7 +155,16 @@ export class FakeDeluge {
     this.answer(msgId, '^read', { fid, addr, size: data.length, err: 0 }, data)
   }
 
+  /** Send the oldest held write reply; false when none are waiting. */
+  releaseWrite(): boolean {
+    const bytes = this.held.shift()
+    if (!bytes) return false
+    this.reply(bytes)
+    return true
+  }
+
   private doWrite(msgId: number, cmd: Record<string, unknown>, data: Uint8Array): void {
+    this.holding = this.opts.holdWrites ?? false
     const fid = cmd.fid as number
     const addr = cmd.addr as number
     const f = this.open.get(fid)
@@ -168,6 +185,7 @@ export class FakeDeluge {
     this.files.set(f.path, grown)
     // A short write is err 0 with the real count — smsysex.cpp writeBlock.
     this.answer(msgId, '^write', { fid, addr, size: commit.length, err: 0 })
+    this.holding = false
   }
 
   private doDir(msgId: number, cmd: Record<string, unknown>): void {
@@ -221,6 +239,7 @@ export class FakeDeluge {
       o += packed.length
     }
     out[o] = SYSEX_END
-    this.reply(out)
+    if (this.holding) this.held.push(out)
+    else this.reply(out)
   }
 }

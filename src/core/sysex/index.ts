@@ -21,4 +21,5 @@ export {
   type DirEntry,
   type Progress,
   type SmsClientOptions,
+  type VerifyMode,
 } from './client'

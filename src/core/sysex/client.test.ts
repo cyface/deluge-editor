@@ -46,6 +46,25 @@ describe('SmsClient', () => {
     expect(fake.maxFrameSeen).toBeLessThanOrEqual(1024)
   })
 
+  it('keeps exactly one write in flight — the hardware corrupts overlapped transfers', async () => {
+    // Measured on a real Deluge: a pipeline window of 4 slowed every write
+    // to ~52ms and ended in short writes and FR_DISK_ERR (and pipelined
+    // reads corrupted their payloads). PIPELINE must stay 1.
+    const { client, fake } = rig({ holdWrites: true }, { timeouts: [5000] })
+    const data = bytes(512 * 6) // six chunks at the 512-byte write chunk
+    let settled = false
+    const done = client.writeFile('/SYNTHS/W.XML', data).finally(() => (settled = true))
+    const tick = (): Promise<void> => new Promise((r) => setTimeout(r, 0))
+    await tick()
+    expect(fake.requests.filter((r) => 'write' in r).length).toBe(1) // no second before a reply
+    for (let i = 0; i < 100 && !settled; i++) {
+      fake.releaseWrite()
+      await tick()
+    }
+    await done
+    expect(Array.from(fake.files.get('/SYNTHS/W.XML')!)).toEqual(Array.from(data))
+  })
+
   it('resends a dropped request with a fresh msgId instead of hanging', async () => {
     const { client, fake } = rig({ dropRequests: 2 })
     fake.putFile('/SYNTHS/A.XML', bytes(10))
@@ -65,6 +84,28 @@ describe('SmsClient', () => {
   it('read-back verification catches a corrupted card copy', async () => {
     const { client } = rig({ corruptWrites: true })
     await expect(client.writeFile('/SYNTHS/C.XML', bytes(64))).rejects.toThrow(/verify.*differs/)
+  })
+
+  it('sampled verify reads spot ranges, not the whole file back', async () => {
+    const { client, fake } = rig()
+    const data = bytes(1024 * 40) // full verify would read back 40 chunks
+    await client.writeFile('/SAMPLES/S.wav', data, undefined, 'sampled')
+    expect(fake.requests.filter((r) => 'read' in r).length).toBeLessThanOrEqual(10)
+    expect(Array.from(fake.files.get('/SAMPLES/S.wav')!)).toEqual(Array.from(data))
+  })
+
+  it('sampled verify still catches a corrupted header', async () => {
+    // corruptWrites flips byte 0 on every write — a WAV header byte, covered
+    // by the first probe. An odd chunk count, so the flips don't cancel out.
+    const { client } = rig({ corruptWrites: true })
+    await expect(client.writeFile('/SAMPLES/C.wav', bytes(512 * 79), undefined, 'sampled')).rejects.toThrow(/verify.*differs/)
+  })
+
+  it('sampled verify of a small file covers every byte', async () => {
+    const { client, fake } = rig()
+    const data = bytes(300)
+    await client.writeFile('/SAMPLES/T.wav', data, undefined, 'sampled')
+    expect(Array.from(fake.files.get('/SAMPLES/T.wav')!)).toEqual(Array.from(data))
   })
 
   it('an open failure carries the FatFS code', async () => {

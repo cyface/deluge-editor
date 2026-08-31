@@ -8,11 +8,22 @@
  *
  * - A request can vanish without any reply: oversized frames are dropped
  *   silently (`incomingSysexBuffer[1024]`), and requests are queued and only
- *   handled when the card is free (`handleNextSysEx` returns early while
- *   `currentlyAccessingCard`). So every send runs on a timeout ladder, and a
- *   resend takes a fresh msgId so a late reply to an abandoned attempt can
- *   never be mistaken for the current one. Every operation addresses an
- *   explicit fid/addr/offset, so resending is idempotent.
+ *   handled when the card is free (`sysexReceived` pushes onto the `SysExQ`
+ *   deque; `handleNextSysEx` returns early while `currentlyAccessingCard`).
+ *   So every send runs on a timeout ladder, and a resend takes a fresh msgId
+ *   so a late reply to an abandoned attempt can never be mistaken for the
+ *   current one. Every operation addresses an explicit fid/addr/offset, so
+ *   resending is idempotent. The queue accepts several requests at once,
+ *   but overlapping them is NOT safe in practice: measured on hardware,
+ *   pipelined reads returned corrupted payloads (the firmware reuses its
+ *   reply buffers as soon as it handles the next request, while the
+ *   previous reply is still draining out the USB pipe) and pipelined
+ *   writes went from ~10ms to ~52ms each before dying in short writes and
+ *   FR_DISK_ERR. So every transfer keeps exactly one request in flight
+ *   (`PIPELINE`). Replies are matched by msgId AND by the reply's op (plus
+ *   the echoed fid/addr where the op has them), because the msgId space is
+ *   only 7 wide per session and an abandoned attempt's late reply could
+ *   otherwise land on a newer request that drew the same id.
  * - A short write is NOT an error: `writeBlock` commits however many bytes
  *   arrived and replies err=0 with the real count in `size`. The count must
  *   be checked and the chunk rewritten, or the file is silently holed.
@@ -41,6 +52,20 @@ export const isDirectory = (e: DirEntry): boolean => (e.attr & 0x10) !== 0
 
 export type Progress = (done: number, total: number) => void
 
+/**
+ * How much of a written file the read-back verify re-reads. `full` is every
+ * byte; `sampled` checks the reported size plus the first and last chunks
+ * and eight spread through the middle (~10KB regardless of file size).
+ * Sampled still catches the transport's known failure shapes — truncation
+ * (size), a dropped byte (everything after it shifts, so any probe hits),
+ * and header damage (the first chunk) — while a multi-megabyte sample skips
+ * the ~40% of push time a full re-read costs. There is no cheaper honest
+ * option: the firmware has no checksum op (`handleNextSysEx`'s command set
+ * ends at utime/session/ping), so any client-side hash would have to read
+ * every byte back anyway.
+ */
+export type VerifyMode = 'full' | 'sampled'
+
 /** An open read-only file on the card; see `SmsClient.openRead`. */
 export interface ReadHandle {
   size: number
@@ -66,12 +91,27 @@ export class SysexError extends Error {
 }
 
 export interface SmsClientOptions {
-  /** Per-attempt reply timeouts, ms. Fresh msgId per attempt. */
+  /**
+   * Per-attempt reply timeouts, ms. Fresh msgId per attempt. The first rung
+   * must sit above the card's worst single-op stall, not the healthy round
+   * trip: measured on hardware, requests answer in 5–13ms warm, but an
+   * open-for-write after the card has been idle takes ~0.5–1s of FAT work.
+   * Rungs below that fire resends the firmware queues and processes anyway —
+   * every duplicate adds card work, and a slow save snowballs into a 30s one.
+   * A tall first rung costs nothing when the link is healthy; a reply
+   * resolves the moment it arrives.
+   */
   timeouts?: number[]
   /**
-   * File bytes per write request. Packed, a 512-byte chunk makes a ~645-byte
-   * frame, safely under the firmware's 1024-byte receive buffer; a 1024-byte
-   * chunk would pack past it and be dropped without a reply.
+   * File bytes per write request. The paper limit is the firmware's
+   * 1024-byte frame buffer (`MaxSysExLength`), but the real one is lower
+   * and undocumented: measured on hardware (fw c1.3.0, macOS Chrome), any
+   * request frame of 753+ bytes arrives one byte short and the write
+   * commits n-1 bytes, every time — bisected to exactly frame ≤ 752 OK,
+   * ≥ 753 short; no constant in the firmware source names 752, so it may
+   * even be the host's MIDI stack. A 512-byte chunk makes a ~645-byte
+   * frame, well clear of the cliff; the ~600-byte ceiling that boundary
+   * would allow isn't worth camping on an unexplained edge.
    */
   writeChunk?: number
   /** File bytes per read request; the firmware clamps at its 1024-byte block buffer. */
@@ -80,17 +120,37 @@ export interface SmsClientOptions {
   writeAttempts?: number
   /** Session tag shown to the firmware. */
   tag?: string
+  /**
+   * One line per request (op, elapsed, which timeout rung answered) and one
+   * per late reply — a reply arriving after its attempt was abandoned, the
+   * signature of a timeout rung shorter than the link's real round trip.
+   */
+  debug?: (line: string) => void
 }
 
 /** `MAX_DIR_LINES` in smsysex.cpp: `dir` returns at most 25 entries per request. */
 const MAX_DIR_LINES = 25
 
+/**
+ * Write requests in flight during a bulk transfer. The firmware's `SysExQ`
+ * deque queues them all in order, and on paper a window should hide the
+ * round trip — but on real hardware a window of 4 made every write take
+ * ~52ms instead of ~10ms and ended in short writes and FR_DISK_ERR, and
+ * pipelined reads corrupted their payloads outright. So the shipped width
+ * is 1: strictly serial, one request in flight, like every transfer the
+ * hardware has answered reliably. The machinery stays so a wider window is
+ * one constant away if a firmware fix ever lands; it must always stay
+ * under the session's 7 msgIds.
+ */
+const PIPELINE = 1
+
 const DEFAULTS: Required<SmsClientOptions> = {
-  timeouts: [400, 400, 800, 2000, 4000, 10000],
+  timeouts: [2000, 2000, 4000, 10000],
   writeChunk: 512,
   readChunk: 1024,
   writeAttempts: 5,
   tag: 'deluge-editor',
+  debug: () => {},
 }
 
 interface Session {
@@ -98,11 +158,50 @@ interface Session {
   midMax: number
 }
 
+interface Pending {
+  /** Whether a reply on this msgId is really for this request (op key, echoed fid/addr). */
+  matches: (r: SysexReply) => boolean
+  resolve: (r: SysexReply) => void
+}
+
+/**
+ * The spot-check plan for a sampled verify: the first chunk (a WAV's whole
+ * header), the last chunk (truncation and tail holes), and eight aligned
+ * probes spread through the middle. A file small enough that the probes
+ * would cover it anyway is checked whole.
+ */
+function sampledRanges(size: number, chunk: number): Array<[number, number]> {
+  if (size === 0) return []
+  if (size <= chunk * 10) return [[0, size]]
+  const offsets = new Set<number>([0, size - chunk])
+  for (let i = 1; i <= 8; i++) {
+    offsets.add(Math.min(size - chunk, Math.floor((size * i) / 9 / chunk) * chunk))
+  }
+  return [...offsets].sort((a, b) => a - b).map((o) => [o, Math.min(chunk, size - o)])
+}
+
+/** Run `work` over `items` with at most `limit` in flight; a failure stops new starts. */
+async function pooled<T>(items: readonly T[], limit: number, work: (item: T) => Promise<void>): Promise<void> {
+  let next = 0
+  let failed = false
+  const worker = async (): Promise<void> => {
+    while (!failed && next < items.length) {
+      try {
+        await work(items[next++])
+      } catch (e) {
+        failed = true
+        throw e
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker))
+}
+
 export class SmsClient {
   private readonly opts: Required<SmsClientOptions>
   private session: Session | null = null
   private counter = 0
-  private pending = new Map<number, (r: SysexReply) => void>()
+  private pending = new Map<number, Pending>()
 
   constructor(
     private readonly send: (bytes: Uint8Array) => void,
@@ -115,11 +214,19 @@ export class SmsClient {
   receive(data: Uint8Array): void {
     const reply = parseReply(data)
     if (!reply) return
-    const resolve = this.pending.get(reply.msgId)
-    if (resolve) {
-      this.pending.delete(reply.msgId)
-      resolve(reply)
+    const entry = this.pending.get(reply.msgId)
+    const op = Object.keys(reply.json)[0] ?? '?'
+    if (!entry) {
+      this.opts.debug(`late reply msgId 0x${reply.msgId.toString(16)} (${op}) — its attempt already timed out`)
+      return
     }
+    if (!entry.matches(reply)) {
+      // An abandoned attempt's reply on a reused msgId; the real one is coming.
+      this.opts.debug(`stale reply msgId 0x${reply.msgId.toString(16)} (${op}) — for an earlier request on the same id`)
+      return
+    }
+    this.pending.delete(reply.msgId)
+    entry.resolve(reply)
   }
 
   async ping(): Promise<void> {
@@ -154,6 +261,14 @@ export class SmsClient {
     return { size, read, close: () => this.close(path, fid) }
   }
 
+  /**
+   * Reads stay strictly serial — never pipelined. Measured on hardware:
+   * with a second read request queued while a large `^read` reply was still
+   * draining out the USB pipe, the reply payload came back corrupted (two
+   * reads of the same file differed); the firmware reuses its reply buffers
+   * as soon as it processes the next request. One request in flight means
+   * the reply is fully received before the next send, which is safe.
+   */
   async readFile(path: string, onProgress?: Progress): Promise<Uint8Array> {
     const handle = await this.openRead(path)
     const out = new Uint8Array(handle.size)
@@ -171,32 +286,61 @@ export class SmsClient {
   }
 
   /** Write and then read back and byte-compare — name and size prove nothing. */
-  async writeFile(path: string, data: Uint8Array, onProgress?: Progress): Promise<void> {
-    const total = data.length * 2 // write + verify
+  async writeFile(path: string, data: Uint8Array, onProgress?: Progress, verify: VerifyMode = 'full'): Promise<void> {
+    const spots = verify === 'sampled' ? sampledRanges(data.length, this.opts.readChunk) : null
+    const total = data.length + (spots ? spots.reduce((n, [, len]) => n + len, 0) : data.length)
     const open = await this.expect('open', path, { open: { path, write: 1 } })
     const fid = open.fid as number
-    let offset = 0
-    while (offset < data.length) {
+    const offsets: number[] = []
+    for (let o = 0; o < data.length; o += this.opts.writeChunk) offsets.push(o)
+    let done = 0
+    await pooled(offsets, PIPELINE, async (offset) => {
       const chunk = data.subarray(offset, Math.min(offset + this.opts.writeChunk, data.length))
       let written = -1
       for (let attempt = 0; attempt < this.opts.writeAttempts && written !== chunk.length; attempt++) {
         const r = await this.request({ write: { fid, addr: offset, size: chunk.length } }, chunk)
         const body = this.body('write', path, r, '^write')
         written = body.size as number
+        if (written !== chunk.length) this.opts.debug(`short write at ${offset}: ${written}/${chunk.length} committed`)
       }
       if (written !== chunk.length) throw new SysexError('write', path, 1 /* FR_DISK_ERR: persistent short write */)
-      offset += chunk.length
-      onProgress?.(offset, total)
-    }
+      done += chunk.length
+      onProgress?.(done, total)
+    })
     await this.close(path, fid)
-    const back = await this.readFile(path, (done) => onProgress?.(data.length + done, total))
-    if (back.length !== data.length) {
-      throw new Error(`verify ${path}: wrote ${data.length} bytes but read back ${back.length} — the card copy is bad`)
-    }
-    for (let i = 0; i < data.length; i++) {
-      if (back[i] !== data[i]) {
-        throw new Error(`verify ${path}: card copy differs from what was sent, first at byte ${i}`)
+
+    if (!spots) {
+      const back = await this.readFile(path, (n) => onProgress?.(data.length + n, total))
+      if (back.length !== data.length) {
+        throw new Error(`verify ${path}: wrote ${data.length} bytes but read back ${back.length} — the card copy is bad`)
       }
+      for (let i = 0; i < data.length; i++) {
+        if (back[i] !== data[i]) {
+          throw new Error(`verify ${path}: card copy differs from what was sent, first at byte ${i}`)
+        }
+      }
+      return
+    }
+    const handle = await this.openRead(path)
+    try {
+      if (handle.size !== data.length) {
+        throw new Error(`verify ${path}: wrote ${data.length} bytes but the card reports ${handle.size} — the card copy is bad`)
+      }
+      for (const [start, len] of spots) {
+        const back = await handle.read(start, len)
+        if (back.length !== len) {
+          throw new Error(`verify ${path}: could not read ${len} bytes back at ${start} — the card copy is bad`)
+        }
+        for (let i = 0; i < len; i++) {
+          if (back[i] !== data[start + i]) {
+            throw new Error(`verify ${path}: card copy differs from what was sent at byte ${start + i}`)
+          }
+        }
+        done += len
+        onProgress?.(done, total)
+      }
+    } finally {
+      await handle.close()
     }
   }
 
@@ -238,21 +382,41 @@ export class SmsClient {
 
   /** One command with the retry ladder; a fresh msgId per attempt. */
   private async request(cmd: object, binary?: Uint8Array): Promise<SysexReply> {
+    const op = Object.keys(cmd)[0] ?? '?'
+    // The reply must be for THIS request, not an abandoned attempt whose id
+    // came round again: its op key must be present, and where the command
+    // carries a fid/addr the reply must echo them (^write and ^read do).
+    const args = (cmd as Record<string, Record<string, unknown>>)[op] ?? {}
+    const matches = (r: SysexReply): boolean => {
+      const body = r.json[`^${op}`] as Record<string, unknown> | undefined
+      if (!body) return false
+      if (args.fid !== undefined && body.fid !== undefined && body.fid !== args.fid) return false
+      if (args.addr !== undefined && body.addr !== undefined && body.addr !== args.addr) return false
+      return true
+    }
+    const started = Date.now()
     let lastError: Error | null = null
+    let attempt = 0
     for (const timeout of this.opts.timeouts) {
+      attempt++
       const session = await this.ensureSession()
       const range = session.midMax - session.midMin + 1
-      const msgId = session.midMin + this.counter++ % range
+      // With a pipeline in flight, skip ids another request is waiting on.
+      let msgId = session.midMin + this.counter++ % range
+      for (let i = 0; this.pending.has(msgId) && i < range; i++) msgId = session.midMin + this.counter++ % range
       const frame = buildJsonFrame(msgId, cmd, binary)
       if (frame.length > MAX_REQUEST_BYTES) {
         throw new Error(`SysEx request is ${frame.length} bytes; the Deluge silently drops anything over ${MAX_REQUEST_BYTES}`)
       }
       try {
-        return await this.exchange(msgId, frame, timeout)
+        const reply = await this.exchange(msgId, frame, timeout, matches)
+        this.opts.debug(`${op} ${frame.length}B → ${Date.now() - started}ms${attempt > 1 ? ` (attempt ${attempt})` : ''}`)
+        return reply
       } catch (e) {
         lastError = e as Error
       }
     }
+    this.opts.debug(`${op} gave up after ${Date.now() - started}ms and ${attempt} attempts`)
     throw lastError ?? new Error('SysEx request failed')
   }
 
@@ -281,15 +445,23 @@ export class SmsClient {
     return this.session
   }
 
-  private exchange(msgId: number, frame: Uint8Array, timeout: number): Promise<SysexReply> {
+  private exchange(
+    msgId: number,
+    frame: Uint8Array,
+    timeout: number,
+    matches: (r: SysexReply) => boolean = () => true,
+  ): Promise<SysexReply> {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(msgId)
         reject(new Error(`no reply to msgId 0x${msgId.toString(16)} after ${timeout}ms`))
       }, timeout)
-      this.pending.set(msgId, (reply) => {
-        clearTimeout(timer)
-        resolve(reply)
+      this.pending.set(msgId, {
+        matches,
+        resolve: (reply) => {
+          clearTimeout(timer)
+          resolve(reply)
+        },
       })
       this.send(frame)
     })
