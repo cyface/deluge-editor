@@ -1,3 +1,18 @@
+<script lang="ts" module>
+  /**
+   * Where the graph's values live. A synth (or kit row) keeps them flat in
+   * `<defaultParams>`; the kit bus keeps them in `<defaultParams><lpf>/<hpf>`
+   * children — so the graph binds through these accessors instead of a
+   * SoundElement. Values are menu numbers (0–50), the Deluge's own.
+   */
+  export type FilterParam = 'lpfFrequency' | 'lpfResonance' | 'hpfFrequency' | 'hpfResonance'
+  export interface FilterBinding {
+    attr: (name: 'lpfMode' | 'hpfMode' | 'filterRoute') => string | undefined
+    read: (param: FilterParam) => number | undefined
+    write: (param: FilterParam, menu: number) => void
+  }
+</script>
+
 <script lang="ts">
   /**
    * The filter response as a sketch: cutoff on a log axis, resonance as a
@@ -6,11 +21,8 @@
    * → 20 Hz…20 kHz), not the firmware's filter model. Drag a point sideways
    * for cutoff and up for resonance; the knobs follow.
    */
-  import type { SoundElement } from '../../core/preset'
-  import { paramMenu, setParamMenu } from '../../core/preset/sound'
-
-  interface Props { sound: SoundElement }
-  let { sound }: Props = $props()
+  interface Props { filters: FilterBinding }
+  let { filters }: Props = $props()
 
   const H = 150
   let width = $state(420)
@@ -22,13 +34,13 @@
     return () => ro.disconnect()
   })
 
-  const lpfMode = $derived(sound.attrs.lpfMode ?? '24dB')
-  const hpfMode = $derived(sound.attrs.hpfMode ?? 'HPLadder')
-  const route = $derived(sound.attrs.filterRoute ?? 'H2L')
-  const lpfFreq = $derived(paramMenu(sound, 'lpfFrequency') ?? 50)
-  const lpfRes = $derived(paramMenu(sound, 'lpfResonance') ?? 0)
-  const hpfFreq = $derived(paramMenu(sound, 'hpfFrequency') ?? 0)
-  const hpfRes = $derived(paramMenu(sound, 'hpfResonance') ?? 0)
+  const lpfMode = $derived(filters.attr('lpfMode') ?? '24dB')
+  const hpfMode = $derived(filters.attr('hpfMode') ?? 'HPLadder')
+  const route = $derived(filters.attr('filterRoute') ?? 'H2L')
+  const lpfFreq = $derived(filters.read('lpfFrequency') ?? 50)
+  const lpfRes = $derived(filters.read('lpfResonance') ?? 0)
+  const hpfFreq = $derived(filters.read('hpfFrequency') ?? 0)
+  const hpfRes = $derived(filters.read('hpfResonance') ?? 0)
   const lpfOn = $derived(lpfMode !== 'Off')
   const hpfOn = $derived(hpfMode !== 'Off')
   const para = $derived(route === 'PARA')
@@ -97,8 +109,8 @@
         const r = s.getBoundingClientRect()
         const x = Math.max(0, Math.min(1, (ev.clientX - r.left) / r.width))
         const y = ((ev.clientY - r.top) / r.height) * H
-        setParamMenu(sound, which === 'lpf' ? 'lpfFrequency' : 'hpfFrequency', Math.round(x * 50))
-        setParamMenu(sound, which === 'lpf' ? 'lpfResonance' : 'hpfResonance', Math.round(Math.max(0, Math.min(50, ((H * 0.86 - y) / (H * 0.72)) * 50))))
+        filters.write(which === 'lpf' ? 'lpfFrequency' : 'hpfFrequency', Math.round(x * 50))
+        filters.write(which === 'lpf' ? 'lpfResonance' : 'hpfResonance', Math.round(Math.max(0, Math.min(50, ((H * 0.86 - y) / (H * 0.72)) * 50))))
       }
       const up = (ev: PointerEvent) => {
         s.releasePointerCapture(ev.pointerId)

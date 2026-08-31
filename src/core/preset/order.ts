@@ -73,6 +73,8 @@ export const OSC_ATTR_ORDER = [
 ] as const
 
 export const LFO_ATTR_ORDER = ['type', 'syncLevel', 'syncType'] as const
+/** `Sound::writeSourceToFile` writes the zone's loop points only when set (sound.cpp:3670-3677). */
+export const ZONE_ATTR_ORDER = ['startSamplePos', 'endSamplePos', 'startLoopPos', 'endLoopPos'] as const
 export const MODULATOR_ATTR_ORDER = ['transpose', 'cents', 'retrigPhase', 'toModulator1'] as const
 export const UNISON_ATTR_ORDER = ['num', 'detune', 'spread'] as const
 export const PARAMS_CHILD_ORDER = [

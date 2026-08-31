@@ -4,17 +4,28 @@
   import ChangesDock from './ChangesDock.svelte'
   import EmptyState from './EmptyState.svelte'
   import FlowStrip from './FlowStrip.svelte'
+  import KitBuilder from './KitBuilder.svelte'
   import KitRows from './KitRows.svelte'
   import Oled from './Oled.svelte'
   import Overview from './Overview.svelte'
   import TopBar from './TopBar.svelte'
+  import { collectDroppedSamples } from './dropdir'
   import { editor } from './state/editor.svelte'
+  import { kit as kitBuilder } from './state/kit.svelte'
 
   let dragging = $state(false)
   async function drop(e: DragEvent) {
     e.preventDefault()
     dragging = false
-    const f = e.dataTransfer?.files?.[0]
+    if (!e.dataTransfer) return
+    // A folder (or loose WAVs) is a kit-building drop; a file is a preset.
+    const samples = await collectDroppedSamples(e.dataTransfer)
+    if (samples) {
+      const folder = samples.folder ?? kitBuilder.folder ?? (editor.fileName.replace(/\.xml$/i, '') || 'Kit')
+      await kitBuilder.addLocalSamples(folder, samples.files)
+      return
+    }
+    const f = e.dataTransfer.files?.[0]
     if (f) editor.load(await f.text(), f.name)
   }
   const kit = $derived(editor.preset?.tag === 'kit' ? editor.preset : undefined)
@@ -35,7 +46,7 @@
   {/if}
   {#if editor.preset}
     <Oled />
-    {#if kit}<KitRows />{/if}
+    {#if kit}<KitBuilder /><KitRows />{/if}
     {#if editor.sound}
       <FlowStrip sound={editor.sound} />
       <Overview sound={editor.sound} {kit} />

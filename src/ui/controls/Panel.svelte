@@ -20,5 +20,7 @@
   }
   .panel::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 2px; background: var(--c, var(--edge-hi)); }
   .ph { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin: 0 0 4px 4px; min-height: 18px; }
-  .ph h2 { margin: 0; font-family: var(--cond); font-size: 12px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: #e2d9ca; }
+  /* The title never wraps; a long summary gives way (ellipsis) instead. */
+  .ph h2 { margin: 0; font-family: var(--cond); font-size: 12px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: #e2d9ca; white-space: nowrap; }
+  .ph :global(.sub) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 </style>

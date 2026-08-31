@@ -7,6 +7,7 @@
 
 import { supports } from '../../core/firmware/features'
 import { parseVersion } from '../../core/firmware/version'
+import { readWavInfo, type WavInfo } from '../../core/samples/wav'
 import {
   IDENTITY_REQUEST,
   isDirectory,
@@ -40,6 +41,21 @@ class Card {
   error = $state<string | null>(null)
   /** Path armed for overwrite: the first Save click on an existing name only arms. */
   armed = $state<string | null>(null)
+
+  /**
+   * Registered by the kit builder (src/ui/state/kit.svelte.ts): writes every
+   * locally held sample the current kit references that the card is missing,
+   * reporting progress; resolves to how many were written. Saving a kit
+   * without its samples would leave silent rows on the instrument.
+   */
+  kitSampleSync: ((onStatus: (label: string, progress: number) => void) => Promise<number>) | null = null
+
+  /**
+   * Registered by the kit builder: before a kit save, move its locally
+   * sourced samples (and the rows' fileName references) under the folder
+   * matching the save path, so the card's layout follows the kit.
+   */
+  kitRetarget: ((savePath: string) => void) | null = null
 
   private client: SmsClient | null = null
 
@@ -142,8 +158,14 @@ class Card {
   }
 
   async save(): Promise<void> {
-    const name = this.saveName.trim()
+    let name = this.saveName.trim()
     if (!name || !this.client || !editor.preset) return
+    // A name without the extension would write fine but be invisible on the
+    // instrument — the Deluge's preset browser lists only .XML files.
+    if (!/\.xml$/i.test(name)) {
+      name = `${name}.XML`
+      this.saveName = name
+    }
     const path = this.join(name)
     const exists = this.entries.some((e) => !isDirectory(e) && e.name.toUpperCase() === name.toUpperCase())
     if (exists && this.armed !== path) {
@@ -152,14 +174,67 @@ class Card {
     }
     this.armed = null
     await this.run(`Writing ${name}`, async () => {
+      // A kit's samples travel with it: retarget them to the saved folder
+      // path first (the XML written below carries the new references), then
+      // copy any the card is missing. Every write is still verified by
+      // read-back; the message just doesn't dwell on it.
+      if (editor.preset?.tag === 'kit') this.kitRetarget?.(path)
       await this.client!.writeFile(path, new TextEncoder().encode(editor.output), (d, t) => (this.progress = d / t))
-      this.saved = `${name} written and read back byte-identical`
+      let copied = 0
+      if (editor.preset?.tag === 'kit' && this.kitSampleSync) {
+        copied = await this.kitSampleSync((label, p) => {
+          if (label) this.busy = label
+          this.progress = p
+        })
+      }
+      this.saved = copied ? `${name} and ${copied} sample${copied === 1 ? '' : 's'} written` : `${name} written`
       await this.list()
     })
   }
 
   private join(name: string): string {
     return this.path === '/' ? `/${name}` : `${this.path}/${name}`
+  }
+
+  // ---- sample access for the kit builder (src/ui/state/kit.svelte.ts) -----
+  // The kit builder browses SAMPLES/ and pushes sample files with the same
+  // client the preset panel uses; these wrappers keep the client private and
+  // the connection checks in one place.
+
+  get connected(): boolean {
+    return this.status === 'connected' && this.client !== null
+  }
+
+  private need(): SmsClient {
+    if (!this.client) throw new Error('not connected to a Deluge — click Connect first')
+    return this.client
+  }
+
+  /** List a directory without touching the preset panel's path or entries. */
+  async listPath(path: string): Promise<DirEntry[]> {
+    return (await this.need().listDirectory(path))
+      .filter((e) => !e.name.startsWith('.'))
+      .toSorted((a, b) => Number(isDirectory(b)) - Number(isDirectory(a)) || a.name.localeCompare(b.name))
+  }
+
+  /** A WAV's frame count etc. read from just its header bytes on the card. */
+  async wavInfo(path: string): Promise<WavInfo> {
+    const handle = await this.need().openRead(path)
+    try {
+      return await readWavInfo((offset, length) => handle.read(offset, length))
+    } finally {
+      await handle.close()
+    }
+  }
+
+  /** Write one sample file (verified by read-back, like every card write). */
+  async writeSampleFile(path: string, data: Uint8Array, onProgress?: (done: number, total: number) => void): Promise<void> {
+    await this.need().writeFile(path, data, onProgress)
+  }
+
+  /** Read a whole sample file off the card (audio preview). */
+  async readSampleFile(path: string, onProgress?: (done: number, total: number) => void): Promise<Uint8Array> {
+    return this.need().readFile(path, onProgress)
   }
 
   /**

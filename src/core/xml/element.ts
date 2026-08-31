@@ -54,3 +54,8 @@ export function childrenOf<C extends ChildMap, K extends keyof C & string>(
 ): C[K][] {
   return el.children.filter((c) => c.tag === tag) as C[K][]
 }
+
+/** A deep copy sharing nothing with the original, keeping attribute and child order. */
+export function cloneElement<A extends Attrs, C extends ChildMap>(el: XmlElement<A, C>): XmlElement<A, C> {
+  return { tag: el.tag, attrs: { ...el.attrs }, children: el.children.map((c) => cloneElement(c)) }
+}

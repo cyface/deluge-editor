@@ -27,9 +27,22 @@
         <p class="err">This Deluge runs firmware {card.identity}, which predates the card protocol — it needs community 1.3.0 or later.</p>
       {/if}
       <div class="pathbar">
-        <button type="button" class="btn" onclick={() => card.up()} disabled={card.path === '/'} aria-label="Up">↑</button>
+        <button type="button" class="btn" onclick={() => card.up()} disabled={card.path === '/' || !!card.busy} title="Up one folder" aria-label="Up">↑</button>
         <span class="path" data-testid="card-path">{card.path}</span>
-        <button type="button" class="btn" onclick={() => card.refresh()} aria-label="Refresh">⟳</button>
+        <button
+          type="button"
+          class="btn refresh"
+          onclick={() => card.refresh()}
+          disabled={!!card.busy}
+          title="Refresh file list from card."
+          aria-label="Refresh"
+        >
+          <!-- Feather "rotate-cw" (MIT): arc plus a bracket arrowhead. -->
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="23 4 23 10 17 10" />
+            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+          </svg>
+        </button>
       </div>
       <ul class="list">
         {#each card.entries as e (e.name)}
@@ -45,7 +58,13 @@
       </ul>
       {#if editor.preset}
         <div class="saverow">
-          <input data-testid="card-save-name" bind:value={card.saveName} placeholder="NAME.XML" spellcheck="false" />
+          <input
+            data-testid="card-save-name"
+            bind:value={card.saveName}
+            placeholder="NAME.XML"
+            spellcheck="false"
+            onkeydown={(e) => { if (e.key === 'Enter' && !card.busy && card.saveName.trim()) void card.save() }}
+          />
           <button type="button" class="btn save" data-testid="card-save" class:armed={card.armed} disabled={!!card.busy || !card.saveName.trim()} onclick={() => card.save()}>
             {card.armed ? 'Overwrite?' : 'Save'}
           </button>
@@ -54,7 +73,6 @@
       {#if card.busy}<p class="busy" data-testid="card-busy">{card.busy}… {Math.round(card.progress * 100)}%</p>{/if}
       {#if card.error}<p class="err" role="alert">{card.error}</p>{/if}
       {#if card.saved}<p class="okline" data-testid="card-saved">{card.saved}</p>{/if}
-      <p class="note">Every save is read back and byte-compared before it is called done. Needs community firmware 1.3.0+.</p>
     {/if}
   </aside>
 {/if}
@@ -72,6 +90,8 @@
   .x { margin-left: auto; background: none; border: 0; color: var(--faint); font-size: 15px; cursor: pointer; line-height: 1; }
   .x:hover { color: #e9e2d6; }
   .pathbar { display: flex; align-items: center; gap: 7px; margin-bottom: 7px; }
+  .refresh svg { display: block; }
+  .refresh { display: inline-flex; align-items: center; justify-content: center; }
   .path { flex: 1; min-width: 0; font-family: var(--mono); font-size: 11px; color: #cfe3c9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .list { list-style: none; margin: 0 0 8px; padding: 0; overflow-y: auto; min-height: 40px; border: 1px solid var(--edge); border-radius: 3px; background: #0d0b0a; }
   .list li { border-bottom: 1px solid rgba(255, 255, 255, .04); }
@@ -88,9 +108,8 @@
   }
   .saverow input:focus { outline: 1px solid var(--brass); }
   .save.armed { border-color: #8a5a2a; color: #e8b06a; }
-  .busy, .note, .okline, .err { margin: 3px 0; font-family: var(--mono); font-size: 10px; }
+  .busy, .okline, .err { margin: 3px 0; font-family: var(--mono); font-size: 10px; }
   .busy { color: #cfe3c9; }
-  .note { color: var(--faint); }
   .okline { color: #9ed492; }
   .err { color: #e8a08f; padding: 5px 7px; border: 1px solid #5a2a22; background: #1d1210; border-radius: 3px; }
 </style>

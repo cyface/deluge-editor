@@ -10,10 +10,12 @@ Public at github.com/cyface/deluge-editor, MIT. Work is tracked as GitHub
 issues in dependency order (`gh issue list`).
 
 - `src/core/` — framework-free TypeScript (params, xml, preset, sysex,
-  firmware). No Svelte or DOM imports beyond `DOMParser`; tests run in Node
-  via happy-dom. `xml/` is the ordered element tree and its parser/writer;
-  `preset/` is the typed view over it (enum string tables, param names,
-  element shapes).
+  firmware, samples, kit). No Svelte or DOM imports beyond `DOMParser`; tests
+  run in Node via happy-dom. `xml/` is the ordered element tree and its
+  parser/writer; `preset/` is the typed view over it (enum string tables,
+  param names, element shapes); `samples/` reads WAV headers over any ranged
+  reader (local file or SysEx); `kit/` is the kit builder (drum-name
+  classifier, row building from the blank-kit template, share zip).
 - `src/ui/` — Svelte 5 (runes) components. `state/editor.svelte.ts` is the
   main store (the tree is a `$state` proxy; core accessors write through it);
   `state/card.svelte.ts` wires `src/core/sysex` to Web MIDI (`CardPanel.svelte`);

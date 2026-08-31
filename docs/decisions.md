@@ -138,8 +138,9 @@ data-loser on, so the client treats the card as hostile:
   replies `err=0` with the real count in `size`. The count is checked and the
   chunk rewritten, or the file would be silently holed with zeros.
 - After the last chunk, the file is read back and byte-compared. A file with
-  the right name and size proves nothing; only the read-back does, and the
-  panel says "read back byte-identical" because that is literally the test.
+  the right name and size proves nothing; only the read-back does. The panel
+  reports a plain "written" — but it never says it before the read-back
+  matched.
 
 The client is framework-free and its tests run against a fake Deluge
 (`src/core/sysex/fake-deluge.ts`) transcribed from `smsysex.cpp` — the fake
@@ -166,6 +167,31 @@ and official 4.1.4 throws away all incoming SysEx (`synthstrom-official`
 firmware — mapping the reply to lineage `c` is cited, not guessed. Unplugging
 is noticed via `MIDIAccess.onstatechange`, which drops the card panel to an
 error with a retry rather than letting a dead connection look alive.
+
+## Kit rows built from samples are clones of the blank kit's row
+
+The kit builder (issue #10) never authors a sound. Every row it adds is a
+deep clone of the one row in `src/assets/templates/Default Kit.XML` — the row
+the firmware itself creates for the new-kit gesture — with exactly four
+things set: the row name, `osc1`'s `fileName`, the zone, and the loop mode.
+The zone end is the WAV's exact frame count, data-chunk bytes over block
+align, which is the same arithmetic the firmware runs on load
+(`Sample::finalizeAfterLoad`, `model/sample/sample.cpp:1715-1729`,
+upstream/community bef6d9df) and what it re-saves after a manual sample
+selection (`SampleHolder::setAudioFile`). Loop mode is `1` — ONCE
+(`SampleRepeatMode`, `definitions_cxx.hpp:495`) — like every factory drum
+row and the firmware-authored `Kit Sample Rows.XML` fixture.
+
+Row order is guessed from file names alone (regex, no audio analysis):
+kick on the bottom pad — first in the file, like the factory kits — then
+snare, closed hat, open hat, clap, rim, toms, cymbals, percussion, rest.
+It is a guess by design; the rows table makes reordering cheap (drag or ▲▼).
+
+The share zip (`src/core/kit/share.ts`) stores entries uncompressed — the
+payload is WAV audio and one small XML, so deflate would buy little and cost
+a dependency — and all metadata (author, licensing, source) goes in the
+README, never into the kit XML, so the packaged kit stays byte-identical to
+the saved one.
 
 ## New starts from a Deluge-authored template, not a built preset
 

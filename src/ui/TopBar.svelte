@@ -50,10 +50,22 @@
     {/if}
   </label>
   <input bind:this={fileInput} type="file" accept=".xml,.XML,text/xml,application/xml" hidden data-testid="file-input" onchange={pick} />
-  <button type="button" class="btn" class:on={card.open} data-testid="card-button" title={card.supported ? "Connect to the Deluge and browse its SD card over MIDI" : 'Web MIDI needs Chrome or Edge'} onclick={() => card.toggle()}>
-    {#if card.status === 'connected'}<span class="dot"></span>Browse Card{:else}Connect{/if}
+  <button
+    type="button"
+    class="btn"
+    class:on={card.open}
+    data-testid="card-button"
+    title={card.busy
+      ? `Card transfer in progress: ${card.busy}…`
+      : card.supported
+        ? 'Connect to the Deluge and browse its SD card over MIDI'
+        : 'Web MIDI needs Chrome or Edge'}
+    onclick={() => card.toggle()}
+  >
+    {#if card.status === 'connected'}<span class="dot" class:pulse={!!card.busy}></span>Browse Card{:else}Connect{/if}
   </button>
   <button type="button" class="btn" title="Start a new synth from the Deluge's own init preset" data-testid="new-synth" onclick={() => editor.newSynth()}>New Synth</button>
+  <button type="button" class="btn" title="Start a kit from the Deluge's own blank kit — then drop a folder of WAVs on the page" data-testid="new-kit" onclick={() => editor.newKit()}>New Kit</button>
   <button type="button" class="btn" title="Open a preset XML from this computer" onclick={() => fileInput?.click()}>Open File</button>
   <button type="button" class="btn" disabled={!editor.preset} onclick={download}>Download</button>
   <button type="button" class="btn" class:on={editor.showChanges} disabled={!editor.preset} data-testid="changes-button" onclick={() => (editor.showChanges = !editor.showChanges)}>
@@ -77,6 +89,9 @@
   /* Locked to the connected device: same face as the select, but it is just text. */
   .pill .fw { color: #a9d9a1; font-family: var(--cond); font-size: 12px; letter-spacing: .09em; text-transform: uppercase; }
   .btn .dot { display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: 50%; background: #67c45c; box-shadow: 0 0 6px #67c45c; vertical-align: 1px; }
+  /* A transfer is running (even with the panel closed): amber, pulsing. */
+  .btn .dot.pulse { background: #e8b06a; box-shadow: 0 0 6px #e8b06a; animation: cardbusy 1s ease-in-out infinite; }
+  @keyframes cardbusy { 0%, 100% { opacity: 1; } 50% { opacity: .25; } }
   .pill select { background: transparent; border: 0; color: #a9d9a1; font-family: var(--cond); font-size: 12px; letter-spacing: .09em; text-transform: uppercase; cursor: pointer; }
   .pill select:focus { outline: none; }
 </style>

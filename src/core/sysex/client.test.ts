@@ -105,6 +105,22 @@ describe('SmsClient', () => {
     // reclaims last — and never (sid<<3)+0, which is not a valid message id.
   })
 
+  it('openRead serves ranged reads without pulling the whole file', async () => {
+    const { client, fake } = rig()
+    const data = bytes(5000)
+    fake.putFile('/SAMPLES/K/Kick.wav', data)
+    const handle = await client.openRead('/SAMPLES/K/Kick.wav')
+    expect(handle.size).toBe(5000)
+    expect(Array.from(await handle.read(0, 12))).toEqual(Array.from(data.subarray(0, 12)))
+    expect(Array.from(await handle.read(4000, 8))).toEqual(Array.from(data.subarray(4000, 4008)))
+    // a read past EOF comes back short, then empty — never an error
+    expect((await handle.read(4996, 100)).length).toBe(4)
+    expect((await handle.read(5000, 8)).length).toBe(0)
+    // a range wider than the 1024-byte read chunk is assembled from several reads
+    expect(Array.from(await handle.read(100, 3000))).toEqual(Array.from(data.subarray(100, 3100)))
+    await handle.close()
+  })
+
   it('uses the negotiated msgId range and cycles within it', async () => {
     const { client, fake } = rig()
     fake.putFile('/SYNTHS/A.XML', bytes(1))

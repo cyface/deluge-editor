@@ -30,6 +30,7 @@ export const fresultName = (code: number): string => FRESULT_NAMES[code] ?? `FRE
 
 /** A few codes get a human sentence; the rest show their FatFS name. */
 const FRIENDLY: Record<number, string> = {
+  1: 'the card could not be read — is an SD card inserted?',
   3: 'the card is not ready',
   4: 'no such file',
   5: 'no such folder',

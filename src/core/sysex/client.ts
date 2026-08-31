@@ -41,6 +41,14 @@ export const isDirectory = (e: DirEntry): boolean => (e.attr & 0x10) !== 0
 
 export type Progress = (done: number, total: number) => void
 
+/** An open read-only file on the card; see `SmsClient.openRead`. */
+export interface ReadHandle {
+  size: number
+  /** Up to `length` bytes at `offset`; shorter only at end of file. */
+  read(offset: number, length: number): Promise<Uint8Array>
+  close(): Promise<void>
+}
+
 export class SysexError extends Error {
   constructor(
     public readonly op: string,
@@ -119,24 +127,46 @@ export class SmsClient {
     if (!('^ping' in r.json)) throw new SysexError('ping', '', -1)
   }
 
-  async readFile(path: string, onProgress?: Progress): Promise<Uint8Array> {
+  /**
+   * An open read-only file for ranged access — one `open`, any number of
+   * `read`s, one `close` — so probing a WAV header costs a few small reads
+   * instead of the whole sample. Always `close()` when done; the firmware's
+   * file table is finite.
+   */
+  async openRead(path: string): Promise<ReadHandle> {
     const open = await this.expect('open', path, { open: { path, write: 0 } })
     const fid = open.fid as number
     const size = open.size as number
-    const out = new Uint8Array(size)
-    let offset = 0
-    while (offset < size) {
-      const want = Math.min(this.opts.readChunk, size - offset)
-      const r = await this.request({ read: { fid, addr: offset, size: want } })
-      this.body('read', path, r, '^read')
-      const data = r.binary ?? new Uint8Array(0)
-      if (data.length === 0) break // EOF short of the advertised size: don't spin.
-      out.set(data.subarray(0, Math.min(data.length, size - offset)), offset)
-      offset += data.length
-      onProgress?.(Math.min(offset, size), size)
+    const read = async (offset: number, length: number): Promise<Uint8Array> => {
+      const out = new Uint8Array(Math.max(0, Math.min(length, size - offset)))
+      let done = 0
+      while (done < out.length) {
+        const want = Math.min(this.opts.readChunk, out.length - done)
+        const r = await this.request({ read: { fid, addr: offset + done, size: want } })
+        this.body('read', path, r, '^read')
+        const data = r.binary ?? new Uint8Array(0)
+        if (data.length === 0) break // EOF short of the advertised size: don't spin.
+        out.set(data.subarray(0, Math.min(data.length, out.length - done)), done)
+        done += data.length
+      }
+      return done < out.length ? out.subarray(0, done) : out
     }
-    await this.close(path, fid)
-    if (offset < size) throw new SysexError('read', path, 9 /* FR_INVALID_OBJECT: file shrank mid-read */)
+    return { size, read, close: () => this.close(path, fid) }
+  }
+
+  async readFile(path: string, onProgress?: Progress): Promise<Uint8Array> {
+    const handle = await this.openRead(path)
+    const out = new Uint8Array(handle.size)
+    let offset = 0
+    while (offset < handle.size) {
+      const data = await handle.read(offset, this.opts.readChunk)
+      if (data.length === 0) break
+      out.set(data, offset)
+      offset += data.length
+      onProgress?.(offset, handle.size)
+    }
+    await handle.close()
+    if (offset < handle.size) throw new SysexError('read', path, 9 /* FR_INVALID_OBJECT: file shrank mid-read */)
     return out
   }
 

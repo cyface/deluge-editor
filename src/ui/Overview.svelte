@@ -66,4 +66,8 @@ import RandomiserGroup from './groups/RandomiserGroup.svelte'
   .chipline b { font-family: var(--cond); font-size: 10.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #d5ccbc; white-space: nowrap; }
   .chipline span { font-family: var(--mono); font-size: 9.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .grid { padding: 10px 0 0; column-width: 262px; column-gap: 9px; }
+  /* The kit bus always heads a column, Randomiser/Gold Knobs stacking under
+     it — unless it is the only panel showing (a forced break would then
+     strand an empty first column). */
+  .grid :global([data-group='kit']:not(:first-child)) { break-before: column; }
 </style>

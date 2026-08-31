@@ -1,8 +1,8 @@
 <script lang="ts">
   import { SOUND_ATTR_ORDER, SOUND_PARAM_ATTRS, type SoundElement } from '../../core/preset'
-  import { ensureParams, params } from '../../core/preset/sound'
+  import { ensureParams, params, paramMenu, setParamMenu } from '../../core/preset/sound'
   import { setAttr } from '../../core/xml'
-  import FilterGraph from '../controls/FilterGraph.svelte'
+  import FilterGraph, { type FilterBinding } from '../controls/FilterGraph.svelte'
   import HexKnob from '../controls/HexKnob.svelte'
   import Select from '../controls/Select.svelte'
   import { hpfModeOptions, lpfModeOptions, routeOptions } from '../options'
@@ -12,9 +12,14 @@
   let { sound }: Props = $props()
   const P = () => ensureParams(sound)
   const set = (name: string) => (v: string) => setAttr(sound, name, v, SOUND_ATTR_ORDER)
+  const filters: FilterBinding = {
+    attr: (name) => sound.attrs[name],
+    read: (p) => paramMenu(sound, p),
+    write: (p, menu) => setParamMenu(sound, p, menu),
+  }
 </script>
 
-<FilterGraph {sound} />
+<FilterGraph {filters} />
 <div class="fields">
   <Select label="LPF Mode" name="lpfMode" value={sound.attrs.lpfMode} options={lpfModeOptions(editor.supports)} onchange={set('lpfMode')} />
   {#if editor.supports('hpfMode')}

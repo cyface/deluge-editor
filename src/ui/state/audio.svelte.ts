@@ -1,0 +1,88 @@
+/**
+ * Audio preview of kit-row samples. Bytes come from the kit builder's local
+ * stash when the row was built from files on this computer, and over SysEx
+ * from the card when a Deluge is connected — decoded once and cached. The
+ * AudioContext is created on the first click (browsers require a gesture).
+ */
+
+import { card } from './card.svelte'
+import { kit } from './kit.svelte'
+
+class AudioPreview {
+  /** fileName of the row playing right now, loading, or the last failure. */
+  playing = $state<string | null>(null)
+  loading = $state<string | null>(null)
+  progress = $state(0)
+  error = $state<string | null>(null)
+
+  private ctx: AudioContext | null = null
+  private cache = new Map<string, AudioBuffer>()
+  private source: AudioBufferSourceNode | null = null
+
+  /** Preview needs bytes: local, already decoded, or fetchable from the card. */
+  canPreview(fileName: string): boolean {
+    return this.cache.has(fileName) || kit.bytes.has(fileName) || card.connected
+  }
+
+  stop(): void {
+    try {
+      this.source?.stop()
+    } catch {
+      // already ended
+    }
+    this.source = null
+    this.playing = null
+  }
+
+  async toggle(fileName: string): Promise<void> {
+    if (this.playing === fileName) {
+      this.stop()
+      return
+    }
+    this.stop()
+    this.error = null
+    try {
+      const buffer = await this.load(fileName)
+      const ctx = this.ctx!
+      if (ctx.state === 'suspended') await ctx.resume()
+      const source = ctx.createBufferSource()
+      source.buffer = buffer
+      source.connect(ctx.destination)
+      source.onended = () => {
+        if (this.source === source) {
+          this.source = null
+          this.playing = null
+        }
+      }
+      this.source = source
+      this.playing = fileName
+      source.start()
+    } catch (e) {
+      this.error = `${fileName}: ${e instanceof Error ? e.message : String(e)}`
+    } finally {
+      this.loading = null
+    }
+  }
+
+  private async load(fileName: string): Promise<AudioBuffer> {
+    const hit = this.cache.get(fileName)
+    if (hit) return hit
+    this.ctx ??= new AudioContext()
+    let bytes = kit.bytes.get(fileName)
+    if (!bytes) {
+      if (!card.connected) {
+        throw new Error('sample is not on this computer — connect the Deluge to preview it from the card')
+      }
+      this.loading = fileName
+      this.progress = 0
+      bytes = await card.readSampleFile(`/${fileName}`, (done, total) => (this.progress = total ? done / total : 0))
+    }
+    // decodeAudioData detaches its buffer, so hand it a copy, not the stash.
+    const copy = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer
+    const buffer = await this.ctx.decodeAudioData(copy)
+    this.cache.set(fileName, buffer)
+    return buffer
+  }
+}
+
+export const audio = new AudioPreview()

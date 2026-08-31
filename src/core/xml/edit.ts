@@ -74,3 +74,13 @@ export function removeChild(parent: XmlElement, child: XmlElement): void {
   const i = parent.children.indexOf(child)
   if (i >= 0) parent.children.splice(i, 1)
 }
+
+/** Move the child at `from` to sit at `to`, shifting the ones between. */
+export function moveChild(parent: XmlElement, from: number, to: number): void {
+  const last = parent.children.length - 1
+  if (from < 0 || from > last) return
+  const dest = Math.max(0, Math.min(last, to))
+  if (dest === from) return
+  const [moved] = parent.children.splice(from, 1)
+  parent.children.splice(dest, 0, moved)
+}

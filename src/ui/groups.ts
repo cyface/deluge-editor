@@ -295,7 +295,7 @@ export const KIT_GROUP: Group = {
   lane: 'chain',
   icon: IC.kit,
   owns: [],
-  summary: () => 'kit-level filters, effects and sidechain',
+  summary: () => 'whole-kit filters, FX, sidechain',
   value: () => 'kit',
 }
 
@@ -315,8 +315,15 @@ export const groupOf = (param: string | undefined): Group | undefined =>
  * Arpeggiator panel, where that firmware's menu keeps them.
  */
 export function visibleGroups(): Group[] {
-  const gs = editor.preset?.tag === 'kit' ? [...GROUPS, KIT_GROUP] : [...GROUPS]
-  return editor.supports('arp3') ? gs : gs.filter((g) => g.id !== 'random')
+  let gs = [...GROUPS]
+  if (!editor.supports('arp3')) gs = gs.filter((g) => g.id !== 'random')
+  // The kit bus opens its own column (Overview forces the break) so the
+  // panels after it — Randomiser, then Gold Knobs — stack beneath it,
+  // whichever of them the column has room for.
+  if (editor.preset?.tag === 'kit') {
+    gs.splice(gs.findIndex((g) => g.id === 'random' || g.id === 'gold'), 0, KIT_GROUP)
+  }
+  return gs
 }
 
 /**

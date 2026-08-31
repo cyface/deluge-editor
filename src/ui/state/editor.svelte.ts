@@ -6,6 +6,7 @@
  * read that value, and `output`/`diff` follow along.
  */
 
+import initKitTemplate from '../../assets/templates/Default Kit.XML?raw'
 import initSynthTemplate from '../../assets/templates/Default Synth.XML?raw'
 import { supports as featureSupported } from '../../core/firmware/features'
 import { parseVersion, type FirmwareVersion } from '../../core/firmware/version'
@@ -121,6 +122,15 @@ class Editor {
    */
   newSynth(): void {
     this.load(initSynthTemplate, '')
+  }
+
+  /**
+   * Start a kit from the blank kit the firmware's new-kit gesture creates
+   * (issue #10), captured the same way as the synth template. Its one blank
+   * row is replaced by the first samples added (`src/core/kit/build.ts`).
+   */
+  newKit(): void {
+    this.load(initKitTemplate, '')
   }
 
   supports = (feature: string): boolean => featureSupported(this.version, feature)
