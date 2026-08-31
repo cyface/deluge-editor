@@ -1,0 +1,53 @@
+# Every push to main runs the full suite, then publishes dist/ to GitHub
+# Pages (https://cyface.github.io/deluge-editor/). The deploy is gated on the
+# tests, so the published editor is never one the round-trip tests didn't
+# bless — and the artifact is the very build the e2e smoke test ran against
+# (vite.config.ts uses a relative base, so root and subpath hosting are the
+# same build). Cloudflare (`pnpm deploy`) stays a separate, manual path.
+name: Test and deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deploy at a time; a queued newer push supersedes, but never cancel a
+# deploy already in flight.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4 # version comes from packageManager in package.json
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+      - run: pnpm check
+      - run: pnpm exec playwright install --with-deps chromium
+      # Builds dist/ itself (playwright.config.ts webServer) and smokes it.
+      - run: pnpm test:e2e
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

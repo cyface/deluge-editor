@@ -4,6 +4,9 @@ A browser-based preset editor for the [Synthstrom Deluge](https://synthstrom.com
 Edits synth and kit presets as XML, offline (load / download) or live on the
 Deluge's SD card over Web MIDI SysEx.
 
+**Use it now: <https://cyface.github.io/deluge-editor/>** — deployed from
+`main` by CI, after the full test suite passes.
+
 **Status:** the XML round-trip, the editor UI, and live load/save on the
 Deluge's SD card over Web MIDI (community firmware 1.3.0+) all work.
 
