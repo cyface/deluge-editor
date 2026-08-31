@@ -48,7 +48,18 @@ test('build a kit from a sample folder: guessed order, reorder, rename, share zi
   await expect(rows.nth(2)).toContainText('Open Hat')
   await expect(rows.nth(3)).toContainText('Perc Loop')
   await expect(rows.nth(0)).toContainText('SAMPLES/My Kit/Kick.wav')
-  await expect(rows.nth(0)).toContainText('Once')
+
+  // The Mode column edits loopMode in place; built rows start at Once.
+  const mode = rows.nth(0).getByTestId('row-mode')
+  await expect(mode).toHaveValue('1')
+  await mode.selectOption('2')
+  await expect(mode).toHaveValue('2')
+
+  // So does the Dir column (reversed on the sample oscillator).
+  const direction = rows.nth(0).getByTestId('row-direction')
+  await expect(direction).toHaveValue('0')
+  await direction.selectOption('1')
+  await expect(direction).toHaveValue('1')
 
   // Reorder with the arrows: Snare up to the bottom pad.
   await rows.nth(1).getByRole('button', { name: 'Move row 2 up' }).click()

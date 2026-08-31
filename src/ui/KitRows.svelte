@@ -5,7 +5,7 @@
    * (bottom pad first in the file, so row 1 is the bottom of the grid).
    */
   import { moveRow, removeRow, renameRow } from '../core/kit/build'
-  import { LOOP_MODE_NAMES, type DrumRow, type KitElement } from '../core/preset'
+  import { LOOP_MODE_NAMES, OSC_ATTR_ORDER, type DrumRow, type KitElement, type OscElement } from '../core/preset'
   import { osc, paramMenu } from '../core/preset/sound'
   import { child } from '../core/xml'
   import { MIDI_OUTPUT_ATTR_ORDER } from '../core/preset'
@@ -22,9 +22,16 @@
     const t = o?.attrs.type ?? 'square' // Source ctor default survives load (source.cpp:41)
     if (t === 'sample') {
       const file = o?.attrs.fileName ?? child(o!, 'sampleRanges')?.children[0]?.attrs.fileName ?? ''
-      return `${file || '(no file)'}${o?.attrs.loopMode ? ` · ${LOOP_MODE_NAMES[o.attrs.loopMode] ?? o.attrs.loopMode}` : ''}`
+      return file || '(no file)'
     }
     return `${r.attrs.mode ?? 'subtractive'} · ${t}`
+  }
+
+  /** The oscillator whose play mode the Mode column edits: osc1 when it plays a sample. */
+  function sampleOsc(r: DrumRow): OscElement | undefined {
+    if (!isSoundRow(r)) return undefined
+    const o = osc(r, 1)
+    return o?.attrs.type === 'sample' ? o : undefined
   }
   /** The sample file a row plays, for the audio preview; undefined for non-sample rows. */
   function sampleFile(r: DrumRow): string | undefined {
@@ -76,7 +83,7 @@
   <div class="ph"><h2>Rows</h2><span class="sub">{editor.rows.length} in pad order · bottom row first in the file · drag or ▲▼ to reorder</span></div>
   <div class="scroll">
     <table class="rows" data-testid="kit-rows">
-      <thead><tr><th></th><th></th><th></th><th class="num">#</th><th>Row</th><th>Source</th><th class="num">Vol</th><th class="num">Pan</th><th></th></tr></thead>
+      <thead><tr><th></th><th></th><th></th><th class="num">#</th><th>Row</th><th>Source</th><th>Mode</th><th>Direction</th><th class="num">Vol</th><th class="num">Pan</th><th></th></tr></thead>
       <tbody>
         {#each editor.rows as r, i (r)}
           <tr
@@ -131,6 +138,39 @@
               {/if}
             </td>
             <td><span class="file" title={describe(r)}>{describe(r)}</span></td>
+            <td>
+              {#if sampleOsc(r)}
+                {@const o = sampleOsc(r)!}
+                <select
+                  class="mode"
+                  data-testid="row-mode"
+                  title="How the sample plays: Cut stops on note-off, Once always plays out, Loop repeats, Stretch follows the tempo"
+                  value={o.attrs.loopMode ?? '0'}
+                  onclick={(e) => e.stopPropagation()}
+                  onchange={(e) => setAttr(o, 'loopMode', (e.currentTarget as HTMLSelectElement).value, OSC_ATTR_ORDER)}
+                >
+                  {#each Object.entries(LOOP_MODE_NAMES) as [value, label] (value)}
+                    <option {value}>{label}</option>
+                  {/each}
+                </select>
+              {/if}
+            </td>
+            <td>
+              {#if sampleOsc(r)}
+                {@const o = sampleOsc(r)!}
+                <select
+                  class="mode"
+                  data-testid="row-direction"
+                  title="Play direction"
+                  value={o.attrs.reversed ?? '0'}
+                  onclick={(e) => e.stopPropagation()}
+                  onchange={(e) => setAttr(o, 'reversed', (e.currentTarget as HTMLSelectElement).value, OSC_ATTR_ORDER)}
+                >
+                  <option value="0">Fwd</option>
+                  <option value="1">Rev</option>
+                </select>
+              {/if}
+            </td>
             <td class="num">{vol(r)}</td>
             <td class="num">{pan(r)}</td>
             <td class="acts">
@@ -179,6 +219,11 @@
   .act.x { font-size: 13px; vertical-align: -1px; }
   .act.x:hover { color: #e8a08f; }
   .playcell { width: 30px; text-align: center; }
+  .mode {
+    background: #0d0b0a; border: 1px solid var(--edge); border-radius: 3px; color: #cfc6b6;
+    font-family: var(--mono); font-size: 10.5px; padding: 2px 3px; cursor: pointer;
+  }
+  .mode:hover, .mode:focus { border-color: var(--brass-dim); color: #efe6d7; outline: none; }
   .play {
     background: none; border: 1px solid var(--edge-hi); border-radius: 3px; color: var(--muted); cursor: pointer;
     font-size: 9px; line-height: 1; padding: 3px 5px; min-width: 22px; font-variant-numeric: tabular-nums;
