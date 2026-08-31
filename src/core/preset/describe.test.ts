@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { FlatXML } from '../xml/flatten'
-import { describeChangePath, describeChangeValue } from './describe'
+import { describeChangePath, describeChangeValue, describeElementPath } from './describe'
 
 describe('describeChangePath', () => {
   it('names defaultParams attributes like the knobs', () => {
@@ -32,6 +32,30 @@ describe('describeChangePath', () => {
 
   it('names a kit row by pad position', () => {
     expect(describeChangePath('kit/soundSources/sound[2]/defaultParams@lpfFrequency')).toBe('Row 3 LPF Freq')
+  })
+})
+
+describe('describeElementPath', () => {
+  it('names a whole kit row, indexed or not', () => {
+    expect(describeElementPath('kit/soundSources/sound[3]')).toBe('Row 4')
+    expect(describeElementPath('kit/soundSources/sound')).toBe('Row 1')
+  })
+
+  it('names sections the way their controls do', () => {
+    expect(describeElementPath('sound/arpeggiator')).toBe('Arp')
+    expect(describeElementPath('sound/osc1/sampleRanges/sampleRange[1]')).toBe('Osc A Range')
+  })
+
+  it('names a whole patch cable by what it connects', () => {
+    const ctx: FlatXML = new Map([
+      ['sound/patchCables/patchCable[1]@source', 'lfo1'],
+      ['sound/patchCables/patchCable[1]@destination', 'pitch'],
+    ])
+    expect(describeElementPath('sound/patchCables/patchCable[1]', ctx)).toBe('LFO 1 → Pitch')
+  })
+
+  it('a path that is all silent segments falls back to itself', () => {
+    expect(describeElementPath('sound/defaultParams')).toBe('sound/defaultParams')
   })
 })
 

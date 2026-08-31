@@ -12,8 +12,9 @@ import { supports as featureSupported } from '../../core/firmware/features'
 import { parseVersion, type FirmwareVersion } from '../../core/firmware/version'
 import { drumRows, isKit, isSound, type DrumRow, type Preset, type SoundElement } from '../../core/preset'
 import {
-  diffFlat, ensureAtPath, findAtPath, flattenXML, generateXML, parseXML, removeAttr, removeChild, setAttr,
-  type FlatDiff,
+  diffFlat, element, ensureAtPath, fillFromFlat, findAtPath, findElementAtPath, flattenXML, generateXML,
+  groupFlatDiff, parseXML, removeAttr, removeChild, setAttr,
+  type FlatDiff, type GroupedFlatDiff,
 } from '../../core/xml'
 
 /** Firmware the user can target. The loaded file's own version is added if it isn't one of these. */
@@ -71,8 +72,18 @@ class Editor {
   readonly diff = $derived<FlatDiff | null>(
     this.flatSource && this.flatOutput ? diffFlat(this.flatSource, this.flatOutput) : null,
   )
+  /** The diff with wholly-new/wholly-gone elements collapsed to one entry each — what the dock shows. */
+  readonly grouped = $derived<GroupedFlatDiff | null>(
+    this.diff && this.flatSource && this.flatOutput
+      ? groupFlatDiff(this.diff, this.flatSource, this.flatOutput)
+      : null,
+  )
+  /** Counted as displayed: a built kit reads "17 changes", not 2340. */
   readonly changeCount = $derived(
-    this.diff ? this.diff.missing.length + this.diff.added.length + this.diff.changed.length : 0,
+    this.grouped
+      ? this.grouped.changed.length + this.grouped.added.length + this.grouped.missing.length +
+        this.grouped.addedGroups.length + this.grouped.missingGroups.length
+      : 0,
   )
   readonly identical = $derived(this.source !== null && this.output === this.source)
   readonly firmwareChoices = $derived.by<string[]>(() => {
@@ -158,6 +169,40 @@ class Editor {
     }
   }
 
+  /**
+   * A removed element comes back by *appending* a rebuilt copy under its
+   * parent — but sibling indexes are positional, so the copy only lands back
+   * on the group's own paths when it would be the sole child of its tag, or
+   * when the index it carries is exactly the next free slot. Anywhere else
+   * the append would read as a brand-new element while the group stayed
+   * missing, so the dock offers no restore there (reload the file instead).
+   */
+  canRestoreGroup(prefix: string): boolean {
+    const hit = this.preset ? restoreTarget(this.preset, prefix) : null
+    return hit !== null && (hit.index === undefined ? hit.count === 0 : hit.index === hit.count)
+  }
+
+  /** Put one collapsed group back: see `groupFlatDiff` and `canRestoreGroup`. */
+  revertGroup(prefix: string, kind: 'added' | 'missing'): void {
+    if (!this.preset) return
+    if (kind === 'added') {
+      const hit = findElementAtPath(this.preset, prefix)
+      if (!hit || hit.lineage.length < 2) return
+      removeChild(hit.lineage[hit.lineage.length - 2], hit.el)
+      for (let i = hit.lineage.length - 2; i > 0; i--) {
+        const el = hit.lineage[i]
+        if (Object.keys(el.attrs).length || el.children.length) break
+        removeChild(hit.lineage[i - 1], el)
+      }
+      return
+    }
+    if (!this.flatSource || !this.canRestoreGroup(prefix)) return
+    const hit = restoreTarget(this.preset, prefix)!
+    const restored = element(hit.tag)
+    fillFromFlat(restored, prefix, this.flatSource) // filled before it joins the reactive tree
+    hit.parent.children.push(restored)
+  }
+
   /** A Deluge answered the identity inquiry: select its firmware. The choice sticks after disconnect. */
   setDeviceFirmware(v: string): void {
     if (!isParseable(v)) return
@@ -177,6 +222,23 @@ class Editor {
     this.focus = []
   }
   isExpanded = (id: string): boolean => this.focus.length === 0 || this.focus.includes(id)
+}
+
+/** A group prefix resolved against the tree: parent element, tag, the index the prefix carries, and how many same-tag siblings exist now. */
+function restoreTarget(root: Preset, prefix: string) {
+  const cut = prefix.lastIndexOf('/')
+  if (cut < 0) return null
+  const m = /^([^[\]]+)(?:\[(\d+)\])?$/.exec(prefix.slice(cut + 1))
+  if (!m) return null
+  const parent = findElementAtPath(root, prefix.slice(0, cut))
+  if (!parent) return null
+  const tag = m[1]
+  return {
+    parent: parent.el,
+    tag,
+    index: m[2] === undefined ? undefined : Number(m[2]),
+    count: parent.el.children.filter((c) => c.tag === tag).length,
+  }
 }
 
 const isParseable = (s: string): boolean => {

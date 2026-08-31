@@ -7,6 +7,7 @@
  */
 
 import { element, type XmlElement } from './element'
+import type { FlatXML } from './flatten'
 
 export interface FlatRef {
   el: XmlElement
@@ -15,13 +16,14 @@ export interface FlatRef {
   lineage: XmlElement[]
 }
 
+export interface ElementRef {
+  el: XmlElement
+  lineage: XmlElement[]
+}
+
 const SEG = /^([^[\]]+)(?:\[(\d+)\])?$/
 
-function walkTo(root: XmlElement, path: string, create: boolean): FlatRef | null {
-  const at = path.lastIndexOf('@')
-  if (at < 0) return null // '#text' paths: no Deluge file has mixed content
-  const attr = path.slice(at + 1)
-  const segs = path.slice(0, at).split('/')
+function walkElements(root: XmlElement, segs: string[], create: boolean): ElementRef | null {
   if (SEG.exec(segs[0])?.[1] !== root.tag) return null
   let el = root
   const lineage = [root]
@@ -39,7 +41,14 @@ function walkTo(root: XmlElement, path: string, create: boolean): FlatRef | null
     el = next
     lineage.push(el)
   }
-  return { el, attr, lineage }
+  return { el, lineage }
+}
+
+function walkTo(root: XmlElement, path: string, create: boolean): FlatRef | null {
+  const at = path.lastIndexOf('@')
+  if (at < 0) return null // '#text' paths: no Deluge file has mixed content
+  const hit = walkElements(root, path.slice(0, at).split('/'), create)
+  return hit ? { el: hit.el, attr: path.slice(at + 1), lineage: hit.lineage } : null
 }
 
 /** The element and attribute a flattened path names, or null when the tree lacks it. */
@@ -47,3 +56,30 @@ export const findAtPath = (root: XmlElement, path: string): FlatRef | null => wa
 
 /** Like `findAtPath`, but missing containers are created (appended) on the way down. */
 export const ensureAtPath = (root: XmlElement, path: string): FlatRef | null => walkTo(root, path, true)
+
+/** The element a flattened *element* path (no `@attr` part) names, or null. */
+export const findElementAtPath = (root: XmlElement, path: string): ElementRef | null =>
+  walkElements(root, path.split('/'), false)
+
+/**
+ * Rebuild `el` from a flattened map's entries under `prefix` — the restore
+ * half of reverting a whole removed element. The map iterates in flatten
+ * order (attributes first, then each child subtree, all in document order),
+ * so plain assignment and appending reproduce the flattened document's
+ * layout exactly.
+ */
+export function fillFromFlat(el: XmlElement, prefix: string, flat: FlatXML): void {
+  for (const [p, v] of flat) {
+    if (!p.startsWith(prefix)) continue
+    const sep = p[prefix.length]
+    if (sep === '@') {
+      el.attrs[p.slice(prefix.length + 1)] = v
+      continue
+    }
+    if (sep !== '/') continue // a longer sibling name, e.g. `sound[12]` under `sound[1]`
+    const at = p.lastIndexOf('@')
+    if (at < 0) continue
+    const hit = walkElements(el, `${el.tag}/${p.slice(prefix.length + 1, at)}`.split('/'), true)
+    if (hit) hit.el.attrs[p.slice(at + 1)] = v
+  }
+}

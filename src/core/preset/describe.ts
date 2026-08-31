@@ -138,6 +138,34 @@ const lookup = (path: string, maps: Array<FlatXML | null | undefined>): string |
   return undefined
 }
 
+/** "LFO 1 → Pitch": a patch cable names itself by what it connects. */
+const cableLabel = (prefix: string, segs: string[], maps: Array<FlatXML | null | undefined>): string => {
+  const src = lookup(`${prefix}@source`, maps)
+  const dst = lookup(`${prefix}@destination`, maps)
+  const from = src ? (PATCH_SOURCE_NAMES[src as keyof typeof PATCH_SOURCE_NAMES] ?? src) : '?'
+  const to = dst ? paramLabel(dst) : '?'
+  const outer = segs.some((s) => SEG.exec(s)?.[1] === 'depthControlledBy') ? 'Depth of ' : ''
+  return `${outer}${from} → ${to}`
+}
+
+/** The container segments as spoken words, or null when one fails to parse. */
+function segmentWords(segs: string[]): string[] | null {
+  const words: string[] = []
+  for (let i = 0; i < segs.length; i++) {
+    const m = SEG.exec(segs[i])
+    if (!m) return null
+    if (m[1] === 'soundSources') continue
+    const prev = i > 0 ? SEG.exec(segs[i - 1])?.[1] : undefined
+    if (prev === 'soundSources') {
+      words.push(`Row ${Number(m[2] ?? 0) + 1}`) // a kit row, whatever its tag
+      continue
+    }
+    const name = SEG_LABELS[m[1]] ?? prettyAttr(m[1])
+    if (name) words.push(m[2] !== undefined && !(m[1] in SEG_LABELS) ? `${name} ${Number(m[2]) + 1}` : name)
+  }
+  return words
+}
+
 /**
  * "Env 1 Attack", "LFO 1 → Pitch · Amount", "Osc A Transpose". `maps` (the
  * flattened output and/or source) let a patch cable's row name its source
@@ -152,15 +180,8 @@ export function describeChangePath(path: string, ...maps: Array<FlatXML | null |
   const last = segs[segs.length - 1]
   const lastTag = last ? SEG.exec(last)?.[1] : undefined
 
-  // A patch cable names itself by what it connects.
   if (lastTag === 'patchCable') {
-    const prefix = path.slice(0, at)
-    const src = lookup(`${prefix}@source`, maps)
-    const dst = lookup(`${prefix}@destination`, maps)
-    const from = src ? (PATCH_SOURCE_NAMES[src as keyof typeof PATCH_SOURCE_NAMES] ?? src) : '?'
-    const to = dst ? paramLabel(dst) : '?'
-    const outer = segs.some((s) => SEG.exec(s)?.[1] === 'depthControlledBy') ? 'Depth of ' : ''
-    return `${outer}${from} → ${to} · ${CABLE_ATTR_WORDS[attr] ?? prettyAttr(attr)}`
+    return `${cableLabel(path.slice(0, at), segs, maps)} · ${CABLE_ATTR_WORDS[attr] ?? prettyAttr(attr)}`
   }
 
   // A gold-knob slot is positional: 8 pages × 2 knobs, bottom written first.
@@ -169,23 +190,24 @@ export function describeChangePath(path: string, ...maps: Array<FlatXML | null |
     return `Gold Knob · page ${Math.floor(i / 2) + 1} ${i % 2 ? 'top' : 'bottom'} · ${prettyAttr(attr)}`
   }
 
-  const words: string[] = []
-  for (let i = 0; i < segs.length; i++) {
-    const m = SEG.exec(segs[i])
-    if (!m) return path
-    if (m[1] === 'soundSources') continue
-    const prev = i > 0 ? SEG.exec(segs[i - 1])?.[1] : undefined
-    if (prev === 'soundSources') {
-      words.push(`Row ${Number(m[2] ?? 0) + 1}`) // a kit row, whatever its tag
-      continue
-    }
-    const name = SEG_LABELS[m[1]] ?? prettyAttr(m[1])
-    if (name) words.push(m[2] !== undefined && !(m[1] in SEG_LABELS) ? `${name} ${Number(m[2]) + 1}` : name)
-  }
+  const words = segmentWords(segs)
+  if (words === null) return path
 
   // A <defaultParams> or <equalizer> attribute is a param the knobs already label.
   const isParam = lastTag === 'defaultParams' || lastTag === 'equalizer'
   return [...words, isParam ? paramLabel(attr) : prettyAttr(attr)].join(' ')
+}
+
+/**
+ * A whole element, for a collapsed diff group: "Row 4", "Osc A Range 2",
+ * "LFO 2 → Pan" for a patch cable. `maps` as in `describeChangePath`.
+ */
+export function describeElementPath(path: string, ...maps: Array<FlatXML | null | undefined>): string {
+  const segs = path.split('/').slice(1)
+  const last = segs[segs.length - 1]
+  if (last && SEG.exec(last)?.[1] === 'patchCable') return cableLabel(path, segs, maps)
+  const words = segmentWords(segs)
+  return words === null || words.length === 0 ? path : words.join(' ')
 }
 
 const HEX = /^0x[0-9A-Fa-f]{1,8}$/

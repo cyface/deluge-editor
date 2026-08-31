@@ -3,12 +3,17 @@
    * The flattened diff of the current output against the loaded file, worded
    * the way the controls are: "Env 1 Attack: 21 → 34". The raw path and
    * values stay in the row's tooltip. Each row's × puts that one value back
-   * the way the file had it.
+   * the way the file had it. An element that is new or gone in its entirety
+   * — a kit row built from a sample, say — collapses to a single entry
+   * instead of one line per value (`src/core/xml/group.ts`).
    */
-  import { describeChangePath, describeChangeValue } from '../core/preset'
+  import { describeChangePath, describeChangeValue, describeElementPath } from '../core/preset'
   import { editor } from './state/editor.svelte'
-  const d = $derived(editor.diff)
+  const d = $derived(editor.grouped)
   const label = (path: string) => describeChangePath(path, editor.flatOutput, editor.flatSource)
+  const elabel = (prefix: string) => describeElementPath(prefix, editor.flatOutput, editor.flatSource)
+  /** A group shows its element's own name when it has one — a kit row's, usually. */
+  const nameOf = (prefix: string) => editor.flatOutput?.get(`${prefix}@name`) ?? editor.flatSource?.get(`${prefix}@name`)
   const val = describeChangeValue
 </script>
 
@@ -28,6 +33,15 @@
         <button type="button" class="x" title="Revert to the file's value" aria-label="Revert {label(c.path)}" onclick={() => editor.revert(c.path)}>×</button>
       </div>
     {/each}
+    {#each d.addedGroups as g (g.prefix)}
+      <div class="row added" data-change={g.prefix} title="{g.prefix}&#10;+ {g.paths.length} values">
+        <div class="what">
+          <span class="lbl">{elabel(g.prefix)}</span>
+          <span class="v">+ {#if nameOf(g.prefix)}<b>{nameOf(g.prefix)}</b> {/if}<em>added · {g.paths.length} values</em></span>
+        </div>
+        <button type="button" class="x" title="Remove it again, as the file had it" aria-label="Remove {elabel(g.prefix)}" onclick={() => editor.revertGroup(g.prefix, 'added')}>×</button>
+      </div>
+    {/each}
     {#each d.added as p (p)}
       <div class="row added" data-change={p} title="{p}&#10;+ {editor.flatOutput?.get(p)}">
         <div class="what">
@@ -35,6 +49,17 @@
           <span class="v">+ <b>{val(p, editor.flatOutput?.get(p) ?? '')}</b> <em>added</em></span>
         </div>
         <button type="button" class="x" title="Remove again, as the file had it" aria-label="Revert {label(p)}" onclick={() => editor.revert(p)}>×</button>
+      </div>
+    {/each}
+    {#each d.missingGroups as g (g.prefix)}
+      <div class="row missing" data-change={g.prefix} title="{g.prefix}&#10;− {g.paths.length} values">
+        <div class="what">
+          <span class="lbl">{elabel(g.prefix)}</span>
+          <span class="v">− {#if nameOf(g.prefix)}<s>{nameOf(g.prefix)}</s> {/if}<em>removed · {g.paths.length} values</em></span>
+        </div>
+        {#if editor.canRestoreGroup(g.prefix)}
+          <button type="button" class="x" title="Restore the file's element" aria-label="Restore {elabel(g.prefix)}" onclick={() => editor.revertGroup(g.prefix, 'missing')}>×</button>
+        {/if}
       </div>
     {/each}
     {#each d.missing as p (p)}

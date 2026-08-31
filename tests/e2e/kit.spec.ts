@@ -96,9 +96,22 @@ test('build a kit from a sample folder: guessed order, reorder, rename, share zi
   await rows.nth(1).click() // deselect: the name renders as text again
   await expect(rows.nth(0)).toContainText('SNR')
 
-  // Remove a row.
-  await rows.nth(3).getByRole('button', { name: 'Remove row 4' }).click()
+  // The Changes dock collapses each built row to one entry (and the blank
+  // row it replaced to one), instead of listing every value (~150 per row).
+  await page.getByTestId('changes-button').click()
+  await expect(page.getByTestId('change-count')).toHaveText('5')
+  const entries = page.locator('[data-testid="changes"] [data-change]')
+  await expect(entries).toHaveCount(5)
+  await expect(entries.nth(0)).toContainText('Row 1')
+  await expect(entries.nth(0)).toContainText('SNR') // the group shows the row's name
+  // The blank row can't come back among indexed rows, so its group has no restore.
+  await expect(page.locator('[data-testid="changes"] [data-change="kit/soundSources/sound"] button')).toHaveCount(0)
+
+  // Remove a row: a group's × takes the whole built row out again.
+  await page.locator('[data-testid="changes"] [data-change="kit/soundSources/sound[3]"] button').click()
   await expect(rows).toHaveCount(3)
+  await expect(page.getByTestId('change-count')).toHaveText('4')
+  await page.getByTestId('changes-button').click() // close the dock
 
   // Share zip: README + KITS/ + the three samples still in the kit.
   await page.locator('#kit-author').fill('Tim')

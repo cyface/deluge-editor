@@ -123,6 +123,46 @@ describe('per-change revert', () => {
     expect(editor.identical).toBe(true)
   })
 
+  it('a built kit collapses to one entry per row, and a group revert removes the row whole', async () => {
+    const { addSampleRows, rowTemplateFrom } = await import('../../core/kit/build')
+    const { default: blankKit } = await import('../../assets/templates/Default Kit.XML?raw')
+    const { isKit, drumRows } = await import('../../core/preset')
+    editor.newKit()
+    if (!isKit(editor.preset!)) throw new Error('template is a kit')
+    addSampleRows(editor.preset, rowTemplateFrom(blankKit), [
+      { fileName: 'SAMPLES/T/Kick.wav', frames: 100 },
+      { fileName: 'SAMPLES/T/Snare.wav', frames: 200 },
+    ])
+    // two rows added, the blank row gone: three entries, not hundreds
+    expect(editor.changeCount).toBe(3)
+    expect(editor.grouped!.addedGroups.map((g) => g.prefix)).toEqual([
+      'kit/soundSources/sound[0]',
+      'kit/soundSources/sound[1]',
+    ])
+    // the blank row can't be put back among the built rows: an appended copy
+    // would land on a different indexed path and read as a new element
+    expect(editor.canRestoreGroup('kit/soundSources/sound')).toBe(false)
+    editor.revertGroup('kit/soundSources/sound[1]', 'added')
+    expect(drumRows(editor.preset).map((r) => r.attrs.name)).toEqual(['Kick'])
+    // one row on each side now: the paths line up again and the diff turns
+    // per-value — the Kick row against the blank row, no groups left
+    expect(editor.grouped!.addedGroups).toEqual([])
+    expect(editor.grouped!.missingGroups).toEqual([])
+    expect(editor.grouped!.changed.map((c) => c.path)).toContain('kit/soundSources/sound@name')
+  })
+
+  it('a removed element is rebuilt from the file, value-identically', async () => {
+    const { removeChild, child } = await import('../../core/xml')
+    const { isSound } = await import('../../core/preset')
+    editor.load(community, 'Default Synth.XML')
+    if (!isSound(editor.preset!)) throw new Error('fixture is a synth')
+    removeChild(editor.preset, child(editor.preset, 'arpeggiator')!)
+    expect(editor.grouped!.missingGroups.map((g) => g.prefix)).toEqual(['sound/arpeggiator'])
+    expect(editor.canRestoreGroup('sound/arpeggiator')).toBe(true)
+    editor.revertGroup('sound/arpeggiator', 'missing')
+    expect(editor.changeCount).toBe(0) // every value is the file's again; only layout may differ
+  })
+
   it('a removed value is restored from the file', async () => {
     const { removeAttr, child } = await import('../../core/xml')
     const { isSound } = await import('../../core/preset')
