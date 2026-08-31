@@ -34,7 +34,7 @@ class AudioPreview {
     this.playing = null
   }
 
-  async toggle(fileName: string): Promise<void> {
+  async toggle(fileName: string, reversed = false): Promise<void> {
     if (this.playing === fileName) {
       this.stop()
       return
@@ -42,7 +42,8 @@ class AudioPreview {
     this.stop()
     this.error = null
     try {
-      const buffer = await this.load(fileName)
+      let buffer = await this.load(fileName)
+      if (reversed) buffer = this.reversedOf(fileName, buffer)
       const ctx = this.ctx!
       if (ctx.state === 'suspended') await ctx.resume()
       const source = ctx.createBufferSource()
@@ -62,6 +63,21 @@ class AudioPreview {
     } finally {
       this.loading = null
     }
+  }
+
+  /** The row plays backwards: preview does too. Reversed copies are cached beside the forward decode. */
+  private reversedOf(fileName: string, buffer: AudioBuffer): AudioBuffer {
+    const key = `${fileName}#rev`
+    const hit = this.cache.get(key)
+    if (hit) return hit
+    const out = this.ctx!.createBuffer(buffer.numberOfChannels, buffer.length, buffer.sampleRate)
+    for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
+      const data = buffer.getChannelData(ch).slice()
+      data.reverse()
+      out.copyToChannel(data, ch)
+    }
+    this.cache.set(key, out)
+    return out
   }
 
   private async load(fileName: string): Promise<AudioBuffer> {

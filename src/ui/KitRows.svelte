@@ -6,7 +6,7 @@
    */
   import { moveRow, removeRow, renameRow } from '../core/kit/build'
   import { LOOP_MODE_NAMES, OSC_ATTR_ORDER, type DrumRow, type KitElement, type OscElement } from '../core/preset'
-  import { osc, paramMenu } from '../core/preset/sound'
+  import { osc, paramMenu, setParamMenu } from '../core/preset/sound'
   import { child } from '../core/xml'
   import { MIDI_OUTPUT_ATTR_ORDER } from '../core/preset'
   import { setAttr } from '../core/xml'
@@ -41,11 +41,33 @@
     return o.attrs.fileName || child(o, 'sampleRanges')?.children[0]?.attrs.fileName || undefined
   }
 
-  const vol = (r: DrumRow) => (isSoundRow(r) ? (paramMenu(r, 'volume') ?? '—') : '')
+  const vol = (r: DrumRow) => (isSoundRow(r) ? (paramMenu(r, 'volume') ?? '') : '')
   const pan = (r: DrumRow) => {
     if (!isSoundRow(r)) return ''
     const p = paramMenu(r, 'pan')
-    return p === undefined ? '—' : p === 0 ? 'C' : `${p < 0 ? 'L' : 'R'}${Math.abs(p)}`
+    return p === undefined ? '' : p === 0 ? 'C' : `${p < 0 ? 'L' : 'R'}${Math.abs(p)}`
+  }
+
+  /** Commit a typed volume: 0–50, the Deluge's own scale. Empty leaves the value alone. */
+  function commitVol(r: DrumRow, e: Event) {
+    const input = e.currentTarget as HTMLInputElement
+    const n = Math.round(Number(input.value.trim()))
+    if (isSoundRow(r) && input.value.trim() !== '' && Number.isFinite(n)) {
+      setParamMenu(r, 'volume', Math.max(0, Math.min(50, n)))
+    }
+    input.value = String(vol(r)) // re-show the stored value (clamped, or unchanged on bad input)
+  }
+
+  /** Commit a typed pan: C, L1–L25, R1–R25, or a signed number (negative = left). */
+  function commitPan(r: DrumRow, e: Event) {
+    const input = e.currentTarget as HTMLInputElement
+    const raw = input.value.trim().toUpperCase().replace(/^(\d+)\s*([LR])$/, '$2$1') // 12L → L12
+    if (isSoundRow(r) && raw !== '') {
+      const side = /^([LR])\s*(\d*)$/.exec(raw) // a bare L or R is hard left/right
+      const n = raw === 'C' ? 0 : side ? (side[1] === 'L' ? -1 : 1) * (side[2] ? Number(side[2]) : 25) : Math.round(Number(raw))
+      if (Number.isFinite(n)) setParamMenu(r, 'pan', Math.max(-25, Math.min(25, n)))
+    }
+    input.value = pan(r)
   }
   const sel = $derived(editor.selectedRow)
   const kit = $derived(editor.preset as KitElement)
@@ -116,7 +138,7 @@
                       ? 'Preview this sample'
                       : 'Sample is not on this computer — connect the Deluge to preview it'}
                   aria-label="Preview row {i + 1}"
-                  onclick={(e) => { e.stopPropagation(); audio.toggle(f) }}
+                  onclick={(e) => { e.stopPropagation(); audio.toggle(f, sampleOsc(r)?.attrs.reversed === '1') }}
                 >{audio.playing === f ? '■' : audio.loading === f ? `${Math.round(audio.progress * 100)}%` : '▶'}</button>
               {/if}
             </td>
@@ -171,8 +193,34 @@
                 </select>
               {/if}
             </td>
-            <td class="num">{vol(r)}</td>
-            <td class="num">{pan(r)}</td>
+            <td class="num">
+              {#if isSoundRow(r)}
+                <input
+                  class="cell"
+                  data-testid="row-vol"
+                  value={vol(r)}
+                  placeholder="—"
+                  title="Volume, 0–50 (the Deluge's own scale); blank means the firmware's default"
+                  spellcheck="false"
+                  onclick={(e) => e.stopPropagation()}
+                  onchange={(e) => commitVol(r, e)}
+                />
+              {/if}
+            </td>
+            <td class="num">
+              {#if isSoundRow(r)}
+                <input
+                  class="cell"
+                  data-testid="row-pan"
+                  value={pan(r)}
+                  placeholder="—"
+                  title="Pan: C for centre, L1–L25, R1–R25; a bare L or R pans hard; a signed number works too (negative = left)"
+                  spellcheck="false"
+                  onclick={(e) => e.stopPropagation()}
+                  onchange={(e) => commitPan(r, e)}
+                />
+              {/if}
+            </td>
             <td class="acts">
               <button type="button" class="act" title="Move up (towards the bottom pad)" aria-label="Move row {i + 1} up" disabled={i === 0} onclick={(e) => { e.stopPropagation(); move(i, i - 1) }}>▲</button>
               <button type="button" class="act" title="Move down" aria-label="Move row {i + 1} down" disabled={i === editor.rows.length - 1} onclick={(e) => { e.stopPropagation(); move(i, i + 1) }}>▼</button>
@@ -224,6 +272,12 @@
     font-family: var(--mono); font-size: 10.5px; padding: 2px 3px; cursor: pointer;
   }
   .mode:hover, .mode:focus { border-color: var(--brass-dim); color: #efe6d7; outline: none; }
+  .cell {
+    width: 34px; box-sizing: border-box; background: #0d0b0a; border: 1px solid var(--edge); border-radius: 3px;
+    color: #cfc6b6; font-family: var(--mono); font-size: 10.5px; padding: 2px 4px; text-align: right;
+  }
+  .cell:hover, .cell:focus { border-color: var(--brass-dim); color: #efe6d7; outline: none; }
+  .cell::placeholder { color: var(--faint); }
   .play {
     background: none; border: 1px solid var(--edge-hi); border-radius: 3px; color: var(--muted); cursor: pointer;
     font-size: 9px; line-height: 1; padding: 3px 5px; min-width: 22px; font-variant-numeric: tabular-nums;

@@ -61,6 +61,19 @@ test('build a kit from a sample folder: guessed order, reorder, rename, share zi
   await direction.selectOption('1')
   await expect(direction).toHaveValue('1')
 
+  // Vol and Pan edit in place, in the Deluge's own numbers.
+  const volCell = rows.nth(0).getByTestId('row-vol')
+  await volCell.fill('40')
+  await volCell.blur()
+  await expect(volCell).toHaveValue('40')
+  const panCell = rows.nth(0).getByTestId('row-pan')
+  await panCell.fill('l10')
+  await panCell.blur()
+  await expect(panCell).toHaveValue('L10')
+  await panCell.fill('r') // a bare side letter pans hard
+  await panCell.blur()
+  await expect(panCell).toHaveValue('R25')
+
   // Reorder with the arrows: Snare up to the bottom pad.
   await rows.nth(1).getByRole('button', { name: 'Move row 2 up' }).click()
   await expect(rows.nth(0)).toContainText('Snare')
