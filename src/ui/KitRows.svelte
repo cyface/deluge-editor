@@ -83,7 +83,7 @@
   <div class="ph"><h2>Rows</h2><span class="sub">{editor.rows.length} in pad order · bottom row first in the file · drag or ▲▼ to reorder</span></div>
   <div class="scroll">
     <table class="rows" data-testid="kit-rows">
-      <thead><tr><th></th><th></th><th></th><th class="num">#</th><th>Row</th><th>Source</th><th>Mode</th><th>Direction</th><th class="num">Vol</th><th class="num">Pan</th><th></th></tr></thead>
+      <thead><tr><th></th><th></th><th></th><th class="num">#</th><th>Row</th><th>Source</th><th>Repeat</th><th>Direction</th><th class="num">Vol</th><th class="num">Pan</th><th></th></tr></thead>
       <tbody>
         {#each editor.rows as r, i (r)}
           <tr
@@ -144,7 +144,7 @@
                 <select
                   class="mode"
                   data-testid="row-mode"
-                  title="How the sample plays: Cut stops on note-off, Once always plays out, Loop repeats, Stretch follows the tempo"
+                  title="The device's REPEAT setting: Cut stops on note-off, Once always plays out, Loop repeats, Stretch fits the sample to the note length"
                   value={o.attrs.loopMode ?? '0'}
                   onclick={(e) => e.stopPropagation()}
                   onchange={(e) => setAttr(o, 'loopMode', (e.currentTarget as HTMLSelectElement).value, OSC_ATTR_ORDER)}

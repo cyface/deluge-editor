@@ -52,7 +52,7 @@
       <Select label="Waveform" name="osc{n}.type" value={o?.attrs.type} options={oscTypeOptions(editor.supports)} fallback="square" onchange={(v) => setAttr(ensureOsc(n)(), 'type', v, OSC_ATTR_ORDER)} />
       {#if type === 'sample'}
         <!-- repeatMode = SampleRepeatMode::CUT in the Source constructor (source.cpp:38). -->
-        <Select label="Loop" name="osc{n}.loopMode" value={o?.attrs.loopMode} options={loopModeOptions()} fallback="0" onchange={(v) => setAttr(ensureOsc(n)(), 'loopMode', v, OSC_ATTR_ORDER)} />
+        <Select label="Repeat" name="osc{n}.loopMode" value={o?.attrs.loopMode} options={loopModeOptions()} fallback="0" onchange={(v) => setAttr(ensureOsc(n)(), 'loopMode', v, OSC_ATTR_ORDER)} />
       {/if}
     </div>
   {/if}
@@ -80,8 +80,11 @@
   {#if type === 'sample'}
     <div class="fields">
       <div class="f"><span class="lbl">Reverse</span><Toggle label="Reversed" name="osc{n}.reversed" value={o?.attrs.reversed} onchange={(v) => setAttr(ensureOsc(n)(), 'reversed', v, OSC_ATTR_ORDER)} /></div>
-      <div class="f"><span class="lbl">Stretch</span><Toggle label="Time Stretch" name="osc{n}.timeStretchEnable" value={o?.attrs.timeStretchEnable} onchange={(v) => setAttr(ensureOsc(n)(), 'timeStretchEnable', v, OSC_ATTR_ORDER)} /></div>
-      <NumberField label="Stretch Amount" name="osc{n}.timeStretchAmount" value={o?.attrs.timeStretchAmount} min={-48} max={48} onchange={(v) => setAttr(ensureOsc(n)(), 'timeStretchAmount', String(v), OSC_ATTR_ORDER)} />
+      <!-- timeStretchEnable is the device's Pitch/speed menu: the firmware
+           maps it to pitchAndSpeedAreIndependent (sound.cpp:3383/3599,
+           upstream/community). Not related to repeat-mode Stretch. -->
+      <div class="f"><span class="lbl">Pitch/Speed</span><Toggle label="Independent" name="osc{n}.timeStretchEnable" value={o?.attrs.timeStretchEnable} onchange={(v) => setAttr(ensureOsc(n)(), 'timeStretchEnable', v, OSC_ATTR_ORDER)} /></div>
+      <NumberField label="Speed" name="osc{n}.timeStretchAmount" value={o?.attrs.timeStretchAmount} min={-48} max={48} onchange={(v) => setAttr(ensureOsc(n)(), 'timeStretchAmount', String(v), OSC_ATTR_ORDER)} />
       <div class="f"><span class="lbl">Interp.</span><Toggle label="Linear" name="osc{n}.linearInterpolation" value={o?.attrs.linearInterpolation} onchange={(v) => setAttr(ensureOsc(n)(), 'linearInterpolation', v, OSC_ATTR_ORDER)} /></div>
     </div>
   {/if}
