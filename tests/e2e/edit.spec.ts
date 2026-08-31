@@ -74,6 +74,31 @@ test('reassign a gold knob: one change, the brass face follows (issue #23)', asy
   await expect(page.getByTestId('identical')).toContainText('byte-identical')
 })
 
+test('New Synth starts from the Deluge-authored init template (issue #25)', async ({ page }) => {
+  await page.goto('/')
+  await page.getByTestId('new-synth').click()
+
+  // The template loads like an opened file: unnamed, c1.3.0-authored, clean.
+  await expect(page.getByTestId('file-name')).toHaveText('UNNAMED')
+  await expect(page.getByTestId('firmware')).toHaveValue('c1.3.0')
+  await expect(page.getByTestId('summary')).toContainText('Saw and square, 4 voices in unison')
+  await expect(page.getByTestId('change-count')).toHaveText('0')
+
+  // The round-trip baseline is the template itself, from the first click.
+  await page.getByTestId('changes-button').click()
+  await expect(page.getByTestId('identical')).toContainText('byte-identical')
+
+  // An edit diffs against the template; its × restores the template's bytes.
+  const knob = page.locator('[data-param="lpfFrequency"]')
+  await expect(knob).toHaveAttribute('aria-valuenow', '28')
+  await knob.focus()
+  await page.keyboard.press('ArrowUp')
+  await expect(page.getByTestId('change-count')).toHaveText('1')
+  await page.locator('[data-testid="changes"] [data-change]').first().getByRole('button').click()
+  await expect(page.getByTestId('change-count')).toHaveText('0')
+  await expect(page.getByTestId('identical')).toContainText('byte-identical')
+})
+
 test('a picked ._ AppleDouble sidecar is refused with a plain message (issue #24)', async ({ page }) => {
   await page.goto('/')
   // The picker's `accept=".xml,.XML"` matches `._Default Synth.XML`, and

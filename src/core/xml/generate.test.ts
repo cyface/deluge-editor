@@ -45,6 +45,20 @@ describe('serialize', () => {
       '<?xml version="1.0" encoding="UTF-8"?>\n<sound>\n\t<midiKnobs>\n\t</midiKnobs>\n</sound>\n',
     )
   })
+  it('writes a childless sample-type oscillator open/close, as writeSourceToFile does', () => {
+    const sound = element('sound', {}, [element('osc2', { type: 'sample', loopMode: '0' })])
+    expect(serialize([sound])).toContain('\t<osc2\n\t\ttype="sample"\n\t\tloopMode="0">\n\t</osc2>\n')
+  })
+  it('writes a kit’s selectedDrumIndex as a text element after the last child, as Kit::writeToFile does', () => {
+    const kit = element('kit', { lpfMode: '24dB', selectedDrumIndex: '3' }, [element('soundSources')])
+    expect(serialize([kit])).toBe(
+      '<?xml version="1.0" encoding="UTF-8"?>\n' +
+        '<kit\n\tlpfMode="24dB">\n' +
+        '\t<soundSources>\n\t</soundSources>\n' +
+        '\t<selectedDrumIndex>3</selectedDrumIndex>\n' +
+        '</kit>\n',
+    )
+  })
   it('writes values raw, with no XML escaping, as the firmware does', () => {
     expect(serialize([element('sound', { name: 'A & B' })])).toContain('name="A & B"')
   })

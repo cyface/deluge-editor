@@ -47,21 +47,44 @@ const INLINE_ATTRS: Record<string, readonly string[]> = {
   'soundSources/gateOutput': ['channel'],
 }
 
+/**
+ * Values the firmware still writes as a *text element* in the attribute
+ * format. The parser folds a leaf element into its parent's attributes; these
+ * come back out as `<tag>value</tag>` after the last child, which is where the
+ * firmware puts them: `Kit::writeToFile` (`src/deluge/model/instrument/kit.cpp`,
+ * `beta` 3f898e95) writes `selectedDrumIndex` with `writeTag` after the
+ * `soundSources` array ends.
+ */
+const TEXT_TAGS: Record<string, readonly string[]> = {
+  kit: ['selectedDrumIndex'],
+}
+
 function writeElement(el: XmlElement, parentTag: string, depth: number, out: string[]): void {
   const indent = '\t'.repeat(depth)
   const inline = INLINE_ATTRS[`${parentTag}/${el.tag}`] ?? INLINE_ATTRS[el.tag] ?? []
+  const textTags = TEXT_TAGS[el.tag] ?? []
   let open = `${indent}<${el.tag}`
   let attrCount = 0
+  const trailing: string[] = []
   for (const [name, value] of Object.entries(el.attrs)) {
     if (value === undefined) continue
+    if (textTags.includes(name)) {
+      trailing.push(`${indent}\t<${name}>${value}</${name}>\n`)
+      continue
+    }
     attrCount++
     open += inline.includes(name) ? ` ${name}="${value}"` : `\n${indent}\t${name}="${value}"`
   }
-  if (el.children.length === 0) {
-    out.push(attrCount > 0 ? `${open} />\n` : `${open}>\n${indent}</${el.tag}>\n`)
+  // A sample-type oscillator is never self-closed: `Sound::writeSourceToFile`
+  // (`src/deluge/processing/sound/sound.cpp`, `beta` 3f898e95) ends its SAMPLE
+  // branch with `writeClosingTag` even when there are no ranges to write.
+  const explicitClose = trailing.length > 0 || el.attrs.type === 'sample'
+  if (el.children.length === 0 && trailing.length === 0) {
+    out.push(attrCount > 0 && !explicitClose ? `${open} />\n` : `${open}>\n${indent}</${el.tag}>\n`)
     return
   }
   out.push(`${open}>\n`)
   for (const c of el.children) writeElement(c, el.tag, depth + 1, out)
+  out.push(...trailing)
   out.push(`${indent}</${el.tag}>\n`)
 }

@@ -6,6 +6,7 @@
  * read that value, and `output`/`diff` follow along.
  */
 
+import initSynthTemplate from '../../assets/templates/Default Synth.XML?raw'
 import { supports as featureSupported } from '../../core/firmware/features'
 import { parseVersion, type FirmwareVersion } from '../../core/firmware/version'
 import { drumRows, isKit, isSound, type DrumRow, type Preset, type SoundElement } from '../../core/preset'
@@ -108,6 +109,18 @@ class Editor {
     } catch (e) {
       this.error = `${name}: ${e instanceof Error ? e.message : String(e)}`
     }
+  }
+
+  /**
+   * Start a preset from nothing (issue #25). The template is the firmware's
+   * own init synth — the bytes community 1.3.0 saved for the synth it builds
+   * when the card has none (see `src/assets/templates/SOURCES.md`) — loaded
+   * exactly as if the user had opened that file, so the round-trip baseline
+   * and the changes dock work from the first click. The empty name keeps the
+   * card panel's save flow from offering a name to overwrite.
+   */
+  newSynth(): void {
+    this.load(initSynthTemplate, '')
   }
 
   supports = (feature: string): boolean => featureSupported(this.version, feature)

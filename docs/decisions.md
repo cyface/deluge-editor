@@ -166,3 +166,20 @@ and official 4.1.4 throws away all incoming SysEx (`synthstrom-official`
 firmware — mapping the reply to lineage `c` is cited, not guessed. Unplugging
 is noticed via `MIDIAccess.onstatechange`, which drops the card panel to an
 error with a retry rather than letting a dead connection look alive.
+
+## New starts from a Deluge-authored template, not a built preset
+
+There is no code that "builds" a default preset. The New Synth button loads
+`src/assets/templates/Default Synth.XML` — the firmware's own init synth,
+captured with the `deluge-fixtures` skill from the same beta that wrote the
+fixtures — exactly as if the user had opened the file. That keeps the
+project's rule intact (presets are Deluge-authored, never hand-written): the
+round-trip baseline is the template itself, the changes dock and the
+byte-identical indicator work from the first click, and every displayed value
+is one the firmware actually wrote. The template is a purpose-captured copy
+with its own `SOURCES.md`, not an import from `tests/fixtures/` — the UI
+bundle doesn't reach into the test tree — and the round-trip suite globs the
+templates folder so they are held to the fixtures' bar. The name starts
+empty (shown as UNNAMED) so the card panel's save flow forces a real one.
+New Kit waits for the kit editor (#10); its template, the blank kit the
+new-kit gesture creates, is already captured alongside.

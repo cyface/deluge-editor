@@ -3,7 +3,8 @@
 </script>
 
 <div class="empty">
-  <p class="lead">Click <b>Open File</b> to open a Deluge <b>SYNTHS/</b> or <b>KITS/</b> preset, or drop one anywhere on the page.</p>
+  <p class="lead">Click <b>New Synth</b> to start a preset from the Deluge's own init synth.</p>
+  <p class="lead alt">Click <b>Open File</b> to open a Deluge <b>SYNTHS/</b> or <b>KITS/</b> preset, or drop one anywhere on the page.</p>
   <p class="lead alt">Or click <b>Connect</b> to connect to your Deluge over USB in either Chrome or Edge.</p>
 </div>
 

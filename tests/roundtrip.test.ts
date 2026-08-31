@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { diffFlat, flattenXML, generateXML, isClean, parseXML } from '../src/core/xml'
 
-// Every Deluge-authored file under tests/fixtures/, as raw text.
-const fixtures = import.meta.glob<string>('./fixtures/**/*.{xml,XML}', {
-  query: '?raw',
-  import: 'default',
-  eager: true,
-})
+// Every Deluge-authored file under tests/fixtures/, as raw text — plus the
+// New-button templates, which are Deluge-authored under the same rules
+// (issue #25; see src/assets/templates/SOURCES.md).
+const fixtures = import.meta.glob<string>(
+  ['./fixtures/**/*.{xml,XML}', '../src/assets/templates/*.{xml,XML}'],
+  { query: '?raw', import: 'default', eager: true },
+)
 
 describe('round trip', () => {
   const names = Object.keys(fixtures).sort()

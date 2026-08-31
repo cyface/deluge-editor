@@ -34,7 +34,7 @@
   <div class="logo"><Mark size={34} /><b>Deluge <span>{kind}</span></b></div>
   <div class="namewrap">
     {#if editor.preset}
-      <span class="name" data-testid="file-name">{editor.fileName}</span>
+      <span class="name" data-testid="file-name">{editor.fileName || 'UNNAMED'}</span>
       {#if editor.preset.attrs.firmwareVersion}<span class="path">saved by firmware {editor.preset.attrs.firmwareVersion}</span>{/if}
     {:else}
       <span class="path">no preset loaded</span>
@@ -53,6 +53,7 @@
   <button type="button" class="btn" class:on={card.open} data-testid="card-button" title={card.supported ? "Connect to the Deluge and browse its SD card over MIDI" : 'Web MIDI needs Chrome or Edge'} onclick={() => card.toggle()}>
     {#if card.status === 'connected'}<span class="dot"></span>Browse Card{:else}Connect{/if}
   </button>
+  <button type="button" class="btn" title="Start a new synth from the Deluge's own init preset" data-testid="new-synth" onclick={() => editor.newSynth()}>New Synth</button>
   <button type="button" class="btn" title="Open a preset XML from this computer" onclick={() => fileInput?.click()}>Open File</button>
   <button type="button" class="btn" disabled={!editor.preset} onclick={download}>Download</button>
   <button type="button" class="btn" class:on={editor.showChanges} disabled={!editor.preset} data-testid="changes-button" onclick={() => (editor.showChanges = !editor.showChanges)}>

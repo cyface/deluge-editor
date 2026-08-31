@@ -74,6 +74,28 @@ describe('macOS sidecar rejection (issue #24)', () => {
   })
 })
 
+describe('New Synth (issue #25)', () => {
+  it('loads the Deluge-authored init template, byte-identical from the first click', () => {
+    editor.newSynth()
+    expect(editor.preset?.tag).toBe('sound')
+    expect(editor.identical).toBe(true)
+    expect(editor.changeCount).toBe(0)
+  })
+  it('starts unnamed, so the card save flow must ask for a name', () => {
+    editor.newSynth()
+    expect(editor.fileName).toBe('')
+  })
+  it('selects the template writer’s firmware, c1.3.0', () => {
+    editor.newSynth()
+    expect(editor.firmware).toBe('c1.3.0')
+  })
+  it('a connected device still outranks the template’s provenance', () => {
+    editor.setDeviceFirmware('c1.2.1')
+    editor.newSynth()
+    expect(editor.firmware).toBe('c1.2.1')
+  })
+})
+
 describe('per-change revert', () => {
   it('a changed value goes back to the file, byte-identically', async () => {
     const { setParamMenu } = await import('../../core/preset/sound')

@@ -18,6 +18,8 @@ python3 .claude/skills/deluge-fixtures/emu_fixtures.py \
 
 - `init` saves the firmware's built-in default synth (what you get with no
   presets on the card) as `0.XML`.
+- `init-kit` makes the firmware build a new blank kit on an empty card
+  (SHIFT+KIT, "NEW KIT CREATED") and saves it.
 - `synth:<path>` / `kit:<path>` take a preset from the source card folder
   (default `~/Library/Application Support/DelugEmu/sdcard_rw`), let the firmware
   load it, and save it back over itself. Input format does not matter — old

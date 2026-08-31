@@ -40,7 +40,15 @@ Each job is one emulator run, about 75 seconds:
    old-format preset without editing it by hand.
 
 The `init` job leaves `SYNTHS/` empty; the firmware then builds its built-in
-default synth, names it `0`, and the same gesture saves it as `0.XML`.
+default synth, names it `0`, and the same gesture saves it as `0.XML`. The
+`init-kit` job also starts from an empty card: holding SHIFT while pressing
+KIT calls `createNewInstrument(OutputType::KIT)`
+(`InstrumentClipView::handleInstrumentChange`, "NEW KIT CREATED"), which
+builds the firmware's blank kit under the first unused name (`KIT1`). That
+flow chains straight into the drum creator — the "Audio files" sample browser
+for row 0 (`InstrumentClipView::createNewInstrument` → `enterDrumCreator`) —
+so the script presses BACK to return to the clip view before the save
+gesture writes the kit to `KITS/`.
 
 **Sample paths.** A preset that uses samples comes back with whatever
 `fileName` paths the input had, and the tests only ever treat them as strings.

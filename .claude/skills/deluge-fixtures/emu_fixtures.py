@@ -17,6 +17,9 @@ Jobs:
   init                  empty SYNTHS/: the firmware builds its built-in default
                         synth (Song::setupDefault -> setupAsDefaultSynth, named
                         "0") and we save it as SYNTHS/0.XML
+  init-kit              empty KITS/: SHIFT+KIT makes the firmware build a new
+                        blank kit (InstrumentClipView::handleInstrumentChange ->
+                        createNewInstrument, "NEW KIT CREATED") and we save it
   synth:<path-on-card>  load that synth preset and save over it
   kit:<path-on-card>    load that kit (KIT button loads the first kit) and save
 
@@ -62,7 +65,7 @@ def build_sd(sd, src_sd, job):
         os.makedirs(os.path.join(sd, d))
     if os.path.isdir(os.path.join(src_sd, "SETTINGS")):
         shutil.copytree(os.path.join(src_sd, "SETTINGS"), os.path.join(sd, "SETTINGS"))
-    if job["kind"] == "init":
+    if job["kind"] in ("init", "init-kit"):
         return None
     src = os.path.join(src_sd, job["file"])
     folder = "SYNTHS" if job["kind"] == "synth" else "KITS"
@@ -165,8 +168,8 @@ def qmp_up():
 
 
 def parse_job(spec):
-    if spec == "init":
-        return {"name": "init", "kind": "init"}
+    if spec in ("init", "init-kit"):
+        return {"name": spec, "kind": spec}
     kind, _, path = spec.partition(":")
     if kind not in ("synth", "kit") or not path:
         sys.exit(f"bad job spec {spec!r}: expected init, synth:<path> or kit:<path>")
@@ -201,7 +204,20 @@ def run_job(job, fw, src_sd, work, out, boot_wait):
             q.press("w")  # KIT: turns the clip into a kit, loading the first kit
             time.sleep(8)
             q.shot(shots, f"{name}-2-kit-loaded")
-        inst_btn = "w" if kind == "kit" else "q"
+        elif kind == "init-kit":
+            q.key("shift", True)  # SHIFT+KIT: create a new blank kit (KITS/ is empty)
+            time.sleep(0.4)
+            q.press("w")
+            time.sleep(0.4)
+            q.key("shift", False)
+            time.sleep(8)
+            # The new-kit flow chains straight into the drum creator (the
+            # "Audio files" sample browser) for row 0; BACK returns to the
+            # clip view so the save chord can reach it.
+            q.press("backspace")
+            time.sleep(2)
+            q.shot(shots, f"{name}-2-kit-created")
+        inst_btn = "w" if kind in ("kit", "init-kit") else "q"
         q.key("s", True)  # hold SAVE ...
         time.sleep(0.4)
         q.press(inst_btn)  # ... press SYNTH/KIT -> save-preset UI
