@@ -6,14 +6,18 @@ import {
   cableMenu,
   cables,
   cablesTo,
+  ensureModKnobs,
   envelopeMenu,
   goldParams,
+  modKnobs,
   paramMenu,
   removeCable,
   setCableMenu,
   setEnvelopeMenu,
+  setModKnob,
   setParamMenu,
 } from './sound'
+import { removeChild } from '../xml/edit'
 import type { SoundElement } from './types'
 
 const fixtures = import.meta.glob<string>('../../../tests/fixtures/**/*.XML', {
@@ -79,6 +83,61 @@ describe('writing', () => {
     expect(keys.indexOf('waveFold')).toBeGreaterThan(-1)
     const keys2 = Object.keys(sound.children.find((c) => c.tag === 'defaultParams')!.attrs)
     expect(keys2.slice(-2)).toEqual(['lpfMorph', 'waveFold'])
+  })
+  it('reassigning a knob is exactly one changed value in the flattened diff', () => {
+    const { src, sound } = load('Default Synth')
+    setModKnob(sound, 3, { controlsParam: 'hpfFrequency' }) // stock: lpfFrequency
+    const d = diffFlat(flattenXML(src), flattenXML(generateXML(sound)))
+    expect(d.missing).toEqual([])
+    expect(d.added).toEqual([])
+    expect(d.changed).toEqual([
+      { path: 'sound/modKnobs/modKnob[3]@controlsParam', expected: 'lpfFrequency', actual: 'hpfFrequency' },
+    ])
+    expect(goldParams(sound)).toContain('hpfFrequency')
+  })
+  it('a knob given a source writes attributes in serializer order; clearing it removes them', () => {
+    const { src, sound } = load('Default Synth')
+    setModKnob(sound, 11, { controlsParam: 'lfo1Rate', patchAmountFromSource: 'lfo2', patchAmountFromSecondSource: 'envelope1' })
+    expect(Object.keys(modKnobs(sound)[11].attrs)).toEqual([
+      'controlsParam', 'patchAmountFromSource', 'patchAmountFromSecondSource',
+    ])
+    setModKnob(sound, 11, { controlsParam: 'lfo1Rate' })
+    expect(generateXML(sound)).toBe(src)
+  })
+  it('the volume family canonicalises by source, as ensureKnobReferencesCorrectVolume re-saves it', () => {
+    const { sound } = load('Default Synth')
+    setModKnob(sound, 1, { controlsParam: 'volume' })
+    expect(modKnobs(sound)[1].attrs.controlsParam).toBe('volumePostFX')
+    setModKnob(sound, 1, { controlsParam: 'volumePostFX', patchAmountFromSource: 'compressor' })
+    expect(modKnobs(sound)[1].attrs.controlsParam).toBe('volumePostReverbSend')
+    setModKnob(sound, 1, { controlsParam: 'volumePostReverbSend', patchAmountFromSource: 'lfo1' })
+    expect(modKnobs(sound)[1].attrs.controlsParam).toBe('volume')
+  })
+  it('knob reassignments write exactly what the firmware re-saves (Gold Knob Reassigned fixture)', () => {
+    // The fixture is the firmware's own re-save of these four reassignments
+    // applied to the Default Synth (captured with the deluge-fixtures skill);
+    // an unknown string would have been silently discarded and come back as
+    // the stock assignment instead (sound.cpp:775, upstream/community bef6d9df).
+    const { sound } = load('Default Synth')
+    const { src: resaved } = load('Gold Knob Reassigned')
+    setModKnob(sound, 3, { controlsParam: 'hpfFrequency' })
+    setModKnob(sound, 1, { controlsParam: 'volumePostFX', patchAmountFromSource: 'lfo2' })
+    setModKnob(sound, 11, { controlsParam: 'pitch', patchAmountFromSource: 'lfo1', patchAmountFromSecondSource: 'envelope1' })
+    setModKnob(sound, 12, { controlsParam: 'noteProbability' })
+    const d = diffFlat(flattenXML(resaved), flattenXML(generateXML(sound)))
+    expect(d.missing).toEqual([])
+    expect(d.added).toEqual([])
+    // notePattern is random per firmware session (tests/fixtures/SOURCES.md).
+    expect(d.changed.map((c) => c.path)).toEqual(['sound/arpeggiator@notePattern'])
+  })
+  it('a sound with no <modKnobs> gains the full stock 16 in serializer position on first edit', () => {
+    const { src, sound } = load('Default Synth')
+    removeChild(sound, sound.children.find((c) => c.tag === 'modKnobs')!)
+    expect(modKnobs(sound)).toHaveLength(0)
+    ensureModKnobs(sound)
+    // The Default Synth's knobs are the firmware's constructor defaults, so
+    // recreating the array from stock restores the file byte for byte.
+    expect(generateXML(sound)).toBe(src)
   })
   it('adds and removes cables, dropping an empty <patchCables>', () => {
     const { src, sound } = load('Default Synth')

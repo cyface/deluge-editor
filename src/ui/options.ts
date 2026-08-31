@@ -19,6 +19,8 @@ import {
   PATCHED_GLOBAL_PARAMS,
   PATCHED_LOCAL_PARAMS,
   PATCH_SOURCES,
+  UNPATCHED_SHARED_PARAMS,
+  UNPATCHED_SOUND_PARAMS,
   POLARITY_NAMES,
   POLYPHONY_NAMES,
   SYNTH_MODE_NAMES,
@@ -107,6 +109,42 @@ const DEST_FEATURE: Record<string, string> = {
 export const destinationOptions = (supports: Supports): Option[] =>
   [...PATCHED_LOCAL_PARAMS, ...PATCHED_GLOBAL_PARAMS]
     .filter((p) => DEST_FEATURE[p] === undefined || supports(DEST_FEATURE[p]))
+    .map((value) => ({ value, label: paramLabel(value) }))
+
+/**
+ * Which feature an unpatched knob target needs, if any. The unpatched names
+ * official 4.1.4 itself knows (`Sound::paramToString` +
+ * `ModControllableAudio::paramToString`, branch `synthstrom-official`:
+ * arpGate, portamento, stutterRate, bass, treble, bassFreq, trebleFreq,
+ * sampleRateReduction, bitcrushAmount, modFXOffset, modFXFeedback,
+ * compressorShape) are the ungated baseline; the rest arrived with the
+ * FEATURES entry that introduced the param.
+ */
+const UNPATCHED_KNOB_FEATURE: Record<string, string> = {
+  compressorThreshold: 'audioCompressor',
+  ratchetProbability: 'arpModes', ratchetAmount: 'arpModes', sequenceLength: 'arpModes',
+  rhythm: 'arpRhythm',
+  noteProbability: 'arp3', bassProbability: 'arp3', chordProbability: 'arp3', chordPolyphony: 'arp3',
+  reverseProbability: 'arpReverseGlideSwap', glideProbability: 'arpReverseGlideSwap', swapProbability: 'arpReverseGlideSwap',
+  spreadVelocity: 'arpSpread', spreadGate: 'arpSpread', spreadOctave: 'arpSpread',
+}
+
+/**
+ * Gold-knob targets: every name `paramNameForFile(Kind::UNPATCHED_SOUND, …)`
+ * emits — the loader parses `controlsParam` with `allowPatched=true`
+ * (sound.cpp:761), so the patched params and the unpatched sound set are all
+ * legal — gated by the selected firmware. The volume family (`volume`,
+ * `volumePostFX`, `volumePostReverbSend`) is one target the firmware
+ * disambiguates by source (`ensureKnobReferencesCorrectVolume`), so only the
+ * canonical `volumePostFX` is offered; `setModKnob` writes the right string.
+ */
+export const knobParamOptions = (supports: Supports): Option[] =>
+  [...PATCHED_LOCAL_PARAMS, ...PATCHED_GLOBAL_PARAMS, ...UNPATCHED_SOUND_PARAMS, ...UNPATCHED_SHARED_PARAMS]
+    .filter((p) => p !== 'volume' && p !== 'volumePostReverbSend')
+    .filter((p) => {
+      const f = DEST_FEATURE[p] ?? UNPATCHED_KNOB_FEATURE[p]
+      return f === undefined || supports(f)
+    })
     .map((value) => ({ value, label: paramLabel(value) }))
 
 const PATCHABLE = new Set<string>([...PATCHED_LOCAL_PARAMS, ...PATCHED_GLOBAL_PARAMS])

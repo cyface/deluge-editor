@@ -55,6 +55,25 @@ test('load a fixture, see the whole preset, focus a block, edit one value, see e
   await expect(panels).toHaveCount(12)
 })
 
+test('reassign a gold knob: one change, the brass face follows (issue #23)', async ({ page }) => {
+  await page.goto('/')
+  await page.getByTestId('file-input').setInputFiles(FIXTURE)
+
+  // Stock: page 2's top knob (file index 3) is LPF Freq, drawn with a brass face.
+  await expect(page.locator('.k.gold [data-param="lpfFrequency"]')).toHaveCount(1)
+  await expect(page.locator('.k.gold [data-param="hpfFrequency"]')).toHaveCount(0)
+
+  await page.locator('[data-attr="modKnob3.controlsParam"]').selectOption('hpfFrequency')
+  await expect(page.getByTestId('change-count')).toHaveText('1')
+  await expect(page.locator('.k.gold [data-param="hpfFrequency"]')).toHaveCount(1)
+  await expect(page.locator('.k.gold [data-param="lpfFrequency"]')).toHaveCount(0)
+
+  // Putting the stock assignment back restores the file byte for byte.
+  await page.locator('[data-attr="modKnob3.controlsParam"]').selectOption('lpfFrequency')
+  await expect(page.getByTestId('change-count')).toHaveText('0')
+  await expect(page.getByTestId('identical')).toContainText('byte-identical')
+})
+
 test('re-targeting the firmware drops controls it cannot honour, without touching the file', async ({ page }) => {
   await page.goto('/')
   await page.getByTestId('file-input').setInputFiles(FIXTURE)

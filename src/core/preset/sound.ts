@@ -17,9 +17,10 @@ import {
   standardToMenu,
 } from '../params/scale'
 import { child, childrenOf, element } from '../xml/element'
-import { ensureChild, insertChild, removeChild, setAttr } from '../xml/edit'
+import { ensureChild, insertChild, removeAttr, removeChild, setAttr } from '../xml/edit'
 import type { ParamName, PatchSource, Polarity } from './index'
-import { CABLE_ATTR_ORDER, ENVELOPE_ATTR_ORDER, PARAMS_CHILD_ORDER, SOUND_CHILD_ORDER } from './order'
+import { CABLE_ATTR_ORDER, ENVELOPE_ATTR_ORDER, MOD_KNOB_ATTR_ORDER, PARAMS_CHILD_ORDER, SOUND_CHILD_ORDER } from './order'
+import { STOCK_MOD_KNOBS } from './stock'
 import { SOUND_PARAM_ATTRS, type SoundParamAttr } from './params'
 import type {
   EnvelopeElement,
@@ -162,4 +163,52 @@ export function goldParams(sound: SoundElement): Set<string> {
       .map((k) => k.attrs.controlsParam)
       .filter((p): p is ParamName => p !== undefined),
   )
+}
+
+/** One knob's assignment: a param, or a patch cable's strength (param + source(s)). */
+export interface ModKnobAssign {
+  controlsParam: ParamName
+  patchAmountFromSource?: PatchSource
+  patchAmountFromSecondSource?: PatchSource
+}
+
+/**
+ * The full 16-entry `<modKnobs>` array, created in serializer position when
+ * the file has none. The firmware keeps its constructor defaults for knobs a
+ * file doesn't mention and always writes all 16 back (`Sound::writeToFile`,
+ * sound.cpp:4260, upstream/community bef6d9df), so absent entries are filled
+ * with the stock assignments.
+ */
+export function ensureModKnobs(sound: SoundElement): ModKnobElement[] {
+  const set = ensureChild(sound, 'modKnobs', SOUND_CHILD_ORDER)
+  for (let i = childrenOf(set, 'modKnob').length; i < STOCK_MOD_KNOBS.length; i++) {
+    const stock = STOCK_MOD_KNOBS[i]
+    const knob = element('modKnob', { controlsParam: stock.controlsParam }, []) as ModKnobElement
+    if (stock.patchAmountFromSource) knob.attrs.patchAmountFromSource = stock.patchAmountFromSource
+    insertChild(set, knob)
+  }
+  return childrenOf(set, 'modKnob')
+}
+
+/**
+ * Assign knob `n` (file order: page 1's bottom knob first). The volume family
+ * is canonicalised the way the firmware re-saves it after
+ * `ensureKnobReferencesCorrectVolume` (sound.cpp:1317): a param-only knob
+ * gets `volumePostFX`, a sidechain-driven one `volumePostReverbSend`, any
+ * other source `volume`.
+ */
+export function setModKnob(sound: SoundElement, n: number, assign: ModKnobAssign): void {
+  const knob = ensureModKnobs(sound)[n]
+  if (!knob) return
+  const source = assign.patchAmountFromSource
+  const second = source && assign.patchAmountFromSecondSource
+  let param = assign.controlsParam
+  if (param === 'volume' || param === 'volumePostFX' || param === 'volumePostReverbSend') {
+    param = source === undefined ? 'volumePostFX' : source === 'compressor' ? 'volumePostReverbSend' : 'volume'
+  }
+  setAttr(knob, 'controlsParam', param, MOD_KNOB_ATTR_ORDER)
+  if (source) setAttr(knob, 'patchAmountFromSource', source, MOD_KNOB_ATTR_ORDER)
+  else removeAttr(knob, 'patchAmountFromSource')
+  if (second) setAttr(knob, 'patchAmountFromSecondSource', second, MOD_KNOB_ATTR_ORDER)
+  else removeAttr(knob, 'patchAmountFromSecondSource')
 }

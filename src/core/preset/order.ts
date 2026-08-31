@@ -86,6 +86,7 @@ export const PARAMS_CHILD_ORDER = [
 export const ENVELOPE_ATTR_ORDER = ['attack', 'decay', 'sustain', 'release'] as const
 export const EQUALIZER_ATTR_ORDER = ['bass', 'treble', 'bassFrequency', 'trebleFrequency'] as const
 export const CABLE_ATTR_ORDER = ['source', 'destination', 'polarity', 'amount'] as const
+export const MOD_KNOB_ATTR_ORDER = ['controlsParam', 'patchAmountFromSource', 'patchAmountFromSecondSource'] as const
 export const ARP_ATTR_ORDER = [
   'mode',
   'syncLevel',

@@ -26,6 +26,7 @@ beta's own serialisation; the *input* format is irrelevant.
 | `Ringmod.XML` | factory `SYNTHS/032 Bandpass Choir.XML` (old format) | ringmod mode |
 | `Wavetable DX7.XML` | Tim's `SYNTHS/Tim/WAVE5.XML` (hardware c1.3.0), wavetable renamed to `SAMPLES/Fixtures/wavetable.wav` | `type="wavetable"` + `type="dx7"` with `dx7patch` |
 | `Kit Sample Rows.XML` | factory `KITS/012 HR-II.XML` (old format), samples renamed to `SAMPLES/Fixtures/{kick,snare,hat-closed,hat-open,crash}.wav` | `<kit>` with sample drum rows, one row with an empty `fileName` |
+| `Gold Knob Reassigned.XML` | `Default Synth.XML` with four gold-knob reassignments written by the editor's `setModKnob` (issue #23): knob 3 → `hpfFrequency`, knob 1 → `volume` ← `lfo2`, knob 11 → `pitch` ← `lfo1` + second source `envelope1`, knob 12 → `noteProbability` | firmware re-save of edited `<modKnobs>` — an unknown string would have come back as the stock assignment; only `notePattern` differs from the input |
 
 The factory inputs are Synthstrom's sound design; only the XML structure is of
 interest here and the count is kept small. Sample-based inputs were pointed at
