@@ -43,13 +43,19 @@
   {:else}
     <EmptyState />
   {/if}
+  <footer class="foot">
+    A free, community-made editor · not produced by, associated with, or endorsed by Synthstrom Audible
+    · MIT · <a href="https://github.com/cyface/deluge-editor">github.com/cyface/deluge-editor</a>
+  </footer>
   <ChangesDock />
   <CablePicker />
   <CardPanel />
 </div>
 
 <style>
-  .page { padding: 0 calc(var(--cheek) + var(--gut)); min-height: 100vh; }
+  .page { padding: 0 calc(var(--cheek) + var(--gut)); min-height: 100vh; display: flex; flex-direction: column; }
   .page.dragging { outline: 2px dashed var(--brass); outline-offset: -6px; }
+  .foot { margin-top: auto; padding: 26px 0 12px; font-family: var(--cond); font-size: 10.5px; letter-spacing: .06em; color: var(--faint); text-align: center; }
+  .foot a { color: var(--muted); }
   .error { margin: 10px 0 0; padding: 8px 10px; border: 1px solid #5a2a22; background: #1d1210; color: #e8a08f; font-family: var(--mono); font-size: 11px; border-radius: 3px; }
 </style>
