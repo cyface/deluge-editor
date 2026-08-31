@@ -14,13 +14,17 @@
  *   so a late reply to an abandoned attempt can never be mistaken for the
  *   current one. Every operation addresses an explicit fid/addr/offset, so
  *   resending is idempotent. The queue accepts several requests at once,
- *   but overlapping them is NOT safe in practice: measured on hardware,
- *   pipelined reads returned corrupted payloads (the firmware reuses its
- *   reply buffers as soon as it handles the next request, while the
- *   previous reply is still draining out the USB pipe) and pipelined
- *   writes went from ~10ms to ~52ms each before dying in short writes and
- *   FR_DISK_ERR. So every transfer keeps exactly one request in flight
- *   (`PIPELINE`). Replies are matched by msgId AND by the reply's op (plus
+ *   but whether overlapping them is safe depends on the firmware's USB
+ *   send ring (`ConnectedUSBMIDIDevice::bufferMessage`): the original ring
+ *   silently discarded single events on overflow, so an overlapped reply
+ *   came back complete, well-framed and WRONG (measured on hardware —
+ *   cyface/DelugeFirmware#43). Fixed firmware reserves ring space for the
+ *   whole reply up front and drops the whole message on overflow — a
+ *   timeout, which the ladder retries — and advertises its safe in-flight
+ *   count as `pipe` in the `^session` grant. Bulk transfers here run at
+ *   `min(pipe, 2)` requests in flight; a grant without the field is an
+ *   unfixed firmware and stays strictly serial (see `pipeline`).
+ *   Replies are matched by msgId AND by the reply's op (plus
  *   the echoed fid/addr where the op has them), because the msgId space is
  *   only 7 wide per session and an abandoned attempt's late reply could
  *   otherwise land on a newer request that drew the same id.
@@ -112,14 +116,14 @@ export interface SmsClientOptions {
   timeouts?: number[]
   /**
    * File bytes per write request. The paper limit is the firmware's
-   * 1024-byte frame buffer (`MaxSysExLength`), but the real one is lower
-   * and undocumented: measured on hardware (fw c1.3.0, macOS Chrome), any
-   * request frame of 753+ bytes arrives one byte short and the write
-   * commits n-1 bytes, every time — bisected to exactly frame ≤ 752 OK,
-   * ≥ 753 short; no constant in the firmware source names 752, so it may
-   * even be the host's MIDI stack. A 512-byte chunk makes a ~645-byte
-   * frame, well clear of the cliff; the ~600-byte ceiling that boundary
-   * would allow isn't worth camping on an unexplained edge.
+   * 1024-byte frame buffer (`MaxSysExLength`), but the real one is the
+   * host's: macOS CoreMIDI/AppleUSBMIDIDriver deletes byte 750 of any
+   * outgoing SysEx over 752 bytes and repacks the rest, so the frame
+   * arrives one byte short and the write commits n-1 bytes — bisected to
+   * exactly frame ≤ 752 OK, ≥ 753 short, and pinned on the host by a
+   * firmware `^echo` op with USB receive stats (cyface/DelugeFirmware#42).
+   * A 512-byte chunk makes a ~645-byte frame, clear of the cliff; the
+   * measured gain from camping at ~600 is ~5%, not worth the margin.
    */
   writeChunk?: number
   /** File bytes per read request; the firmware clamps at its 1024-byte block buffer. */
@@ -152,17 +156,19 @@ export interface SmsClientOptions {
 const MAX_DIR_LINES = 25
 
 /**
- * Write requests in flight during a bulk transfer. The firmware's `SysExQ`
- * deque queues them all in order, and on paper a window should hide the
- * round trip — but on real hardware a window of 4 made every write take
- * ~52ms instead of ~10ms and ended in short writes and FR_DISK_ERR, and
- * pipelined reads corrupted their payloads outright. So the shipped width
- * is 1: strictly serial, one request in flight, like every transfer the
- * hardware has answered reliably. The machinery stays so a wider window is
- * one constant away if a firmware fix ever lands; it must always stay
- * under the session's 7 msgIds.
+ * The most requests this client will keep in flight, however much the
+ * firmware's grant offers. 2 is where the measured curve peaks (hardware,
+ * fixed ring, 2026-08-31, cyface/DelugeFirmware#43): reads 127→172 KB/s
+ * (+36%), writes 39→52 KB/s (+31%), 20/20 repetitions byte-identical.
+ * Wider windows are strictly WORSE, not just unhelpful: the fixed ring
+ * fails an overflow by dropping the whole reply, each drop costs a
+ * first-rung timeout (~2s), and at 3+ in flight the drops start —
+ * measured 85–105 KB/s, below serial. The gain is capped anyway because
+ * the firmware serves requests serially (~10ms card+parse per chunk);
+ * only the transport leg overlaps. Must always stay under the session's
+ * 7 msgIds.
  */
-const PIPELINE = 1
+const MAX_PIPELINE = 2
 
 /** Every option but `tag`, whose default is drawn per client (`newTag`). */
 const DEFAULTS: Required<Omit<SmsClientOptions, 'tag'>> = {
@@ -189,6 +195,12 @@ const newTag = (): string => `deluge-editor-${Math.floor(Math.random() * 0x10000
 interface Session {
   midMin: number
   midMax: number
+  /**
+   * The in-flight request count the firmware's grant vouches for (`pipe`
+   * in `^session`), 1 when the grant carries no such field — a firmware
+   * whose send ring can still corrupt overlapped replies (#43).
+   */
+  pipe: number
 }
 
 interface Pending {
@@ -300,26 +312,34 @@ export class SmsClient {
   }
 
   /**
-   * Reads stay strictly serial — never pipelined. Measured on hardware:
-   * with a second read request queued while a large `^read` reply was still
-   * draining out the USB pipe, the reply payload came back corrupted (two
-   * reads of the same file differed); the firmware reuses its reply buffers
-   * as soon as it processes the next request. One request in flight means
-   * the reply is fully received before the next send, which is safe.
+   * A whole file, with up to `pipeline` chunk reads in flight. Each chunk
+   * addresses an explicit fid/addr and lands at its own offset, so order
+   * doesn't matter and a timed-out chunk resends idempotently. A chunk
+   * shorter than asked means the file shrank mid-read (another editor, the
+   * Deluge itself) — that fails the whole read rather than returning a
+   * buffer with a hole in it.
    */
   async readFile(path: string, onProgress?: Progress): Promise<Uint8Array> {
-    const handle = await this.openRead(path)
-    const out = new Uint8Array(handle.size)
-    let offset = 0
-    while (offset < handle.size) {
-      const data = await handle.read(offset, this.opts.readChunk)
-      if (data.length === 0) break
-      out.set(data, offset)
-      offset += data.length
-      onProgress?.(offset, handle.size)
-    }
-    await handle.close()
-    if (offset < handle.size) throw new SysexError('read', path, 9 /* FR_INVALID_OBJECT: file shrank mid-read */)
+    const open = await this.expect('open', path, { open: { path, write: 0 } })
+    const fid = open.fid as number
+    const size = open.size as number
+    const out = new Uint8Array(size)
+    const offsets: number[] = []
+    for (let o = 0; o < size; o += this.opts.readChunk) offsets.push(o)
+    let done = 0
+    let short = false
+    await pooled(offsets, this.pipeline, async (offset) => {
+      const want = Math.min(this.opts.readChunk, size - offset)
+      const r = await this.request({ read: { fid, addr: offset, size: want } })
+      this.body('read', path, r, '^read')
+      const data = r.binary ?? new Uint8Array(0)
+      out.set(data.subarray(0, Math.min(data.length, want)), offset)
+      done += data.length
+      if (data.length < want) short = true
+      onProgress?.(Math.min(done, size), size)
+    })
+    await this.close(path, fid)
+    if (short || done < size) throw new SysexError('read', path, 9 /* FR_INVALID_OBJECT: file shrank mid-read */)
     return out
   }
 
@@ -332,7 +352,7 @@ export class SmsClient {
     const offsets: number[] = []
     for (let o = 0; o < data.length; o += this.opts.writeChunk) offsets.push(o)
     let done = 0
-    await pooled(offsets, PIPELINE, async (offset) => {
+    await pooled(offsets, this.pipeline, async (offset) => {
       const chunk = data.subarray(offset, Math.min(offset + this.opts.writeChunk, data.length))
       let written = -1
       for (let attempt = 0; attempt < this.opts.writeAttempts && written !== chunk.length; attempt++) {
@@ -398,6 +418,16 @@ export class SmsClient {
   }
 
   // ---- plumbing -----------------------------------------------------------
+
+  /**
+   * Requests to keep in flight during a bulk transfer: what the firmware's
+   * session grant vouches for, capped at `MAX_PIPELINE`. Always 1 until a
+   * grant arrives, and both bulk paths open the file first, so by the time
+   * a pool starts the session is negotiated.
+   */
+  private get pipeline(): number {
+    return Math.min(this.session?.pipe ?? 1, MAX_PIPELINE)
+  }
 
   private async close(path: string, fid: number): Promise<void> {
     const r = await this.request({ close: { fid } })
@@ -502,16 +532,18 @@ export class SmsClient {
         const r = await this.exchange(0, buildJsonFrame(0, { session: { tag: this.opts.tag } }), timeout, (reply) =>
           '^session' in reply.json,
         )
-        const body = r.json['^session'] as { midMin?: number; midMax?: number } | undefined
+        const body = r.json['^session'] as { midMin?: number; midMax?: number; pipe?: number } | undefined
         if (body?.midMin !== undefined && body.midMax !== undefined) {
-          this.session = { midMin: body.midMin, midMax: body.midMax }
+          const pipe = typeof body.pipe === 'number' && body.pipe >= 1 ? Math.floor(body.pipe) : 1
+          this.session = { midMin: body.midMin, midMax: body.midMax, pipe }
           return this.session
         }
       } catch {
         // try again; fall through to the fallback after the ladder
       }
     }
-    this.session = { midMin: (15 << 3) + 1, midMax: (15 << 3) + 7 }
+    // A firmware that never answered has told us nothing about its ring: serial.
+    this.session = { midMin: (15 << 3) + 1, midMax: (15 << 3) + 7, pipe: 1 }
     return this.session
   }
 

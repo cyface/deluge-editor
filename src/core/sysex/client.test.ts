@@ -46,10 +46,9 @@ describe('SmsClient', () => {
     expect(fake.maxFrameSeen).toBeLessThanOrEqual(1024)
   })
 
-  it('keeps exactly one write in flight — the hardware corrupts overlapped transfers', async () => {
-    // Measured on a real Deluge: a pipeline window of 4 slowed every write
-    // to ~52ms and ended in short writes and FR_DISK_ERR (and pipelined
-    // reads corrupted their payloads). PIPELINE must stay 1.
+  it('keeps exactly one write in flight when the grant does not vouch for more', async () => {
+    // A grant without `pipe` is a firmware whose USB send ring can still
+    // corrupt overlapped replies (#43 before the fix): strictly serial.
     const { client, fake } = rig({ holdWrites: true }, { timeouts: [5000] })
     const data = bytes(512 * 6) // six chunks at the 512-byte write chunk
     let settled = false
@@ -63,6 +62,66 @@ describe('SmsClient', () => {
     }
     await done
     expect(Array.from(fake.files.get('/SYNTHS/W.XML')!)).toEqual(Array.from(data))
+  })
+
+  it('overlaps two writes when the grant advertises pipe 2', async () => {
+    // Verified on hardware against the fixed send ring (#43): window 2 is
+    // byte-identical every time and ~31% faster; the firmware vouches for
+    // it by putting `pipe` in its session grant.
+    const { client, fake } = rig({ holdWrites: true, sessionPipe: 2 }, { timeouts: [5000] })
+    const data = bytes(512 * 6)
+    let settled = false
+    const done = client.writeFile('/SYNTHS/W2.XML', data).finally(() => (settled = true))
+    const tick = (): Promise<void> => new Promise((r) => setTimeout(r, 0))
+    await tick()
+    expect(fake.requests.filter((r) => 'write' in r).length).toBe(2) // the window, no more
+    for (let i = 0; i < 100 && !settled; i++) {
+      fake.releaseWrite()
+      await tick()
+    }
+    await done
+    expect(Array.from(fake.files.get('/SYNTHS/W2.XML')!)).toEqual(Array.from(data))
+  })
+
+  it('caps the window at 2 however much the grant offers', async () => {
+    // Measured: 3+ in flight is SLOWER than serial on the fixed firmware
+    // (each designed reply drop costs a timeout rung), so the client never
+    // follows a grant above MAX_PIPELINE.
+    const { client, fake } = rig({ holdWrites: true, sessionPipe: 4 }, { timeouts: [5000] })
+    let settled = false
+    const done = client.writeFile('/SYNTHS/W4.XML', bytes(512 * 6)).finally(() => (settled = true))
+    const tick = (): Promise<void> => new Promise((r) => setTimeout(r, 0))
+    await tick()
+    expect(fake.requests.filter((r) => 'write' in r).length).toBe(2)
+    for (let i = 0; i < 100 && !settled; i++) {
+      fake.releaseWrite()
+      await tick()
+    }
+    await done
+  })
+
+  it('overlaps reads under a pipe grant and still assembles byte-identical', async () => {
+    const { client, fake } = rig({ holdReads: true, sessionPipe: 2 }, { timeouts: [5000] })
+    const data = bytes(3000) // 3 chunks of 1024, last one partial
+    fake.putFile('/SYNTHS/R2.XML', data)
+    let result: Uint8Array | null = null
+    const done = client.readFile('/SYNTHS/R2.XML').then((d) => (result = d))
+    const tick = (): Promise<void> => new Promise((r) => setTimeout(r, 0))
+    await tick()
+    expect(fake.requests.filter((r) => 'read' in r).length).toBe(2)
+    for (let i = 0; i < 100 && result === null; i++) {
+      fake.releaseRead()
+      await tick()
+    }
+    await done
+    expect(Array.from(result!)).toEqual(Array.from(data))
+  })
+
+  it('a short write is still rewritten inside a pipelined transfer', async () => {
+    const { client, fake } = rig({ shortWriteOnce: 100, sessionPipe: 2 })
+    const data = bytes(512 * 4)
+    await client.writeFile('/SYNTHS/SP.XML', data)
+    expect(Array.from(fake.files.get('/SYNTHS/SP.XML')!)).toEqual(Array.from(data))
   })
 
   it('resends a dropped request with a fresh msgId instead of hanging', async () => {

@@ -46,6 +46,14 @@ export interface FakeOptions {
    * tag and a different sid, and lands on msgId 0 like every grant does.
    */
   otherSessionFirst?: boolean
+  /**
+   * Advertise this in-flight request count as `pipe` in the session grant,
+   * as a firmware with the #43 send-ring fix does. Absent means an older
+   * firmware whose grant has no such field — the client must stay serial.
+   */
+  sessionPipe?: number
+  /** Like `holdWrites`, for read replies; `releaseRead()` sends the oldest. */
+  holdReads?: boolean
 }
 
 /** The tag the second client in `otherSessionFirst` asked for. */
@@ -133,6 +141,7 @@ export class FakeDeluge {
       // assignSession: sid 1 free → midBase 8, midMin 9, midMax 15; replied via startDirect (cmd Json, msgId 0).
       const grant: Record<string, unknown> = { sid: 1, midBase: 8, midMin: 9, midMax: 15 }
       if (!this.opts.omitSessionTag) grant.tag = json.session.tag
+      if (this.opts.sessionPipe !== undefined) grant.pipe = this.opts.sessionPipe
       this.answer(0, '^session', grant, undefined, CMD_JSON)
     } else if (json.ping) {
       this.answer(msgId, '^ping', {})
@@ -184,16 +193,19 @@ export class FakeDeluge {
   }
 
   private doRead(msgId: number, cmd: Record<string, unknown>): void {
+    this.holding = this.opts.holdReads ?? false
     const fid = cmd.fid as number
     const addr = cmd.addr as number
     const want = Math.min((cmd.size as number) ?? 1024, 1024)
     const f = this.open.get(fid)
     if (!f) {
       this.answer(msgId, '^read', { fid, addr, size: 0, err: 12 /* FR_NOT_ENABLED, as readBlock replies */ })
+      this.holding = false
       return
     }
     const data = this.files.get(f.path)!.subarray(addr, addr + want)
     this.answer(msgId, '^read', { fid, addr, size: data.length, err: 0 }, data)
+    this.holding = false
   }
 
   /** Send the oldest held write reply; false when none are waiting. */
@@ -202,6 +214,11 @@ export class FakeDeluge {
     if (!bytes) return false
     this.reply(bytes)
     return true
+  }
+
+  /** Send the oldest held read reply; false when none are waiting. */
+  releaseRead(): boolean {
+    return this.releaseWrite()
   }
 
   private doWrite(msgId: number, cmd: Record<string, unknown>, data: Uint8Array): void {
