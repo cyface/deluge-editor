@@ -5,6 +5,7 @@
  * AudioContext is created on the first click (browsers require a gesture).
  */
 
+import { computePeaks, type Peaks } from '../../core/samples/peaks'
 import { card } from './card.svelte'
 import { kit } from './kit.svelte'
 
@@ -14,9 +15,13 @@ class AudioPreview {
   loading = $state<string | null>(null)
   progress = $state(0)
   error = $state<string | null>(null)
+  /** Bumped whenever a decode lands, so waveform thumbnails re-derive. */
+  version = $state(0)
 
   private ctx: AudioContext | null = null
   private cache = new Map<string, AudioBuffer>()
+  private peaks = new Map<string, Peaks>()
+  private decoding = new Set<string>()
   private source: AudioBufferSourceNode | null = null
 
   /** Preview needs bytes: local, already decoded, or fetchable from the card. */
@@ -42,9 +47,13 @@ class AudioPreview {
     this.stop()
     this.error = null
     try {
-      let buffer = await this.load(fileName)
-      if (reversed) buffer = this.reversedOf(fileName, buffer)
-      const ctx = this.ctx!
+      const buffer0 = await this.load(fileName)
+      // The cache may have been filled by the background thumbnail decode
+      // (OfflineAudioContext), so the playback context can still be missing
+      // here — and this click is exactly the gesture that may create it.
+      this.ctx ??= new AudioContext()
+      const ctx = this.ctx
+      const buffer = reversed ? this.reversedOf(fileName, buffer0) : buffer0
       if (ctx.state === 'suspended') await ctx.resume()
       const source = ctx.createBufferSource()
       source.buffer = buffer
@@ -62,6 +71,44 @@ class AudioPreview {
       this.error = `${fileName}: ${e instanceof Error ? e.message : String(e)}`
     } finally {
       this.loading = null
+    }
+  }
+
+  /**
+   * Waveform peaks for a thumbnail, or null when the audio isn't decoded
+   * yet. Local bytes kick off a one-time background decode (no user gesture
+   * needed — OfflineAudioContext); card-only samples get a thumbnail as a
+   * side effect of previewing them, never an unasked-for SysEx transfer.
+   */
+  peaksFor(fileName: string, buckets: number): Peaks | null {
+    void this.version // re-derive when a decode lands
+    const key = `${fileName}@${buckets}`
+    const hit = this.peaks.get(key)
+    if (hit) return hit
+    const buffer = this.cache.get(fileName)
+    if (buffer) {
+      const channels = Array.from({ length: buffer.numberOfChannels }, (_, i) => buffer.getChannelData(i))
+      const computed = computePeaks(channels, buckets)
+      this.peaks.set(key, computed)
+      return computed
+    }
+    const bytes = kit.bytes.get(fileName)
+    if (bytes && !this.decoding.has(fileName)) {
+      this.decoding.add(fileName)
+      void this.decodeLocal(fileName, bytes)
+    }
+    return null
+  }
+
+  private async decodeLocal(fileName: string, bytes: Uint8Array): Promise<void> {
+    try {
+      const copy = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer
+      const buffer = await new OfflineAudioContext(1, 1, 44100).decodeAudioData(copy)
+      this.cache.set(fileName, buffer)
+    } catch {
+      // a broken file simply has no thumbnail; preview reports its own errors
+    } finally {
+      this.version++
     }
   }
 
@@ -97,6 +144,7 @@ class AudioPreview {
     const copy = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer
     const buffer = await this.ctx.decodeAudioData(copy)
     this.cache.set(fileName, buffer)
+    this.version++ // a previewed card sample gains a thumbnail too
     return buffer
   }
 }

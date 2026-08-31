@@ -85,7 +85,7 @@ test('New Synth starts from the Deluge-authored init template (issue #25)', asyn
   // The template loads like an opened file: unnamed, c1.3.0-authored, clean.
   await expect(page.getByTestId('file-name')).toHaveText('UNNAMED')
   await expect(page.getByTestId('firmware')).toHaveValue('c1.3.0')
-  await expect(page.getByTestId('summary')).toContainText('Saw and square, 4 voices in unison')
+  await expect(page.getByTestId('summary')).toContainText('One square wave')
   await expect(page.getByTestId('change-count')).toHaveText('0')
 
   // The round-trip baseline is the template itself, from the first click.
@@ -93,10 +93,11 @@ test('New Synth starts from the Deluge-authored init template (issue #25)', asyn
   await expect(page.getByTestId('identical')).toContainText('byte-identical')
 
   // An edit diffs against the template; its × restores the template's bytes.
+  // The blank synth's LPF starts wide open (50), like the device's own.
   const knob = page.locator('[data-param="lpfFrequency"]')
-  await expect(knob).toHaveAttribute('aria-valuenow', '28')
+  await expect(knob).toHaveAttribute('aria-valuenow', '50')
   await knob.focus()
-  await page.keyboard.press('ArrowUp')
+  await page.keyboard.press('ArrowDown')
   await expect(page.getByTestId('change-count')).toHaveText('1')
   await page.locator('[data-testid="changes"] [data-change]').first().getByRole('button').click()
   await expect(page.getByTestId('change-count')).toHaveText('0')

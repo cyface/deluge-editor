@@ -11,6 +11,7 @@
   import { MIDI_OUTPUT_ATTR_ORDER } from '../core/preset'
   import { setAttr } from '../core/xml'
   import NumberField from './controls/NumberField.svelte'
+  import Waveform from './controls/Waveform.svelte'
   import { audio } from './state/audio.svelte'
   import { card } from './state/card.svelte'
   import { editor, isSoundRow } from './state/editor.svelte'
@@ -119,7 +120,7 @@
   <div class="ph"><h2>Rows</h2><span class="sub">{#if builder.missing.size}<span class="misscount" data-testid="missing-count">⚠ {builder.missing.size} sample{builder.missing.size === 1 ? '' : 's'} not on the card</span> · {/if}{editor.rows.length} in pad order · bottom row first in the file · drag or ▲▼ to reorder</span></div>
   <div class="scroll">
     <table class="rows" data-testid="kit-rows">
-      <thead><tr><th></th><th></th><th></th><th class="num">#</th><th>Row</th><th>Source</th><th>Repeat</th><th>Direction</th><th class="num">Vol</th><th class="num">Pan</th><th></th></tr></thead>
+      <thead><tr><th></th><th></th><th></th><th></th><th class="num">#</th><th>Row</th><th>Source</th><th>Repeat</th><th>Direction</th><th class="num">Vol</th><th class="num">Pan</th><th></th></tr></thead>
       <tbody>
         {#each editor.rows as r, i (r)}
           <tr
@@ -156,9 +157,12 @@
                 >{audio.playing === f ? '■' : audio.loading === f ? `${Math.round(audio.progress * 100)}%` : '▶'}</button>
               {/if}
             </td>
+            <td class="wavecell">
+              {#if sampleFile(r)}<Waveform fileName={sampleFile(r)!} />{/if}
+            </td>
             <td><span class="pad" style="background:var({PADS[i % PADS.length]})"></span></td>
             <td class="num">{i + 1}</td>
-            <td>
+            <td class="namecell">
               {#if i === editor.row}
                 <input
                   class="rename"
@@ -278,9 +282,12 @@
   .grip { cursor: grab; color: var(--faint); font-size: 10px; letter-spacing: -1px; user-select: none; width: 16px; }
   .grip:active { cursor: grabbing; }
   tr.over td { border-top: 2px solid var(--brass); }
-  /* Same face as .rname (theme.css): editing must not shrink the name. */
+  /* Same face as .rname (theme.css): editing must not shrink the name. The
+     negative margin swallows the border+padding so the input's text sits
+     exactly where the plain names in the other rows start. */
   .rename {
-    width: 100%; min-width: 70px; box-sizing: border-box; background: #0d0b0a; border: 1px solid var(--edge-hi);
+    width: calc(100% + 6px); min-width: 70px; box-sizing: border-box; margin-left: -6px;
+    background: #0d0b0a; border: 1px solid var(--edge-hi);
     border-radius: 3px; padding: 1px 5px; font-family: var(--cond); font-size: 13px; font-weight: 600;
     letter-spacing: .05em; text-transform: uppercase; color: #e0d7c7;
   }
@@ -294,6 +301,10 @@
   .act.x { font-size: 13px; vertical-align: -1px; }
   .act.x:hover { color: #e8a08f; }
   .playcell { width: 30px; text-align: center; }
+  .wavecell { width: 88px; line-height: 0; }
+  /* The greedy Source column must not squeeze names into wrapping. */
+  .namecell { min-width: 150px; }
+  .namecell :global(.rname) { white-space: nowrap; }
   .mode {
     background: #0d0b0a; border: 1px solid var(--edge); border-radius: 3px; color: #cfc6b6;
     font-family: var(--mono); font-size: 10.5px; padding: 2px 3px; cursor: pointer;

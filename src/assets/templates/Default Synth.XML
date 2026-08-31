@@ -5,41 +5,40 @@
 	polyphonic="poly"
 	voicePriority="1"
 	mode="subtractive"
-	transpose="-12"
 	modFXType="none"
 	lpfMode="24dB"
 	hpfMode="HPLadder"
 	filterRoute="H2L"
 	maxVoices="8">
 	<osc1
-		type="saw"
+		type="square"
 		transpose="0"
 		cents="0"
 		retrigPhase="-1" />
 	<osc2
 		type="square"
-		transpose="-12"
+		transpose="0"
 		cents="0"
 		retrigPhase="-1" />
 	<lfo1 type="triangle" syncLevel="0" syncType="0" />
 	<lfo2 type="triangle" syncLevel="0" syncType="0" />
 	<lfo3 type="triangle" syncLevel="0" syncType="0" />
 	<lfo4 type="triangle" syncLevel="0" syncType="0" />
-	<unison num="4" detune="10" spread="0" />
+	<unison num="1" detune="8" spread="0" />
 	<defaultParams
 		portamento="0x80000000"
 		compressorShape="0xDC28F5B2"
 		oscAVolume="0x7FFFFFFF"
 		oscAPulseWidth="0x00000000"
 		oscAWavetablePosition="0x00000000"
-		oscBVolume="0x47AE1457"
+		oscBVolume="0x80000000"
 		oscBPulseWidth="0x00000000"
 		oscBWavetablePosition="0x00000000"
 		noiseVolume="0x80000000"
-		volume="0x50000000"
+		volume="0x4CCCCCA8"
 		pan="0x00000000"
-		lpfFrequency="0x10000000"
-		lpfResonance="0xA2000000"
+		lpfFrequency="0x7FFFFFFF"
+		lpfResonance="0x80000000"
 		hpfFrequency="0x80000000"
 		hpfResonance="0x80000000"
 		lfo1Rate="0x1999997E"
@@ -63,6 +62,8 @@
 		bitCrush="0x80000000"
 		modFXOffset="0x00000000"
 		modFXFeedback="0x00000000"
+		tapeSaturation="0x80000000"
+		tapeHeadBump="0x80000000"
 		compressorThreshold="0x00000000"
 		arpeggiatorGate="0x00000000"
 		noteProbability="0x7FFFFFFF"
@@ -86,10 +87,10 @@
 			attack="0x80000000"
 			decay="0xE6666654"
 			sustain="0x7FFFFFFF"
-			release="0x851EB851" />
+			release="0x80000000" />
 		<envelope2
-			attack="0xA3D70A37"
-			decay="0xA3D70A37"
+			attack="0xE6666654"
+			decay="0xE6666654"
 			sustain="0xFFFFFFE9"
 			release="0xE6666654" />
 		<envelope3
@@ -104,35 +105,20 @@
 			release="0x00000000" />
 		<patchCables>
 			<patchCable
-				source="note"
-				destination="lpfFrequency"
-				polarity="bipolar"
-				amount="0x08F5C28C" />
-			<patchCable
-				source="envelope2"
-				destination="lpfFrequency"
-				polarity="bipolar"
-				amount="0x1C28F5B8" />
-			<patchCable
 				source="velocity"
-				destination="lpfFrequency"
-				polarity="bipolar"
-				amount="0x0F5C28F0" />
-			<patchCable
-				source="y"
-				destination="lpfFrequency"
-				polarity="bipolar"
-				amount="0x19999990" />
+				destination="volume"
+				polarity="unipolar"
+				amount="0x3FFFFFE8" />
 			<patchCable
 				source="aftertouch"
 				destination="volume"
 				polarity="unipolar"
 				amount="0x2A3D7094" />
 			<patchCable
-				source="velocity"
-				destination="volume"
+				source="y"
+				destination="lpfFrequency"
 				polarity="bipolar"
-				amount="0x3FFFFFE8" />
+				amount="0x19999990" />
 		</patchCables>
 		<equalizer
 			bass="0x00000000"
@@ -173,7 +159,7 @@
 		lockedGateSpreadArray="00000000000000000000000000000000"
 		lastLockedOctaveSpread="0"
 		lockedOctaveSpreadArray="00000000000000000000000000000000"
-		notePattern="000102000405020207070A040B050A03" />
+		notePattern="0001020300000506060000090A0C070A" />
 	<modKnobs>
 		<modKnob controlsParam="pan" />
 		<modKnob controlsParam="volumePostFX" />

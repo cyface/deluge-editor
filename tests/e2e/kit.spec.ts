@@ -49,6 +49,15 @@ test('build a kit from a sample folder: guessed order, reorder, rename, share zi
   await expect(rows.nth(3)).toContainText('Perc Loop')
   await expect(rows.nth(0)).toContainText('SAMPLES/My Kit/Kick.wav')
 
+  // Local bytes decode in the background: every row grows a waveform thumbnail.
+  await expect(page.getByTestId('row-wave')).toHaveCount(4)
+
+  // Regression: previewing after that background decode must not die on a
+  // missing playback context ("Cannot read properties of null").
+  await rows.nth(0).getByTestId('row-play').click()
+  await page.waitForTimeout(150)
+  await expect(page.locator('p.err')).toHaveCount(0)
+
   // The Mode column edits loopMode in place; built rows start at Once.
   const mode = rows.nth(0).getByTestId('row-mode')
   await expect(mode).toHaveValue('1')
