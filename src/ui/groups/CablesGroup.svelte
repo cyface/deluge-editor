@@ -49,8 +49,8 @@
           <!-- An absent polarity is bipolar, except an aftertouch source which
                defaults unipolar (readPatchCablesFromFile, patch_cable_set.cpp:827-833). -->
           <div class="pol" class:default={c.attrs.polarity === undefined}>
-            <button type="button" class:on={effPolarity === 'bipolar'} data-attr="cable{i}.polarity.bipolar" title={c.attrs.polarity === undefined && effPolarity === 'bipolar' ? 'Bipolar (the default — the file omits polarity)' : 'Bipolar'} onclick={() => setAttr(c, 'polarity', 'bipolar', CABLE_ATTR_ORDER)}>± bi</button>
-            <button type="button" class:on={effPolarity === 'unipolar'} data-attr="cable{i}.polarity.unipolar" title={c.attrs.polarity === undefined && effPolarity === 'unipolar' ? 'Unipolar (the default for aftertouch — the file omits polarity)' : 'Unipolar'} onclick={() => setAttr(c, 'polarity', 'unipolar', CABLE_ATTR_ORDER)}>+ uni</button>
+            <button type="button" class:on={effPolarity === 'bipolar'} data-attr="cable{i}.polarity.bipolar" title={c.attrs.polarity === undefined && effPolarity === 'bipolar' ? 'default · bipolar' : 'Bipolar'} onclick={() => setAttr(c, 'polarity', 'bipolar', CABLE_ATTR_ORDER)}>± bi</button>
+            <button type="button" class:on={effPolarity === 'unipolar'} data-attr="cable{i}.polarity.unipolar" title={c.attrs.polarity === undefined && effPolarity === 'unipolar' ? 'default · unipolar' : 'Unipolar'} onclick={() => setAttr(c, 'polarity', 'unipolar', CABLE_ATTR_ORDER)}>+ uni</button>
           </div>
         {/if}
       </div>
