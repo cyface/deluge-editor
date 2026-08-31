@@ -81,3 +81,30 @@ test('a kit shows its rows and edits the selected one', async ({ page }) => {
   await expect(page.locator('[data-testid="changes"] [data-change]').first()).toHaveAttribute('data-change', /^kit\/soundSources\/sound\[1\]\/defaultParams@volume$/)
 })
 
+test('right-click a patchable knob, pick a source, land on the new cable (issue #13)', async ({ page }) => {
+  await page.goto('/')
+  await page.getByTestId('file-input').setInputFiles(FIXTURE)
+  await expect(page.getByTestId('change-count')).toHaveText('0')
+
+  const rows = page.locator('[data-cable]')
+  const before = await rows.count()
+
+  // Right-click LPF Res (patchable, nothing patched to it yet) and pick LFO 2.
+  await page.locator('[data-param="lpfResonance"]').click({ button: 'right' })
+  await expect(page.getByTestId('cable-picker')).toBeVisible()
+  await expect(page.getByTestId('cable-picker')).toContainText('LPF Res')
+  await page.getByRole('menuitem', { name: 'LFO 2', exact: true }).click()
+  await expect(page.getByTestId('cable-picker')).toHaveCount(0)
+
+  // One new cable, amount 0, both sides as picked.
+  await expect(rows).toHaveCount(before + 1)
+  const row = page.locator('.cable.new')
+  await expect(row.locator('select').first()).toHaveValue('lfo2')
+  await expect(row.locator('select').nth(1)).toHaveValue('lpfResonance')
+  await expect(page.getByTestId('change-count')).not.toHaveText('0')
+
+  // The same pair again is revealed, not duplicated.
+  await page.locator('[data-param="lpfResonance"]').click({ button: 'right' })
+  await page.getByRole('menuitem', { name: 'LFO 2', exact: true }).click()
+  await expect(rows).toHaveCount(before + 1)
+})

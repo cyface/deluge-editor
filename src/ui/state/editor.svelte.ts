@@ -45,6 +45,8 @@ class Editor {
   row = $state(0)
   /** A patch source being inspected in the flow strip. */
   inspect = $state<string | null>(null)
+  /** A cable the mod matrix should scroll to and highlight (issue #13). */
+  reveal = $state<{ source: string; destination: string } | null>(null)
   showChanges = $state(false)
   error = $state<string | null>(null)
 

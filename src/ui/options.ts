@@ -108,3 +108,13 @@ export const destinationOptions = (supports: Supports): Option[] =>
   [...PATCHED_LOCAL_PARAMS, ...PATCHED_GLOBAL_PARAMS]
     .filter((p) => DEST_FEATURE[p] === undefined || supports(DEST_FEATURE[p]))
     .map((value) => ({ value, label: paramLabel(value) }))
+
+const PATCHABLE = new Set<string>([...PATCHED_LOCAL_PARAMS, ...PATCHED_GLOBAL_PARAMS])
+
+/**
+ * Whether a cable can end at `dest` under the selected firmware: the patched
+ * params are the destinations (`src/core/preset/params.ts` cites the
+ * firmware's patched-param tables); unpatched params take no cables.
+ */
+export const isPatchableDestination = (dest: string, supports: Supports): boolean =>
+  PATCHABLE.has(dest) && (DEST_FEATURE[dest] === undefined || supports(DEST_FEATURE[dest]))

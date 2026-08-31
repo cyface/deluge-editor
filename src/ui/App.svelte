@@ -1,4 +1,5 @@
 <script lang="ts">
+  import CablePicker from './CablePicker.svelte'
   import CardPanel from './CardPanel.svelte'
   import ChangesDock from './ChangesDock.svelte'
   import EmptyState from './EmptyState.svelte'
@@ -43,6 +44,7 @@
     <EmptyState />
   {/if}
   <ChangesDock />
+  <CablePicker />
   <CardPanel />
 </div>
 

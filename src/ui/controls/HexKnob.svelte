@@ -9,7 +9,10 @@
   import { paramNameOfAttr, type SoundElement } from '../../core/preset'
   import { cableMenu, cablesTo, goldParams, hexToMenu, menuToHex, type ParamScale } from '../../core/preset/sound'
   import { setAttr, type XmlElement } from '../../core/xml'
+  import { isPatchableDestination } from '../options'
   import { sourceColor, sourceName } from '../sources'
+  import { editor } from '../state/editor.svelte'
+  import { picker } from '../state/picker.svelte'
   import Knob, { type ModRing } from './Knob.svelte'
 
   interface Props {
@@ -52,6 +55,18 @@
     if (!target) return
     setAttr(target, attr, menuToHex(n, scale) as HexParam, order)
   }
+
+  // Right-click starts a cable into this param (issue #13). Only params the
+  // firmware can patch get the menu — an unpatchable one gets nothing, not a
+  // disabled stub (docs/decisions.md). Long-press fires contextmenu on touch.
+  const patchable = $derived(sound !== undefined && isPatchableDestination(destination, editor.supports))
+  function context(e: MouseEvent) {
+    if (!patchable) return
+    e.preventDefault()
+    picker.show(destination, label, e.clientX, e.clientY)
+  }
 </script>
 
-<Knob {label} {value} min={range.min} max={range.max} onchange={set} {format} {mod} {gold} param={attr} {title} />
+<span style="display: contents" role="presentation" oncontextmenu={context}>
+  <Knob {label} {value} min={range.min} max={range.max} onchange={set} {format} {mod} {gold} param={attr} {title} />
+</span>
