@@ -63,7 +63,11 @@ test('reassign a gold knob: one change, the brass face follows (issue #23)', asy
   await expect(page.locator('.k.gold [data-param="lpfFrequency"]')).toHaveCount(1)
   await expect(page.locator('.k.gold [data-param="hpfFrequency"]')).toHaveCount(0)
 
+  // The slot is a one-line summary until clicked; the selects appear in place (issue #27).
+  await expect(page.locator('[data-attr="modKnob3.controlsParam"]')).toHaveCount(0)
+  await page.locator('[data-knob="3"]').click()
   await page.locator('[data-attr="modKnob3.controlsParam"]').selectOption('hpfFrequency')
+  await expect(page.locator('[data-knob="3"]')).toContainText('HPF Freq')
   await expect(page.getByTestId('change-count')).toHaveText('1')
   await expect(page.locator('.k.gold [data-param="hpfFrequency"]')).toHaveCount(1)
   await expect(page.locator('.k.gold [data-param="lpfFrequency"]')).toHaveCount(0)

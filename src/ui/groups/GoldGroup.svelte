@@ -4,8 +4,10 @@
    * knob first in the file, editable (issue #23). A slot the file doesn't
    * carry shows the stock assignment as its default; the first edit writes
    * the full 16-entry array the way the firmware would (`ensureModKnobs`).
+   * Rarely edited, so each slot is a one-line summary that expands in place
+   * to the selects (issue #27).
    */
-  import { STOCK_MOD_KNOBS, type SoundElement } from '../../core/preset'
+  import { STOCK_MOD_KNOBS, paramLabel, type SoundElement } from '../../core/preset'
   import { modKnobs, setModKnob, type ModKnobAssign } from '../../core/preset/sound'
   import type { ModKnobElement } from '../../core/preset/types'
   import Select from '../controls/Select.svelte'
@@ -17,6 +19,7 @@
   const knobs = $derived(modKnobs(sound))
   const paramOpts = $derived(knobParamOptions(editor.supports))
   const sourceOpts = $derived([{ value: '', label: 'Direct' }, ...sourceOptions(editor.supports)])
+  let open = $state<number | null>(null)
 
   // The volume family is one knob target the firmware disambiguates by source
   // (ensureKnobReferencesCorrectVolume, sound.cpp:1317); the select shows the
@@ -31,6 +34,16 @@
     (k.attrs.controlsParam !== stock(i)?.controlsParam ||
       k.attrs.patchAmountFromSource !== stock(i)?.patchAmountFromSource ||
       k.attrs.patchAmountFromSecondSource !== undefined)
+
+  // A source the gate hides (or an unknown one) still shows its raw string,
+  // same rule as Select.svelte: the control tells the truth.
+  const sourceLabel = (s: string) => sourceOpts.find((o) => o.value === s)?.label ?? s
+  const summary = (k: ModKnobElement | undefined, i: number) => {
+    const param = paramLabel(canon(k?.attrs.controlsParam ?? stock(i).controlsParam) ?? '')
+    const src = k ? k.attrs.patchAmountFromSource : stock(i).patchAmountFromSource
+    const second = k?.attrs.patchAmountFromSecondSource
+    return param + (src ? ` via ${sourceLabel(src)}` : '') + (second ? ` · 2nd ${sourceLabel(second)}` : '')
+  }
 
   function assign(i: number, patch: Partial<ModKnobAssign>): void {
     const k = knob(i)
@@ -54,13 +67,21 @@
       <!-- Top knob first on screen; the file writes the bottom knob first. -->
       {#each [2 * p + 1, 2 * p] as i (i)}
         {@const k = knob(i)}
-        {@const src = k ? (k.attrs.patchAmountFromSource ?? '') : undefined}
+        {@const text = summary(k, i)}
         <div class="slot" class:dev={deviates(k, i)}>
-          <Select label={i % 2 ? 'Top Knob' : 'Bottom Knob'} name="modKnob{i}.controlsParam" value={canon(k?.attrs.controlsParam)} options={paramOpts} fallback={k ? undefined : canon(stock(i).controlsParam)} onchange={(v) => assign(i, { controlsParam: v as ModKnobAssign['controlsParam'] })} />
-          <Select label="Via" name="modKnob{i}.patchAmountFromSource" value={src} options={sourceOpts} fallback={k ? undefined : (stock(i).patchAmountFromSource ?? '')} onchange={(v) => assign(i, { patchAmountFromSource: (v || undefined) as ModKnobAssign['patchAmountFromSource'] })} />
-          {#if k?.attrs.patchAmountFromSecondSource}
-            <div class="second">
-              <Select label="2nd Source" name="modKnob{i}.patchAmountFromSecondSource" value={k.attrs.patchAmountFromSecondSource} options={sourceOpts} onchange={(v) => assign(i, { patchAmountFromSecondSource: (v || undefined) as ModKnobAssign['patchAmountFromSecondSource'] })} />
+          <button type="button" class="row" data-knob={i} aria-expanded={open === i} title={text} onclick={() => (open = open === i ? null : i)}>
+            <span class="pos">{i % 2 ? 'Top' : 'Bottom'}</span>
+            <span class="what" class:default={k === undefined}>{text}</span>
+            <span class="chev">{open === i ? '▾' : '▸'}</span>
+          </button>
+          {#if open === i}
+            {@const src = k ? (k.attrs.patchAmountFromSource ?? '') : undefined}
+            <div class="edit">
+              <Select label="Parameter" name="modKnob{i}.controlsParam" value={canon(k?.attrs.controlsParam)} options={paramOpts} fallback={k ? undefined : canon(stock(i).controlsParam)} onchange={(v) => assign(i, { controlsParam: v as ModKnobAssign['controlsParam'] })} />
+              <Select label="Via" name="modKnob{i}.patchAmountFromSource" value={src} options={sourceOpts} fallback={k ? undefined : (stock(i).patchAmountFromSource ?? '')} onchange={(v) => assign(i, { patchAmountFromSource: (v || undefined) as ModKnobAssign['patchAmountFromSource'] })} />
+              {#if k?.attrs.patchAmountFromSecondSource}
+                <Select label="2nd Source" name="modKnob{i}.patchAmountFromSecondSource" value={k.attrs.patchAmountFromSecondSource} options={sourceOpts} onchange={(v) => assign(i, { patchAmountFromSecondSource: (v || undefined) as ModKnobAssign['patchAmountFromSecondSource'] })} />
+              {/if}
             </div>
           {/if}
         </div>
@@ -68,13 +89,23 @@
     </div>
   {/each}
 </div>
-<p class="hint">A parameter on a gold encoder is drawn with a brass face. “Via” makes the knob set a patch cable's strength instead of the parameter itself. The assignments are positional in the file.</p>
+<p class="hint">“Via” makes the knob set a patch cable's strength instead of the parameter itself.</p>
 
 <style>
-  .gold { display: grid; gap: 6px; margin: 8px 0 0 4px; }
-  .gpage { border: 1px solid var(--edge); border-radius: 3px; padding: 6px 7px; background: #1a1714; }
-  .n { font-family: var(--cond); font-size: 9.5px; letter-spacing: .11em; text-transform: uppercase; color: var(--faint); margin-bottom: 3px; }
-  .slot { display: grid; grid-template-columns: 3fr 2fr; gap: 4px 6px; align-items: end; padding: 3px 0 3px 5px; border-left: 2px solid transparent; }
+  .gold { display: grid; gap: 5px; margin: 8px 0 0 4px; }
+  .gpage { border: 1px solid var(--edge); border-radius: 3px; padding: 4px 7px 5px; background: #1a1714; }
+  .n { font-family: var(--cond); font-size: 9.5px; letter-spacing: .11em; text-transform: uppercase; color: var(--faint); margin-bottom: 1px; }
+  .slot { border-left: 2px solid transparent; padding-left: 5px; }
   .slot.dev { border-left-color: var(--brass-dim); }
-  .second { grid-column: 1 / -1; }
+  .row {
+    display: flex; align-items: baseline; gap: 7px; width: 100%; padding: 2px 0; margin: 0;
+    background: none; border: none; cursor: pointer; text-align: left;
+  }
+  .pos { flex: none; width: 42px; font-family: var(--cond); font-size: 9.5px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+  .what { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); font-size: 11px; color: #ddd4c4; }
+  /* A slot the file omits shows the stock assignment dimmed-italic, like a select's default entry. */
+  .what.default { color: var(--faint); font-style: italic; }
+  .row:hover .what { color: var(--brass-hi); }
+  .chev { flex: none; font-size: 9px; color: var(--faint); }
+  .edit { display: grid; gap: 5px; padding: 2px 0 6px; }
 </style>
