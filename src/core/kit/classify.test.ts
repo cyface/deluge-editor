@@ -23,6 +23,11 @@ describe('classifyDrum', () => {
     ['Vocal Chop.wav', 'other'],
     // drum-machine abbreviations
     ['BD808.wav', 'kick'],
+    ['K1.wav', 'kick'],
+    ['k-2.wav', 'kick'],
+    ['808 K3.wav', 'kick'],
+    ['Bank2.wav', 'other'], // a K inside a word is not a kick
+    ['OK2.wav', 'other'],
     ['SD-01.wav', 'snare'],
     ['CH.wav', 'closed-hat'],
     ['OH.wav', 'open-hat'],

@@ -34,6 +34,9 @@ const HATTY = /h[\s._-]*[ai][\s._-]*t|hat|(^|[^a-z])hh([^a-z]|$)|hi[\s._-]*hat/i
 const RULES: readonly [DrumClass, RegExp][] = [
   ['kick', /kick|bass[\s._-]*drum/i],
   ['kick', abbr('bd')],
+  // Numbered single-letter kicks: `K1.wav`, `K 2`, `k-3`. Only K gets the
+  // single-letter treatment — C1/T1/H1 are note names in melodic samples.
+  ['kick', /(^|[^a-z])k[\s._-]*\d/i],
   ['snare', /snare/i],
   ['snare', abbr('sd|sn|snr')],
   ['open-hat', /open[\s._-]*(hi)?[\s._-]*hat|open[\s._-]*hh/i],
