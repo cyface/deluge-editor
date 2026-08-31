@@ -117,11 +117,7 @@ class Card {
   }
 
   async refresh(): Promise<void> {
-    await this.run('Reading directory', async () => {
-      this.entries = (await this.client!.listDirectory(this.path)).toSorted(
-        (a, b) => Number(isDirectory(b)) - Number(isDirectory(a)) || a.name.localeCompare(b.name),
-      )
-    })
+    await this.run('Reading directory', () => this.list())
   }
 
   async enter(name: string): Promise<void> {
@@ -166,11 +162,18 @@ class Card {
     return this.path === '/' ? `/${name}` : `${this.path}/${name}`
   }
 
-  /** refresh() without clobbering `saved`/`busy` bookkeeping of the caller. */
+  /**
+   * The listing without `saved`/`busy` bookkeeping (refresh() adds that).
+   * Hidden entries are dropped here, at the store: the card is FAT32 and a
+   * Mac writes its droppings straight to it — `._*` AppleDouble sidecars
+   * (binary, yet ending in `.XML`), `.DS_Store`, `.Spotlight-V100` — none of
+   * which are presets. `listDirectory()` stays an honest transport, and the
+   * save-overwrite check above rightly no longer "sees" `._NAME.XML`.
+   */
   private async list(): Promise<void> {
-    this.entries = (await this.client!.listDirectory(this.path)).toSorted(
-      (a, b) => Number(isDirectory(b)) - Number(isDirectory(a)) || a.name.localeCompare(b.name),
-    )
+    this.entries = (await this.client!.listDirectory(this.path))
+      .filter((e) => !e.name.startsWith('.'))
+      .toSorted((a, b) => Number(isDirectory(b)) - Number(isDirectory(a)) || a.name.localeCompare(b.name))
   }
 
   private async run(label: string, fn: () => Promise<void>): Promise<void> {

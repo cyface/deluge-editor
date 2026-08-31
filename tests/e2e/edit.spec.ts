@@ -74,6 +74,24 @@ test('reassign a gold knob: one change, the brass face follows (issue #23)', asy
   await expect(page.getByTestId('identical')).toContainText('byte-identical')
 })
 
+test('a picked ._ AppleDouble sidecar is refused with a plain message (issue #24)', async ({ page }) => {
+  await page.goto('/')
+  // The picker's `accept=".xml,.XML"` matches `._Default Synth.XML`, and
+  // drag-and-drop bypasses `accept` entirely — so the load itself must say no.
+  await page.getByTestId('file-input').setInputFiles({
+    name: '._Default Synth.XML',
+    mimeType: 'application/xml',
+    buffer: Buffer.from([0x00, 0x05, 0x16, 0x07, 0x00, 0x02, 0x00, 0x00]),
+  })
+  await expect(page.getByRole('alert')).toContainText('macOS metadata sidecar')
+  await expect(page.getByRole('alert')).toContainText('load Default Synth.XML instead')
+
+  // The real preset still loads afterwards, clearing the message.
+  await page.getByTestId('file-input').setInputFiles(FIXTURE)
+  await expect(page.getByTestId('file-name')).toHaveText('Default Synth.XML')
+  await expect(page.getByRole('alert')).toHaveCount(0)
+})
+
 test('re-targeting the firmware drops controls it cannot honour, without touching the file', async ({ page }) => {
   await page.goto('/')
   await page.getByTestId('file-input').setInputFiles(FIXTURE)

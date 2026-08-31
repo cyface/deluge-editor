@@ -81,6 +81,15 @@ class Editor {
   })
 
   load(text: string, name: string): void {
+    // A macOS AppleDouble sidecar (`._NAME.XML`) is the resource-fork
+    // container Finder drops next to every file it touches on a FAT card.
+    // It matches the file picker's `accept` and drag-and-drop bypasses
+    // `accept` entirely, but it is binary — say what it is instead of
+    // surfacing the XML parser's confusion (issue #24).
+    if (name.startsWith('._')) {
+      this.error = `${name} is a macOS metadata sidecar, not a preset — load ${name.slice(2)} instead`
+      return
+    }
     try {
       const preset = parseXML(text)
       this.preset = preset

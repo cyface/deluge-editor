@@ -57,6 +57,23 @@ describe('firmware selection with a device (issue #7)', () => {
   })
 })
 
+describe('macOS sidecar rejection (issue #24)', () => {
+  it('a ._ AppleDouble is refused with a plain message, not a parser error', () => {
+    // The real thing is binary (magic 0x00051607); the name alone condemns it.
+    editor.load('\x00\x05\x16\x07\x00\x02\x00\x00', '._Default Synth.XML')
+    expect(editor.preset).toBeNull()
+    expect(editor.error).toContain('macOS metadata sidecar')
+    expect(editor.error).toContain('load Default Synth.XML instead')
+  })
+  it('the refusal leaves an already-loaded preset alone', () => {
+    editor.load(community, 'Default Synth.XML')
+    editor.load('junk', '._Default Synth.XML')
+    expect(editor.fileName).toBe('Default Synth.XML')
+    expect(editor.preset).not.toBeNull()
+    expect(editor.identical).toBe(true)
+  })
+})
+
 describe('per-change revert', () => {
   it('a changed value goes back to the file, byte-identically', async () => {
     const { setParamMenu } = await import('../../core/preset/sound')

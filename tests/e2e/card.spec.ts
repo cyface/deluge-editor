@@ -10,7 +10,14 @@ const officialText = fs.readFileSync(OFFICIAL, 'utf8')
 test('card: connect, browse, load, edit, save with verification, reload', async ({ page }) => {
   await page.addInitScript((seed) => {
     ;(globalThis as unknown as { __cardSeed: unknown }).__cardSeed = seed
-  }, { '/SYNTHS/Default Synth.XML': fixtureText, '/SYNTHS/Baseline.XML': officialText })
+  }, {
+    '/SYNTHS/Default Synth.XML': fixtureText,
+    '/SYNTHS/Baseline.XML': officialText,
+    // macOS droppings a real FAT card grows (issue #24): an AppleDouble
+    // sidecar masquerading as XML, and .DS_Store. The browser must hide them.
+    '/SYNTHS/._Default Synth.XML': '\x00\x05\x16\x07\x00\x02\x00\x00',
+    '/SYNTHS/.DS_Store': '\x00\x00\x00\x01Bud1',
+  })
   await page.addInitScript({ path: path.resolve('tests/e2e/fake-deluge.js') })
   await page.goto('/')
 
@@ -22,6 +29,9 @@ test('card: connect, browse, load, edit, save with verification, reload', async 
   await expect(page.getByTestId('card-button')).toHaveText('Browse Card')
   await expect(page.getByTestId('card-path')).toHaveText('/SYNTHS')
   await expect(page.getByTestId('card-panel')).toContainText('fw 1.3.0')
+
+  // Hidden files stay hidden: only the two presets list, no `._*`/.DS_Store.
+  await expect(page.locator('[data-entry]')).toHaveCount(2)
 
   // The identity reply locks the top-bar selector to the device's firmware:
   // a static pill, no dropdown, while connected (issue #7).
