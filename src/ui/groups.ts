@@ -329,11 +329,29 @@ export function visibleGroups(): Group[] {
 /**
  * The masonry order: the strip keeps the signal path, but the grid seats
  * Filters at the head of the Delay & Reverb column (issue #17). The grid's
- * CSS columns fill in source order, so adjacency here is column adjacency.
+ * stacks fill in source order (`masonry.ts`), so adjacency here is column
+ * adjacency.
  */
 export function gridGroups(): Group[] {
   const gs = visibleGroups()
   const filters = gs.splice(gs.findIndex((g) => g.id === 'filters'), 1)[0]
   gs.splice(gs.findIndex((g) => g.id === 'delay'), 0, filters)
   return gs
+}
+
+/**
+ * The masonry's unsplittable blocks: the Randomiser tucks under the
+ * Arpeggiator — they share the arp colour and the firmware keeps the
+ * randomiser inside the Arpeggiator menu — so the balancer treats the pair
+ * as one item. In a kit the bus sits between them (visibleGroups), so the
+ * pair dissolves and the Randomiser follows the kit column instead.
+ */
+export function gridBlocks(gs: Group[]): Group[][] {
+  const blocks: Group[][] = []
+  for (const g of gs) {
+    const prev = blocks[blocks.length - 1]
+    if (g.id === 'random' && prev?.[prev.length - 1]?.id === 'arp') prev.push(g)
+    else blocks.push([g])
+  }
+  return blocks
 }
