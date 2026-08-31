@@ -46,33 +46,15 @@
   <HexKnob el={params(sound)} ensure={P} attr="arpeggiatorRate" label="Rate" order={SOUND_PARAM_ATTRS} {sound} />
   <HexKnob el={params(sound)} ensure={P} attr="arpeggiatorGate" label="Gate" order={SOUND_PARAM_ATTRS} {sound} />
   {#if modern}
-    <HexKnob el={params(sound)} ensure={P} attr="ratchetProbability" label="Ratchet Prob" order={SOUND_PARAM_ATTRS} {sound} />
-    <HexKnob el={params(sound)} ensure={P} attr="ratchetAmount" label="Ratchets" order={SOUND_PARAM_ATTRS} {sound} />
+    {#if !editor.supports('arp3')}
+      <!-- From Arpeggiator 3.0 these live in the Randomiser panel, as on the
+           device; this firmware's menu still keeps them under the arp. -->
+      <HexKnob el={params(sound)} ensure={P} attr="ratchetProbability" label="Ratchet Prob" order={SOUND_PARAM_ATTRS} {sound} />
+      <HexKnob el={params(sound)} ensure={P} attr="ratchetAmount" label="Ratchets" order={SOUND_PARAM_ATTRS} {sound} />
+    {/if}
     <HexKnob el={params(sound)} ensure={P} attr="sequenceLength" label="Seq Length" order={SOUND_PARAM_ATTRS} {sound} />
   {/if}
   {#if editor.supports('arpRhythm')}
     <HexKnob el={params(sound)} ensure={P} attr="rhythm" label="Rhythm" order={SOUND_PARAM_ATTRS} {sound} />
   {/if}
 </div>
-{#if editor.supports('arp3')}
-  <div class="h3">Randomiser</div>
-  <div class="knobrow">
-    <HexKnob el={params(sound)} ensure={P} attr="noteProbability" label="Note" order={SOUND_PARAM_ATTRS} {sound} />
-    <HexKnob el={params(sound)} ensure={P} attr="bassProbability" label="Bass" order={SOUND_PARAM_ATTRS} {sound} />
-    <HexKnob el={params(sound)} ensure={P} attr="chordProbability" label="Chord" order={SOUND_PARAM_ATTRS} {sound} />
-    <HexKnob el={params(sound)} ensure={P} attr="chordPolyphony" label="Chord Poly" order={SOUND_PARAM_ATTRS} {sound} />
-    {#if editor.supports('arpReverseGlideSwap')}
-      <HexKnob el={params(sound)} ensure={P} attr="reverseProbability" label="Reverse" order={SOUND_PARAM_ATTRS} {sound} />
-      <HexKnob el={params(sound)} ensure={P} attr="glideProbability" label="Glide" order={SOUND_PARAM_ATTRS} {sound} />
-      <HexKnob el={params(sound)} ensure={P} attr="swapProbability" label="Swap" order={SOUND_PARAM_ATTRS} {sound} />
-    {/if}
-  </div>
-{/if}
-{#if editor.supports('arpSpread')}
-  <div class="h3">Spread</div>
-  <div class="knobrow">
-    <HexKnob el={params(sound)} ensure={P} attr="spreadVelocity" label="Velocity" order={SOUND_PARAM_ATTRS} {sound} />
-    <HexKnob el={params(sound)} ensure={P} attr="spreadGate" label="Gate" order={SOUND_PARAM_ATTRS} {sound} />
-    <HexKnob el={params(sound)} ensure={P} attr="spreadOctave" label="Octave" order={SOUND_PARAM_ATTRS} {sound} />
-  </div>
-{/if}

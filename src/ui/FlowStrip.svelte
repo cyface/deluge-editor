@@ -177,7 +177,7 @@
   .modpip { position: absolute; top: -4px; right: -4px; display: flex; gap: 2px; }
   .modpip i { width: 6px; height: 6px; border-radius: 50%; border: 1.5px solid #0e0d0c; display: block; }
   .modlane { margin-top: 12px; padding-top: 10px; border-top: 1px dashed #262119; position: relative; z-index: 2; display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; }
-  /* Two by two: Envelopes & LFOs / Mod Matrix above, Arpeggiator / Gold Knobs below. */
+  /* Two columns: Envelopes & LFOs / Mod Matrix, Arpeggiator / Randomiser, Gold Knobs. */
   .modgroups { display: grid; grid-template-columns: repeat(2, max-content); gap: 6px; padding-top: 4px; align-content: flex-start; }
   .gblk { flex: none; padding: 4px 8px 4px 6px; border-radius: 6px; border: 1px solid #2a251f; background: #141210; cursor: pointer; display: flex; align-items: center; gap: 7px; }
   .gblk .sw { width: 4px; height: 20px; border-radius: 2px; background: var(--bc); }

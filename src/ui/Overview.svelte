@@ -13,6 +13,7 @@
   import ModsGroup from './groups/ModsGroup.svelte'
   import OscGroup from './groups/OscGroup.svelte'
   import OutGroup from './groups/OutGroup.svelte'
+import RandomiserGroup from './groups/RandomiserGroup.svelte'
   import VoiceGroup from './groups/VoiceGroup.svelte'
   import { gridGroups, type Group } from './groups'
   import { editor } from './state/editor.svelte'
@@ -45,6 +46,7 @@
   {:else if g.id === 'mods'}<ModsGroup {sound} />
   {:else if g.id === 'cables'}<CablesGroup {sound} />
   {:else if g.id === 'arp'}<ArpGroup {sound} />
+  {:else if g.id === 'random'}<RandomiserGroup {sound} />
   {:else if g.id === 'gold'}<GoldGroup {sound} />
   {:else if g.id === 'kit' && kit}<KitGroup {kit} />
   {/if}

@@ -12,15 +12,15 @@ test('load a fixture, see the whole preset, focus a block, edit one value, see e
   await expect(page.getByTestId('firmware')).toHaveValue('c1.3.0')
   await expect(page.getByTestId('summary')).toContainText('Saw and square, 4 voices in unison')
   const panels = page.locator('[data-group]')
-  await expect(panels).toHaveCount(11)
+  await expect(panels).toHaveCount(12)
   await expect(page.getByTestId('collapsed')).toHaveCount(0)
   await expect(page.getByTestId('change-count')).toHaveText('0')
 
-  // Clicking a flow block is a filter: Filters stays, the other ten collapse to chips.
+  // Clicking a flow block is a filter: Filters stays, the other eleven collapse to chips.
   await page.locator('[data-blk="filters"]').click()
   await expect(panels).toHaveCount(1)
   await expect(page.locator('[data-group="filters"]')).toBeVisible()
-  await expect(page.locator('[data-chip]')).toHaveCount(10)
+  await expect(page.locator('[data-chip]')).toHaveCount(11)
 
   // Shift-click pins a second block.
   await page.locator('[data-blk="out"]').click({ modifiers: ['Shift'] })
@@ -52,15 +52,18 @@ test('load a fixture, see the whole preset, focus a block, edit one value, see e
 
   // Clicking the strip's background expands everything again.
   await page.getByTestId('flow-strip').click({ position: { x: 5, y: 5 } })
-  await expect(panels).toHaveCount(11)
+  await expect(panels).toHaveCount(12)
 })
 
 test('re-targeting the firmware drops controls it cannot honour, without touching the file', async ({ page }) => {
   await page.goto('/')
   await page.getByTestId('file-input').setInputFiles(FIXTURE)
   await expect(page.locator('[data-param="waveFold"]')).toHaveCount(1)
+  await expect(page.locator('[data-group="random"]')).toHaveCount(1)
   await page.getByTestId('firmware').selectOption('4.1.4')
   await expect(page.locator('[data-param="waveFold"]')).toHaveCount(0)
+  // The whole Randomiser block predates 4.1.4, so the panel goes with its controls.
+  await expect(page.locator('[data-group="random"]')).toHaveCount(0)
   await expect(page.locator('[data-param="lpfFrequency"]')).toHaveCount(1)
   await expect(page.getByTestId('change-count')).toHaveText('0')
 })

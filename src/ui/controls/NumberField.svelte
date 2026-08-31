@@ -15,6 +15,7 @@
   let { label, value, min, max, onchange, name, format, fallback }: Props = $props()
   const id = `num-${Math.random().toString(36).slice(2, 8)}`
   const shown = $derived(value === undefined ? '' : String(value))
+  const ph = $derived(fallback === undefined ? 'default' : `default · ${format ? format(fallback) : fallback}`)
   function change(e: Event) {
     const el = e.currentTarget as HTMLInputElement
     if (el.value === '') return
@@ -26,7 +27,7 @@
 
 <div class="f">
   <label for={id}>{label}{#if format && value !== undefined}<span class="fmt"> · {format(Number(value))}</span>{/if}</label>
-  <input {id} type="number" data-attr={name} value={shown} placeholder={fallback === undefined ? 'default' : `default · ${format ? format(fallback) : fallback}`} {min} {max} step="1" onchange={change} />
+  <input {id} type="number" data-attr={name} value={shown} placeholder={ph} title={value === undefined ? ph : undefined} {min} {max} step="1" onchange={change} />
 </div>
 
 <style>

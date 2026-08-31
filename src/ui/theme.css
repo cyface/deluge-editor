@@ -83,6 +83,13 @@ button { font-family: inherit; }
 .f select { padding-right: 4px; }
 .f .ro { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .f select:focus, .f input:focus { border-color: var(--brass-dim); outline: none; }
+/* The absent-attribute state: "default · as played" is wider than a number
+   cell in mono, so the placeholder goes condensed-italic (like a select's
+   default entry) and the idle spinner gives back its ~20px until the field
+   actually holds a value. */
+.f input::placeholder { font-family: var(--cond); font-size: 11px; font-style: italic; letter-spacing: .03em; color: var(--faint); text-overflow: ellipsis; }
+.f input:placeholder-shown { appearance: textfield; }
+.f input:placeholder-shown::-webkit-inner-spin-button, .f input:placeholder-shown::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 .f select.default { color: var(--faint); font-style: italic; }
 .fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; margin: 8px 0 0 4px; }
 .knobrow { display: flex; flex-wrap: wrap; gap: 6px 9px; margin: 14px 0 0 4px; }

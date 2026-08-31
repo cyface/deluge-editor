@@ -19,8 +19,13 @@
   class:default={value === undefined}
   data-attr={name}
   aria-pressed={on}
-  title={value === undefined && fallback !== undefined ? `default · ${fallback === '1' ? 'on' : 'off'}` : undefined}
   onclick={() => onchange(on ? '0' : '1')}
 >
-  {label}
+  {label}{#if value === undefined && fallback !== undefined}<small>default · {fallback === '1' ? 'on' : 'off'}</small>{/if}
 </button>
+
+<style>
+  /* The absent-attribute state, spelled out: the italic label alone doesn't
+     say which way the firmware's default points. */
+  small { font-size: 9px; font-weight: 400; letter-spacing: .04em; text-transform: none; color: var(--faint); }
+</style>

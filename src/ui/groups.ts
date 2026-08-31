@@ -19,7 +19,7 @@ import {
   type SoundElement,
 } from '../core/preset'
 import { syncLevelName } from '../core/params/sync'
-import { cables, modKnobs, osc, paramMenu } from '../core/preset/sound'
+import { cables, modKnobs, osc, paramHex, paramMenu } from '../core/preset/sound'
 import { editor } from './state/editor.svelte'
 
 export type Lane = 'src' | 'chain' | 'mod'
@@ -53,7 +53,15 @@ const IC = {
   arp: '<path d="M3 17 h3 v-4 h3 v-4 h3 v-4 h3 v12"/>',
   gold: '<circle cx="10" cy="12" r="7"/><path d="M10 12 L13 8"/>',
   kit: '<path d="M3 5 h14 v14 H3 z M3 12 h14 M10 5 v14"/>',
+  dice: '<rect x="3" y="5" width="14" height="14" rx="2.5"/><circle cx="7.2" cy="9.2" r="1"/><circle cx="12.8" cy="14.8" r="1"/><circle cx="12.8" cy="9.2" r="1"/><circle cx="7.2" cy="14.8" r="1"/>',
 }
+
+/** The RANDOMIZER menu's `<defaultParams>` attributes, for the chip summary. */
+const RANDOMISER_ATTRS = [
+  'noteProbability', 'bassProbability', 'chordProbability', 'chordPolyphony', 'reverseProbability',
+  'glideProbability', 'swapProbability', 'ratchetProbability', 'ratchetAmount',
+  'spreadVelocity', 'spreadGate', 'spreadOctave',
+] as const
 
 const uni = (s: SoundElement) => Number(child(s, 'unison')?.attrs.num ?? 1)
 const n = (v: number | undefined) => (v === undefined ? '—' : String(v))
@@ -222,11 +230,7 @@ export const GROUPS: readonly Group[] = [
     color: '--arp',
     lane: 'mod',
     icon: IC.arp,
-    owns: [
-      'arpRate', 'arpGate', 'noteProbability', 'bassProbability', 'swapProbability', 'glideProbability',
-      'reverseProbability', 'chordProbability', 'chordPolyphony', 'ratchetProbability', 'ratchetAmount',
-      'sequenceLength', 'rhythm', 'spreadVelocity', 'spreadGate', 'spreadOctave',
-    ],
+    owns: ['arpRate', 'arpGate', 'sequenceLength', 'rhythm'],
     summary: (s) => {
       const a = child(s, 'arpeggiator')
       const mode = a?.attrs.arpMode ?? a?.attrs.mode ?? 'off'
@@ -236,6 +240,29 @@ export const GROUPS: readonly Group[] = [
     value: (s) => {
       const a = child(s, 'arpeggiator')
       return (a?.attrs.arpMode ?? a?.attrs.mode ?? 'off') === 'off' ? 'off' : 'on'
+    },
+  },
+  {
+    id: 'random',
+    name: 'Randomiser',
+    short: 'RND',
+    color: '--arp',
+    lane: 'mod',
+    icon: IC.dice,
+    owns: [...RANDOMISER_ATTRS],
+    // Never "off": with the arp off the firmware still applies note
+    // probability, velocity spread and reverse on every note-on
+    // (modulation/arpeggiator.cpp ~197/~361, tag beta).
+    summary: (s) => {
+      const set = RANDOMISER_ATTRS.filter((a) => paramHex(s, a) !== undefined)
+      const lock = child(s, 'arpeggiator')?.attrs.randomizerLock === '1' ? ' · locked' : ''
+      if (set.length === 0) return `firmware defaults${lock}`
+      const names = set.slice(0, 3).map((a) => paramLabel(a)).join(', ')
+      return `${set.length} set · ${names}${set.length > 3 ? '…' : ''}${lock}`
+    },
+    value: (s) => {
+      const set = RANDOMISER_ATTRS.filter((a) => paramHex(s, a) !== undefined).length
+      return set ? String(set) : 'std'
     },
   },
   {
@@ -282,9 +309,14 @@ for (const g of GROUPS) for (const p of g.owns) OWNER.set(p, g)
 export const groupOf = (param: string | undefined): Group | undefined =>
   param === undefined ? undefined : OWNER.get(param)
 
-/** The groups shown for the current preset. */
+/**
+ * The groups shown for the current preset. The Randomiser block exists from
+ * Arpeggiator 3.0 (`arp3`); on older firmware its ratchet knobs live in the
+ * Arpeggiator panel, where that firmware's menu keeps them.
+ */
 export function visibleGroups(): Group[] {
-  return editor.preset?.tag === 'kit' ? [...GROUPS, KIT_GROUP] : [...GROUPS]
+  const gs = editor.preset?.tag === 'kit' ? [...GROUPS, KIT_GROUP] : [...GROUPS]
+  return editor.supports('arp3') ? gs : gs.filter((g) => g.id !== 'random')
 }
 
 /**
