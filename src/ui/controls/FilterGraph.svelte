@@ -55,9 +55,13 @@
     }
     return (Math.pow(r, 2) / Math.sqrt(1 + Math.pow(r, 4))) * (1 + (q - 1) * 0.4 * Math.exp(-Math.pow(Math.log(r) * 3.2, 2)))
   }
+  // Vertical scale −70…+24 dB: a full-resonance ladder peak is ≈ +19 dB, so
+  // it must fit inside the box — clamping it flat would misread as saturation.
+  const DB_MIN = -70
+  const DB_MAX = 24
   const yFor = (mag: number) => {
     const db = 20 * Math.log10(Math.max(mag, 1e-4))
-    return Math.max(3, Math.min(H - 2, H - ((db + 70) / 85) * H))
+    return Math.max(3, Math.min(H - 2, H - ((db - DB_MIN) / (DB_MAX - DB_MIN)) * H))
   }
   function pathFor(fn: (fr: number) => number, W: number): string {
     let d = ''
