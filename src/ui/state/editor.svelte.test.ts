@@ -56,3 +56,43 @@ describe('firmware selection with a device (issue #7)', () => {
     expect(editor.firmware).toBe(FALLBACK_FIRMWARE)
   })
 })
+
+describe('per-change revert', () => {
+  it('a changed value goes back to the file, byte-identically', async () => {
+    const { setParamMenu } = await import('../../core/preset/sound')
+    const { isSound } = await import('../../core/preset')
+    editor.load(community, 'Default Synth.XML')
+    const sound = editor.preset!
+    if (!isSound(sound)) throw new Error('fixture is a synth')
+    setParamMenu(sound, 'lpfFrequency', 10)
+    expect(editor.changeCount).toBe(1)
+    editor.revert(editor.diff!.changed[0].path)
+    expect(editor.changeCount).toBe(0)
+    expect(editor.identical).toBe(true)
+  })
+
+  it('an added value is removed, and a container it created is pruned', async () => {
+    const { ensureChild, setAttr } = await import('../../core/xml')
+    const { isSound } = await import('../../core/preset')
+    editor.load(official, 'Baseline.XML') // official 4.0.1 writes no <stutter>
+    if (!isSound(editor.preset!)) throw new Error('fixture is a synth')
+    setAttr(ensureChild(editor.preset, 'stutter'), 'quantized', '1')
+    const added = editor.diff!.added
+    expect(added.length).toBeGreaterThan(0)
+    for (const p of [...added]) editor.revert(p)
+    expect(editor.changeCount).toBe(0)
+    expect(editor.identical).toBe(true)
+  })
+
+  it('a removed value is restored from the file', async () => {
+    const { removeAttr, child } = await import('../../core/xml')
+    const { isSound } = await import('../../core/preset')
+    editor.load(community, 'Default Synth.XML')
+    if (!isSound(editor.preset!)) throw new Error('fixture is a synth')
+    const osc1 = child(editor.preset, 'osc1')!
+    removeAttr(osc1, 'transpose')
+    expect(editor.diff!.missing).toEqual(['sound/osc1@transpose'])
+    editor.revert('sound/osc1@transpose')
+    expect(editor.changeCount).toBe(0)
+  })
+})

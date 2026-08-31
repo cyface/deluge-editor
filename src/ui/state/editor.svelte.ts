@@ -9,7 +9,10 @@
 import { supports as featureSupported } from '../../core/firmware/features'
 import { parseVersion, type FirmwareVersion } from '../../core/firmware/version'
 import { drumRows, isKit, isSound, type DrumRow, type Preset, type SoundElement } from '../../core/preset'
-import { diffFlat, flattenXML, generateXML, parseXML, type FlatDiff } from '../../core/xml'
+import {
+  diffFlat, ensureAtPath, findAtPath, flattenXML, generateXML, parseXML, removeAttr, removeChild, setAttr,
+  type FlatDiff,
+} from '../../core/xml'
 
 /** Firmware the user can target. The loaded file's own version is added if it isn't one of these. */
 export const FIRMWARE_CHOICES = ['4.1.4', 'c1.0.1', 'c1.1.1', 'c1.2.1', 'c1.3.0'] as const
@@ -97,6 +100,29 @@ class Editor {
   }
 
   supports = (feature: string): boolean => featureSupported(this.version, feature)
+
+  /**
+   * Put one diff entry back the way the file had it: a changed or lost value
+   * is restored from the source, an added one is removed (and any container
+   * the edit created is pruned once it is empty again).
+   */
+  revert(path: string): void {
+    if (!this.preset) return
+    const want = this.flatSource?.get(path)
+    if (want !== undefined) {
+      const hit = ensureAtPath(this.preset, path)
+      if (hit) setAttr(hit.el, hit.attr, want)
+      return
+    }
+    const hit = findAtPath(this.preset, path)
+    if (!hit) return
+    removeAttr(hit.el, hit.attr)
+    for (let i = hit.lineage.length - 1; i > 0; i--) {
+      const el = hit.lineage[i]
+      if (Object.keys(el.attrs).length || el.children.length) break
+      removeChild(hit.lineage[i - 1], el)
+    }
+  }
 
   /** A Deluge answered the identity inquiry: select its firmware. The choice sticks after disconnect. */
   setDeviceFirmware(v: string): void {

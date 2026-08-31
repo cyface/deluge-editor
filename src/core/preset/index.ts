@@ -2,6 +2,7 @@ export * from './enums'
 export * from './params'
 export * from './order'
 export * from './names'
+export * from './describe'
 export type * from './types'
 
 import { child } from '../xml/element'

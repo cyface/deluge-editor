@@ -7,6 +7,8 @@ export type { FlatDiff, FlatXML } from './flatten'
 export { child, childrenOf, element } from './element'
 export type { Attrs, ChildMap, XmlElement } from './element'
 export { ensureChild, insertChild, removeAttr, removeChild, setAttr } from './edit'
+export { ensureAtPath, findAtPath } from './path'
+export type { FlatRef } from './path'
 export { parseTree } from './parse'
 export { serialize } from './generate'
 

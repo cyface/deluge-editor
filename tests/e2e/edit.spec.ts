@@ -39,7 +39,16 @@ test('load a fixture, see the whole preset, focus a block, edit one value, see e
   const rows = page.locator('[data-testid="changes"] [data-change]')
   await expect(rows).toHaveCount(1)
   await expect(rows.first()).toHaveAttribute('data-change', 'sound/defaultParams@lpfFrequency')
-  await expect(rows.first()).toContainText('0x10000000')
+  // Worded like the control, in the Deluge's own numbers; raw path and hex live in the tooltip.
+  await expect(rows.first()).toContainText('LPF Freq')
+  await expect(rows.first()).toContainText('28 → 29')
+  await expect(rows.first()).toHaveAttribute('title', /0x10000000/)
+
+  // The row's × puts the value back the way the file had it.
+  await rows.first().getByRole('button').click()
+  await expect(page.getByTestId('change-count')).toHaveText('0')
+  await expect(page.getByTestId('identical')).toContainText('byte-identical')
+  await page.getByTestId('changes-button').click()
 
   // Clicking the strip's background expands everything again.
   await page.getByTestId('flow-strip').click({ position: { x: 5, y: 5 } })
@@ -71,3 +80,4 @@ test('a kit shows its rows and edits the selected one', async ({ page }) => {
   await page.getByTestId('changes-button').click()
   await expect(page.locator('[data-testid="changes"] [data-change]').first()).toHaveAttribute('data-change', /^kit\/soundSources\/sound\[1\]\/defaultParams@volume$/)
 })
+
