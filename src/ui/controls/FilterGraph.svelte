@@ -119,14 +119,14 @@
       {#each [0.25, 0.5, 0.75] as y (y)}<line x1="0" y1={y * H} x2={W} y2={y * H} stroke="#131110" />{/each}
       {#if para && lpfOn && hpfOn}
         <path d="{dh}L{W} {H} L0 {H} Z" fill="rgba(79,200,232,.10)" />
-        <path d="{dl}L{W} {H} L0 {H} Z" fill="rgba(232,155,63,.10)" />
+        <path d="{dl}L{W} {H} L0 {H} Z" fill="rgba(238,125,51,.10)" />
         <path d={dh} fill="none" stroke="var(--hpf)" stroke-width="1.6" stroke-dasharray="4 3" opacity=".9" />
         <path d={dl} fill="none" stroke="var(--flt)" stroke-width="1.6" opacity=".9" />
         <path d={dc} fill="none" stroke="#efe6d4" stroke-width="2" opacity=".85" />
       {:else}
         <clipPath id="fclipL"><rect x="0" y="0" width={cross.toFixed(1)} height={H} /></clipPath>
         <clipPath id="fclipR"><rect x={cross.toFixed(1)} y="0" width={(W - cross).toFixed(1)} height={H} /></clipPath>
-        <path d="{dc}L{W} {H} L0 {H} Z" fill="rgba(212,163,77,.09)" />
+        <path d="{dc}L{W} {H} L0 {H} Z" fill="rgba(238,125,51,.09)" />
         <path d={dc} clip-path="url(#fclipL)" fill="none" stroke={hpfOn ? 'var(--hpf)' : 'var(--flt)'} stroke-width="2.2" stroke-dasharray={hpfOn ? '5 3' : undefined} />
         <path d={dc} clip-path="url(#fclipR)" fill="none" stroke="var(--flt)" stroke-width="2.2" />
       {/if}
