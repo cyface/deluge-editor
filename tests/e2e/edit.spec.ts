@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import fs from 'node:fs'
 import path from 'node:path'
 
 const FIXTURE = path.resolve('tests/fixtures/community-c1.3.0-beta-3f898e9/Default Synth.XML')
@@ -177,4 +178,43 @@ test('right-click a patchable knob, pick a source, land on the new cable (issue 
   await page.locator('[data-param="lpfResonance"]').click({ button: 'right' })
   await page.getByRole('menuitem', { name: 'LFO 2', exact: true }).click()
   await expect(rows).toHaveCount(before + 1)
+})
+
+test('a dropped file over a loaded preset asks before replacing it', async ({ page }) => {
+  await page.goto('/')
+
+  // Nothing loaded: a dropped preset opens straight away, no dialog.
+  const dropXml = (name: string, xml: string) =>
+    page.evaluate(([n, x]) => {
+      // globalThis-cast: the browser DOM types aren't in the node tsconfig's lib
+      const g = globalThis as unknown as {
+        DataTransfer: new () => { items: { add(f: unknown): void } }
+        File: new (bits: string[], name: string, opts: { type: string }) => unknown
+        dispatchEvent(e: Event): boolean
+      }
+      const dt = new g.DataTransfer()
+      dt.items.add(new g.File([x], n, { type: 'text/xml' }))
+      g.dispatchEvent(Object.assign(new Event('drop', { bubbles: true, cancelable: true }), { dataTransfer: dt }))
+    }, [name, xml] as const)
+  const xml = fs.readFileSync(FIXTURE, 'utf8')
+  await dropXml('Default Synth.XML', xml)
+  await expect(page.getByTestId('file-name')).toHaveText('Default Synth.XML')
+  await expect(page.getByTestId('drop-confirm')).toHaveCount(0)
+
+  // A preset is loaded: the next drop must ask. Cancel keeps everything.
+  await dropXml('Other.XML', xml)
+  await expect(page.getByTestId('drop-confirm')).toBeVisible()
+  await page.getByTestId('drop-confirm-cancel').click()
+  await expect(page.getByTestId('drop-confirm')).toHaveCount(0)
+  await expect(page.getByTestId('file-name')).toHaveText('Default Synth.XML')
+
+  // Replace goes through, and the dialog names unsaved changes when there are any.
+  const knob = page.locator('[data-param="lpfFrequency"]')
+  await knob.focus()
+  await page.keyboard.press('ArrowUp')
+  await dropXml('Other.XML', xml)
+  await expect(page.getByTestId('drop-confirm')).toContainText('1 unsaved change')
+  await page.getByTestId('drop-confirm-replace').click()
+  await expect(page.getByTestId('file-name')).toHaveText('Other.XML')
+  await expect(page.getByTestId('change-count')).toHaveText('0')
 })
