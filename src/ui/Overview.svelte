@@ -14,16 +14,14 @@
   import OscGroup from './groups/OscGroup.svelte'
   import OutGroup from './groups/OutGroup.svelte'
   import VoiceGroup from './groups/VoiceGroup.svelte'
-  import { visibleGroups, type Group } from './groups'
+  import { gridGroups, type Group } from './groups'
   import { editor } from './state/editor.svelte'
 
   interface Props { sound: SoundElement; kit?: KitElement }
   let { sound, kit }: Props = $props()
-  const groups = $derived(visibleGroups())
+  const groups = $derived(gridGroups())
   const expanded = $derived(groups.filter((g) => editor.isExpanded(g.id)))
   const collapsed = $derived(groups.filter((g) => !editor.isExpanded(g.id)))
-  const wide = $derived(expanded.filter((g) => g.wide))
-  const narrow = $derived(expanded.filter((g) => !g.wide))
 </script>
 
 {#if collapsed.length}
@@ -52,13 +50,8 @@
   {/if}
 {/snippet}
 
-<div class="hero">
-  {#each wide as g (g.id)}
-    <Panel group={g} sub={g.summary(sound)}>{@render body(g)}</Panel>
-  {/each}
-</div>
 <main class="grid" data-testid="overview">
-  {#each narrow as g (g.id)}
+  {#each expanded as g (g.id)}
     <Panel group={g} sub={g.summary(sound)}>{@render body(g)}</Panel>
   {/each}
 </main>
@@ -70,7 +63,5 @@
   .chipline i { width: 8px; height: 8px; border-radius: 2px; background: var(--c); flex: none; }
   .chipline b { font-family: var(--cond); font-size: 10.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #d5ccbc; white-space: nowrap; }
   .chipline span { font-family: var(--mono); font-size: 9.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .hero { padding: 10px 0 0; }
-  .hero :global(.panel) { margin-bottom: 9px; }
-  .grid { padding: 0 0 70px; column-width: 262px; column-gap: 9px; }
+  .grid { padding: 10px 0 0; column-width: 262px; column-gap: 9px; }
 </style>

@@ -38,8 +38,6 @@ export interface Group {
   summary: (s: SoundElement) => string
   /** A few characters under the flow block. */
   value: (s: SoundElement) => string
-  /** Full-width panel above the masonry. */
-  wide?: boolean
 }
 
 const IC = {
@@ -106,7 +104,6 @@ export const GROUPS: readonly Group[] = [
     lane: 'chain',
     icon: IC.filter,
     owns: ['lpfFrequency', 'lpfResonance', 'lpfMorph', 'hpfFrequency', 'hpfResonance', 'hpfMorph', 'waveFold'],
-    wide: true,
     summary: (s) => {
       const lpf = s.attrs.lpfMode ?? '24dB'
       const hpf = paramMenu(s, 'hpfFrequency') ?? 0
@@ -288,4 +285,16 @@ export const groupOf = (param: string | undefined): Group | undefined =>
 /** The groups shown for the current preset. */
 export function visibleGroups(): Group[] {
   return editor.preset?.tag === 'kit' ? [...GROUPS, KIT_GROUP] : [...GROUPS]
+}
+
+/**
+ * The masonry order: the strip keeps the signal path, but the grid seats
+ * Filters at the head of the Delay & Reverb column (issue #17). The grid's
+ * CSS columns fill in source order, so adjacency here is column adjacency.
+ */
+export function gridGroups(): Group[] {
+  const gs = visibleGroups()
+  const filters = gs.splice(gs.findIndex((g) => g.id === 'filters'), 1)[0]
+  gs.splice(gs.findIndex((g) => g.id === 'delay'), 0, filters)
+  return gs
 }

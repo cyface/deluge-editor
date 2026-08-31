@@ -5,7 +5,7 @@
   let { group, sub, children }: Props = $props()
 </script>
 
-<section class="panel" class:wide={group.wide} id="panel-{group.id}" data-group={group.id} style="--c: var({group.color})">
+<section class="panel" id="panel-{group.id}" data-group={group.id} style="--c: var({group.color})">
   <div class="ph">
     <h2>{group.name}</h2>
     {#if sub}<span class="sub">{sub}</span>{/if}

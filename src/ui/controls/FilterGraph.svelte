@@ -17,7 +17,7 @@
   let box: HTMLDivElement | undefined = $state()
   $effect(() => {
     if (!box) return
-    const ro = new ResizeObserver(() => { width = Math.max(240, box!.clientWidth) })
+    const ro = new ResizeObserver(() => { width = Math.max(200, box!.clientWidth) })
     ro.observe(box)
     return () => ro.disconnect()
   })
@@ -112,8 +112,9 @@
 </script>
 
 <div class="wrap">
-  <div class="graph" bind:this={box}>
-    <svg bind:this={svg} viewBox="0 0 {W} {H}" height={H} data-testid="filter-graph">
+  <div class="graph" bind:this={box} title="Drag a dot: sideways for cutoff, up and down for resonance">
+    <!-- overflow visible so a handle at full cutoff or zero resonance isn't clipped at the edge -->
+    <svg bind:this={svg} viewBox="0 0 {W} {H}" height={H} style="overflow:visible" data-testid="filter-graph">
       {#each [0, 0.25, 0.5, 0.75, 1] as x (x)}<line x1={x * W} y1="0" x2={x * W} y2={H} stroke="#161311" />{/each}
       {#each [0.25, 0.5, 0.75] as y (y)}<line x1="0" y1={y * H} x2={W} y2={y * H} stroke="#131110" />{/each}
       {#if para && lpfOn && hpfOn}
@@ -129,18 +130,18 @@
         <path d={dc} clip-path="url(#fclipL)" fill="none" stroke={hpfOn ? 'var(--hpf)' : 'var(--flt)'} stroke-width="2.2" stroke-dasharray={hpfOn ? '5 3' : undefined} />
         <path d={dc} clip-path="url(#fclipR)" fill="none" stroke="var(--flt)" stroke-width="2.2" />
       {/if}
+      {#if lpfOn}<line x1={xLpf} y1="0" x2={xLpf} y2={H} stroke="var(--flt)" stroke-width="1" opacity=".35" />{/if}
+      {#if hpfOn}<line x1={xHpf} y1="0" x2={xHpf} y2={H} stroke="var(--hpf)" stroke-width="1" opacity=".3" />{/if}
       {#if lpfOn}
         <g class="handle" onpointerdown={grab('lpf')} role="slider" aria-label="LPF cutoff and resonance" aria-valuenow={lpfFreq} tabindex="-1">
-          <line x1={xLpf} y1="0" x2={xLpf} y2={H} stroke="var(--flt)" stroke-width="1" opacity=".35" />
-          <circle cx={xLpf} cy={yRes(lpfRes)} r="6.5" fill="#1a1610" stroke="var(--flt)" stroke-width="2.2" />
-          <circle cx={xLpf} cy={yRes(lpfRes)} r="2" fill="var(--flt)" />
+          <circle cx={xLpf} cy={yRes(lpfRes)} r="6" fill="#1a1610" stroke="var(--flt)" stroke-width="2" />
+          <circle cx={xLpf} cy={yRes(lpfRes)} r="1.8" fill="var(--flt)" />
         </g>
       {/if}
       {#if hpfOn}
         <g class="handle" onpointerdown={grab('hpf')} role="slider" aria-label="HPF cutoff and resonance" aria-valuenow={hpfFreq} tabindex="-1">
-          <line x1={xHpf} y1="0" x2={xHpf} y2={H} stroke="var(--hpf)" stroke-width="1" opacity=".3" />
-          <circle cx={xHpf} cy={yRes(hpfRes)} r="6.5" fill="#0f1618" stroke="var(--hpf)" stroke-width="2.2" />
-          <circle cx={xHpf} cy={yRes(hpfRes)} r="2" fill="var(--hpf)" />
+          <circle cx={xHpf} cy={yRes(hpfRes)} r="6" fill="#0f1618" stroke="var(--hpf)" stroke-width="2" />
+          <circle cx={xHpf} cy={yRes(hpfRes)} r="1.8" fill="var(--hpf)" />
         </g>
       {/if}
     </svg>
