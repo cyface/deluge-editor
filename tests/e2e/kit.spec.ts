@@ -116,7 +116,7 @@ test('build a kit from a sample folder: guessed order, reorder, rename, share zi
   // Share zip: README + KITS/ + the three samples still in the kit.
   await page.locator('#kit-author').fill('Tim')
   const downloadPromise = page.waitForEvent('download')
-  await page.getByTestId('download-zip').click()
+  await page.getByTestId('download-zip-top').click()
   const download = await downloadPromise
   const zipPath = await download.path()
   const zip = fs.readFileSync(zipPath!)

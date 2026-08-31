@@ -26,6 +26,16 @@ const pickPort = <T extends { name: string | null }>(ports: T[]): T | undefined 
     .filter((p) => portScore(p.name ?? '') > 0)
     .sort((a, b) => portScore(b.name ?? '') - portScore(a.name ?? ''))[0]
 
+/** Per-request tracing: every dev build, or `localStorage.debug = 'sysex'` on the deployed site. */
+const sysexDebugWanted = (): boolean => {
+  if (import.meta.env.DEV) return true
+  try {
+    return localStorage.getItem('debug')?.includes('sysex') ?? false
+  } catch {
+    return false // storage can be blocked; a missing trace beats a crash
+  }
+}
+
 class Card {
   open = $state(false)
   status = $state<'idle' | 'connecting' | 'connected' | 'error'>('idle')
@@ -70,9 +80,30 @@ class Card {
     }
   })
 
-  toggle(): void {
-    this.open = !this.open
-    if (this.open && this.status === 'idle') void this.connect()
+  /**
+   * The panel is one browser with two intents, chosen by which top-bar
+   * button opened it: in `open` mode clicking a file loads it; in `save`
+   * mode clicking a file picks it as the save target (name filled,
+   * overwrite armed) — the two gestures a mixed-mode panel confused.
+   */
+  mode = $state<'open' | 'save'>('open')
+  /** Open-mode discard guard: the file whose first click is awaiting a confirming second. */
+  armedLoad = $state<string | null>(null)
+
+  openPanel(mode: 'open' | 'save'): void {
+    if (this.open && this.mode === mode) {
+      this.open = false // the active mode's button doubles as its close
+      return
+    }
+    this.mode = mode
+    this.armedLoad = null
+    this.armed = null
+    this.open = true
+    if (this.status === 'idle') void this.connect()
+  }
+
+  close(): void {
+    this.open = false
   }
 
   async connect(): Promise<void> {
@@ -94,7 +125,14 @@ class Card {
         )
       }
       this.portName = output.name ?? 'Deluge'
-      const client = new SmsClient((bytes) => output.send(bytes))
+      // One debug line per request makes slow links diagnosable from the
+      // console: filter on [sysex] and read the ms and attempt counts.
+      // Always on in dev; on the deployed site it is opt-in, so a user can
+      // still capture a trace without a rebuild:  localStorage.debug = 'sysex'
+      const client = new SmsClient(
+        (bytes) => output.send(bytes),
+        sysexDebugWanted() ? { debug: (line) => console.debug('[sysex]', line) } : {},
+      )
       input.onmidimessage = (e) => {
         const data = e.data
         if (!data) return
@@ -138,6 +176,8 @@ class Card {
 
   async enter(name: string): Promise<void> {
     this.path = this.path === '/' ? `/${name}` : `${this.path}/${name}`
+    this.armedLoad = null
+    this.armed = null
     await this.refresh()
   }
 
@@ -145,16 +185,33 @@ class Card {
     if (this.path === '/') return
     const cut = this.path.lastIndexOf('/')
     this.path = cut === 0 ? '/' : this.path.slice(0, cut)
+    this.armedLoad = null
+    this.armed = null
     await this.refresh()
   }
 
   async loadFile(name: string): Promise<void> {
+    // A click must not silently discard unsaved edits: the first click arms
+    // the row, the second loads — the same idiom as Save's Overwrite?.
+    if (editor.preset && editor.changeCount > 0 && this.armedLoad !== name) {
+      this.armedLoad = name
+      return
+    }
+    this.armedLoad = null
     await this.run(`Reading ${name}`, async () => {
       const data = await this.client!.readFile(this.join(name), (d, t) => (this.progress = t ? d / t : 0))
       editor.load(new TextDecoder().decode(data), name)
       this.saveName = name
       if (!editor.error) this.open = false
     })
+  }
+
+  /** Save mode's file click: this row is the target — name filled, overwrite armed. */
+  pickSaveTarget(name: string): void {
+    this.saveName = name
+    this.armed = this.join(name)
+    this.saved = null
+    this.error = null
   }
 
   async save(): Promise<void> {
@@ -188,6 +245,11 @@ class Card {
         })
       }
       this.saved = copied ? `${name} and ${copied} sample${copied === 1 ? '' : 's'} written` : `${name} written`
+      // The verified card copy is the new clean baseline: the Changes dock
+      // reads 0 against the file just written, and open mode's discard
+      // guard won't arm over work that is already safe.
+      editor.source = editor.output
+      editor.fileName = name
       await this.list()
     })
   }
@@ -227,9 +289,13 @@ class Card {
     }
   }
 
-  /** Write one sample file (verified by read-back, like every card write). */
+  /**
+   * Write one sample file. Samples get the sampled verify — size plus spot
+   * ranges — because the full re-read costs ~40% of a multi-megabyte push;
+   * preset XML keeps the byte-for-byte verify (save() above).
+   */
   async writeSampleFile(path: string, data: Uint8Array, onProgress?: (done: number, total: number) => void): Promise<void> {
-    await this.need().writeFile(path, data, onProgress)
+    await this.need().writeFile(path, data, onProgress, 'sampled')
   }
 
   /** Read a whole sample file off the card (audio preview). */

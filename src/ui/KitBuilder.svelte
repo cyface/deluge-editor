@@ -96,10 +96,6 @@
     <div class="f"><label for="kit-author">Author</label><input id="kit-author" bind:value={kit.author} placeholder="your name" spellcheck="false" /></div>
     <div class="f"><label for="kit-license">Sample licensing</label><input id="kit-license" bind:value={kit.license} placeholder="e.g. CC0, own recordings" spellcheck="false" /></div>
     <div class="f"><label for="kit-source">Sample source</label><input id="kit-source" bind:value={kit.source} placeholder="where the samples came from" spellcheck="false" /></div>
-    <div class="f zipf">
-      <label for="kit-zip">&nbsp;</label>
-      <button id="kit-zip" type="button" class="btn" data-testid="download-zip" title="A zip with the kit in KITS/, the samples in SAMPLES/, and a README for the recipient" onclick={() => kit.downloadZip()}>Download Zip</button>
-    </div>
   </div>
 </section>
 
@@ -128,5 +124,4 @@
   .busy { color: #cfe3c9; }
   .okline { color: #9ed492; }
   .err { color: #e8a08f; padding: 5px 7px; border: 1px solid #5a2a22; background: #1d1210; border-radius: 3px; }
-  .zipf .btn { height: 26px; }
 </style>

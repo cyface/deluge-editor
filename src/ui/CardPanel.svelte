@@ -10,13 +10,13 @@
 {#if card.open}
   <aside class="card" data-testid="card-panel">
     <header>
-      <b>SD card</b>
+      <b>{card.mode === 'open' ? 'Open from Deluge' : 'Save to Deluge'}</b>
       {#if card.status === 'connected'}
         <span class="port" title={card.portName}>{card.portName}{card.identity ? ` · fw ${card.identity}` : ''}</span>
       {:else if card.status === 'connecting'}
         <span class="port">connecting…</span>
       {/if}
-      <button type="button" class="x" aria-label="Close" onclick={() => card.toggle()}>×</button>
+      <button type="button" class="x" aria-label="Close" onclick={() => card.close()}>×</button>
     </header>
 
     {#if card.status === 'error'}
@@ -47,16 +47,25 @@
       <ul class="list">
         {#each card.entries as e (e.name)}
           <li>
-            <button type="button" data-entry={e.name} onclick={() => (isDirectory(e) ? card.enter(e.name) : card.loadFile(e.name))}>
+            <button
+              type="button"
+              data-entry={e.name}
+              class:target={card.mode === 'save' && !isDirectory(e) && card.saveName === e.name && card.armed}
+              onclick={() => (isDirectory(e) ? card.enter(e.name) : card.mode === 'save' ? card.pickSaveTarget(e.name) : card.loadFile(e.name))}
+            >
               <span class="n">{isDirectory(e) ? '▸ ' : ''}{e.name}</span>
-              {#if !isDirectory(e)}<span class="s">{fmtSize(e.size)}</span>{/if}
+              {#if card.armedLoad === e.name}<span class="warn">discards your changes?</span>
+              {:else if !isDirectory(e)}<span class="s">{fmtSize(e.size)}</span>{/if}
             </button>
           </li>
         {:else}
           <li class="empty">empty</li>
         {/each}
       </ul>
-      {#if editor.preset}
+      {#if card.mode === 'save' && !editor.preset}
+        <p class="hint">Nothing to save — load or build a preset first.</p>
+      {/if}
+      {#if card.mode === 'save' && editor.preset}
         <div class="saverow">
           <input
             data-testid="card-save-name"
@@ -98,6 +107,9 @@
   .list li:last-child { border-bottom: 0; }
   .list button { display: flex; width: 100%; align-items: baseline; gap: 8px; padding: 5px 8px; background: none; border: 0; color: #ddd3c2; font-family: var(--mono); font-size: 11px; text-align: left; cursor: pointer; }
   .list button:hover { background: rgba(197, 160, 89, .08); }
+  .list button.target { background: rgba(197, 160, 89, .14); box-shadow: inset 2px 0 0 var(--brass); }
+  .warn { margin-left: auto; font-family: var(--cond); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; color: #e8b06a; white-space: nowrap; }
+  .hint { margin: 0 0 8px; font-family: var(--cond); font-size: 11px; color: var(--faint); }
   .n { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .s { color: var(--faint); font-size: 10px; }
   .empty { padding: 7px 8px; color: var(--faint); font-family: var(--mono); font-size: 10.5px; }

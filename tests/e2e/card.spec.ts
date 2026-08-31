@@ -43,9 +43,9 @@ test('kit builder: rows from card samples via header reads, local samples pushed
   await page.addInitScript({ path: path.resolve('tests/e2e/fake-deluge.js') })
   await page.goto('/')
 
-  await page.getByTestId('card-button').click()
+  await page.getByTestId('card-open-button').click()
   await expect(page.getByTestId('card-path')).toHaveText('/SYNTHS')
-  await page.getByTestId('card-button').click() // close the panel; the connection stays
+  await page.getByTestId('card-open-button').click() // close the panel; the connection stays
   await page.getByTestId('new-kit').click()
 
   // Browse SAMPLES/ on the device and build rows from the WAVs' headers.
@@ -78,7 +78,7 @@ test('kit builder: rows from card samples via header reads, local samples pushed
 
   // Saving the kit retargets its local samples to the saved folder path
   // (KITS/Rumbles.XML → SAMPLES/Rumbles/) and copies them along.
-  await page.getByTestId('card-button').click()
+  await page.getByTestId('card-save-button').click()
   await page.getByTestId('card-panel').getByRole('button', { name: 'Up', exact: true }).click()
   await page.locator('[data-entry="KITS"]').click()
   await page.getByTestId('card-save-name').fill('Rumbles')
@@ -101,7 +101,7 @@ test('kit builder: rows from card samples via header reads, local samples pushed
   await expect(page.getByTestId('row-missing')).toHaveCount(0)
 
   // A second push finds nothing missing: the sync skips what the card holds.
-  await page.getByTestId('card-button').click() // close the panel over the builder
+  await page.getByTestId('card-save-button').click() // close the panel over the builder
   await page.getByTestId('push-samples').click()
   await expect(page.getByTestId('kit-notice')).toContainText('already on the card')
 })
@@ -120,12 +120,12 @@ test('card: connect, browse, load, edit, save with verification, reload', async 
   await page.addInitScript({ path: path.resolve('tests/e2e/fake-deluge.js') })
   await page.goto('/')
 
-  // Connect: the Card button opens the panel, which finds the (fake) Deluge,
-  // reads its identity, and lists /SYNTHS.
-  await expect(page.getByTestId('card-button')).toHaveText('Connect')
-  await page.getByTestId('card-button').click()
+  // Connect: Open from Deluge connects on first use and opens the panel in
+  // open mode; Save to Deluge is disabled until something is loaded.
+  await expect(page.getByTestId('card-save-button')).toBeDisabled()
+  await page.getByTestId('card-open-button').click()
   await expect(page.getByTestId('card-panel')).toBeVisible()
-  await expect(page.getByTestId('card-button')).toHaveText('Browse Card')
+  await expect(page.getByTestId('card-panel')).toContainText('Open from Deluge')
   await expect(page.getByTestId('card-path')).toHaveText('/SYNTHS')
   await expect(page.getByTestId('card-panel')).toContainText('fw 1.3.0')
 
@@ -151,14 +151,18 @@ test('card: connect, browse, load, edit, save with verification, reload', async 
   await page.keyboard.press('ArrowUp')
   await expect(page.getByTestId('change-count')).toHaveText('1')
 
-  // Save: the existing name arms first, overwrites second, then the client
-  // reads the file back and byte-compares before reporting success.
-  await page.getByTestId('card-button').click()
+  // Save: in save mode, clicking a file row picks it as the target — the
+  // name fills and the overwrite arms (the gesture that used to open the
+  // file instead). The write is still read back and byte-compared.
+  await page.getByTestId('card-save-button').click()
+  await expect(page.getByTestId('card-panel')).toContainText('Save to Deluge')
+  await page.locator('[data-entry="Default Synth.XML"]').click()
   await expect(page.getByTestId('card-save-name')).toHaveValue('Default Synth.XML')
-  await page.getByTestId('card-save').click()
   await expect(page.getByTestId('card-save')).toHaveText('Overwrite?')
   await page.getByTestId('card-save').click()
   await expect(page.getByTestId('card-saved')).toContainText('Default Synth.XML written')
+  // The verified card copy became the clean baseline: nothing left unsaved.
+  await expect(page.getByTestId('change-count')).toHaveText('0')
 
   // The card's copy is the editor's output — changed, and holding the edit.
   const onCard = await page.evaluate(() =>
@@ -171,13 +175,14 @@ test('card: connect, browse, load, edit, save with verification, reload', async 
   expect(onCard).toContain('lpfFrequency')
 
   // Reload from the card: the edit persisted and is now the clean baseline.
+  await page.getByTestId('card-open-button').click()
   await page.locator('[data-entry="Default Synth.XML"]').click()
   await expect(knob).toHaveAttribute('aria-valuenow', '29')
   await expect(page.getByTestId('change-count')).toHaveText('0')
 
   // A name typed without an extension gets .XML appended — a bare name would
   // save fine but never show in the Deluge's preset browser.
-  await page.getByTestId('card-button').click()
+  await page.getByTestId('card-save-button').click()
   await page.getByTestId('card-save-name').fill('Rumbles')
   await page.getByTestId('card-save').click()
   await expect(page.getByTestId('card-save-name')).toHaveValue('Rumbles.XML')
@@ -187,9 +192,17 @@ test('card: connect, browse, load, edit, save with verification, reload', async 
   )
   expect(bare).toBe(true)
 
-  // A file written by official 4.0.1 does not clobber the device's firmware:
-  // the connected Deluge outranks the file's provenance (issue #7). The
-  // panel is still open from the save above.
+  // Open mode guards unsaved work: with an edit pending, the first click on
+  // a file arms it instead of loading; the second click goes through. A
+  // file written by official 4.0.1 does not clobber the device's firmware:
+  // the connected Deluge outranks the file's provenance (issue #7).
+  await knob.focus()
+  await page.keyboard.press('ArrowUp')
+  await expect(page.getByTestId('change-count')).toHaveText('1')
+  await page.getByTestId('card-open-button').click()
+  await page.locator('[data-entry="Baseline.XML"]').click()
+  await expect(page.getByTestId('card-panel')).toContainText('discards your changes?')
+  await expect(page.getByTestId('file-name')).toHaveText('Rumbles.XML') // not loaded yet
   await page.locator('[data-entry="Baseline.XML"]').click()
   await expect(page.getByTestId('file-name')).toHaveText('Baseline.XML')
   await expect(page.getByTestId('firmware-locked')).toHaveText('c1.3.0')

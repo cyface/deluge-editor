@@ -59,16 +59,31 @@
   <button
     type="button"
     class="btn"
-    class:on={card.open}
-    data-testid="card-button"
+    class:on={card.open && card.mode === 'open'}
+    data-testid="card-open-button"
     title={card.busy
       ? `Card transfer in progress: ${card.busy}…`
       : card.supported
-        ? 'Connect to the Deluge and browse its SD card over MIDI'
+        ? 'Open a preset from the Deluge’s SD card over MIDI (connects first if needed)'
         : 'Web MIDI needs Chrome or Edge'}
-    onclick={() => card.toggle()}
+    onclick={() => card.openPanel('open')}
   >
-    {#if card.status === 'connected'}<span class="dot" class:pulse={!!card.busy}></span>Browse Card{:else}Connect{/if}
+    {#if card.status === 'connected'}<span class="dot" class:pulse={!!card.busy}></span>{/if}Open from Deluge
+  </button>
+  <button
+    type="button"
+    class="btn"
+    class:on={card.open && card.mode === 'save'}
+    data-testid="card-save-button"
+    disabled={!editor.preset}
+    title={card.busy
+      ? `Card transfer in progress: ${card.busy}…`
+      : card.supported
+        ? 'Write the current preset to the Deluge’s SD card (connects first if needed)'
+        : 'Web MIDI needs Chrome or Edge'}
+    onclick={() => card.openPanel('save')}
+  >
+    {#if card.status === 'connected'}<span class="dot" class:pulse={!!card.busy}></span>{/if}Save to Deluge
   </button>
   <button type="button" class="btn" title="Start a new synth from the Deluge's own init preset" data-testid="new-synth" onclick={() => editor.newSynth()}>New Synth</button>
   <button type="button" class="btn" title="Start a kit from the Deluge's own blank kit — then drop a folder of WAVs on the page" data-testid="new-kit" onclick={() => editor.newKit()}>New Kit</button>
