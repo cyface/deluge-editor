@@ -51,6 +51,15 @@ class Card {
   error = $state<string | null>(null)
   /** Path armed for overwrite: the first Save click on an existing name only arms. */
   armed = $state<string | null>(null)
+  /**
+   * Another editor is talking to this Deluge — a second tab, another browser,
+   * or any other app (issue #8). Web MIDI is not exclusive, so the client
+   * sees the stranger's replies and reports them; all we can do is say so.
+   * Sticky for the life of the connection: the hazard is that the other
+   * editor writes a file *after* our verified save, so "it went quiet" is no
+   * reassurance. Cleared when we reconnect.
+   */
+  otherEditor = $state(false)
 
   /**
    * Registered by the kit builder (src/ui/state/kit.svelte.ts): writes every
@@ -114,6 +123,7 @@ class Card {
     }
     this.status = 'connecting'
     this.error = null
+    this.otherEditor = false
     try {
       const access = await navigator.requestMIDIAccess({ sysex: true })
       const output = pickPort([...access.outputs.values()])
@@ -129,10 +139,10 @@ class Card {
       // console: filter on [sysex] and read the ms and attempt counts.
       // Always on in dev; on the deployed site it is opt-in, so a user can
       // still capture a trace without a rebuild:  localStorage.debug = 'sysex'
-      const client = new SmsClient(
-        (bytes) => output.send(bytes),
-        sysexDebugWanted() ? { debug: (line) => console.debug('[sysex]', line) } : {},
-      )
+      const client = new SmsClient((bytes) => output.send(bytes), {
+        onOtherClient: () => (this.otherEditor = true),
+        ...(sysexDebugWanted() ? { debug: (line: string) => console.debug('[sysex]', line) } : {}),
+      })
       input.onmidimessage = (e) => {
         const data = e.data
         if (!data) return
@@ -244,7 +254,12 @@ class Card {
           this.progress = p
         })
       }
-      this.saved = copied ? `${name} and ${copied} sample${copied === 1 ? '' : 's'} written` : `${name} written`
+      const written = copied ? `${name} and ${copied} sample${copied === 1 ? '' : 's'} written` : `${name} written`
+      // The read-back proves the card holds what we sent — but only as of
+      // now. With another editor on the same Deluge, its next `open` for
+      // write truncates whatever it names, so a verified save is not a
+      // durable one (issue #8).
+      this.saved = this.otherEditor ? `${written} — another editor is also on this Deluge and could overwrite it` : written
       // The verified card copy is the new clean baseline: the Changes dock
       // reads 0 against the file just written, and open mode's discard
       // guard won't arm over work that is already safe.

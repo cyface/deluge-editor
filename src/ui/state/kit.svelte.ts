@@ -266,7 +266,11 @@ class KitBuilder {
         this.busy = label
         this.progress = p
       })
-      this.notice = n === 0 ? 'every sample is already on the card' : `${n} sample${n === 1 ? '' : 's'} written`
+      // A push runs for as long as the samples are big; another editor on the
+      // same Deluge can truncate any of them the moment it saves (issue #8).
+      const risky = card.otherEditor ? ' — another editor is also on this Deluge and could overwrite them' : ''
+      this.notice =
+        n === 0 ? 'every sample is already on the card' : `${n} sample${n === 1 ? '' : 's'} written${risky}`
     })
   }
 

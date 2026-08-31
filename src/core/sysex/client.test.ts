@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { FakeDeluge, type FakeOptions } from './fake-deluge'
+import { FakeDeluge, OTHER_CLIENT_TAG, type FakeOptions } from './fake-deluge'
 import { isDirectory, SmsClient, SysexError, type SmsClientOptions } from './client'
 
 /** A client wired straight to a fake Deluge. Short timeouts: replies are synchronous. */
@@ -160,6 +160,55 @@ describe('SmsClient', () => {
     // a range wider than the 1024-byte read chunk is assembled from several reads
     expect(Array.from(await handle.read(100, 3000))).toEqual(Array.from(data.subarray(100, 3100)))
     await handle.close()
+  })
+
+  // ---- a second editor on the same Deluge (issue #8) ---------------------
+  // Web MIDI is not exclusive: every tab and app on the machine receives
+  // every reply, so the client must tell its own traffic from a stranger's.
+
+  it('ignores another editor\'s session grant and keeps the one it asked for', async () => {
+    // Both grants arrive on msgId 0 (startDirect), the other one first — only
+    // the echoed tag says whose is whose. Adopting theirs would put both tabs
+    // on one msgId block, each reading the other's replies as its own.
+    const seen: string[] = []
+    const { client, fake } = rig({ otherSessionFirst: true }, { onOtherClient: (op) => seen.push(op) })
+    fake.putFile('/SYNTHS/A.XML', bytes(3))
+    expect((await client.readFile('/SYNTHS/A.XML')).length).toBe(3)
+    expect(seen).toContain('^session') // the stranger's grant was noticed, not adopted
+    // Every request rode our own block (sid 1 → 9…15), never the other's 17…23.
+    expect(fake.msgIds.filter((id) => id !== 0).every((id) => id >= 9 && id <= 15)).toBe(true)
+  })
+
+  it('reports a reply on another session\'s msgIds instead of acting on it', async () => {
+    const seen: string[] = []
+    const { client, fake } = rig({}, { onOtherClient: (op) => seen.push(op) })
+    fake.putFile('/SYNTHS/A.XML', bytes(3))
+    await client.readFile('/SYNTHS/A.XML') // negotiate first, so the block is known
+    fake.otherClientReply() // a ^read answered to sid 2, seen here because MIDI multiplexes
+    expect(seen).toEqual(['^read'])
+    // and the client is untouched by it
+    expect((await client.readFile('/SYNTHS/A.XML')).length).toBe(3)
+  })
+
+  it('accepts a session grant from a firmware that does not echo the tag', async () => {
+    const seen: string[] = []
+    const { client, fake } = rig({ omitSessionTag: true }, { onOtherClient: (op) => seen.push(op) })
+    fake.putFile('/SYNTHS/A.XML', bytes(3))
+    expect((await client.readFile('/SYNTHS/A.XML')).length).toBe(3)
+    expect(seen).toEqual([]) // an untagged grant is ours; rejecting it would mean no session at all
+    expect(fake.msgIds.filter((id) => id !== 0).every((id) => id >= 9 && id <= 15)).toBe(true)
+  })
+
+  it('gives each client its own session tag', () => {
+    const tags = new Set<string>()
+    for (let i = 0; i < 20; i++) {
+      const fake = new FakeDeluge(() => {}) // never answers; only the request matters
+      new SmsClient((b) => fake.receive(b), { timeouts: [1] }).ping().catch(() => {})
+      tags.add((fake.requests.at(-1) as { session: { tag: string } }).session.tag)
+    }
+    expect(tags.size).toBeGreaterThan(1) // not the static tag two tabs would share
+    expect([...tags].every((t) => t.startsWith('deluge-editor-'))).toBe(true)
+    expect(tags.has(OTHER_CLIENT_TAG)).toBe(false)
   })
 
   it('uses the negotiated msgId range and cycles within it', async () => {

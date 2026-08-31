@@ -33,6 +33,14 @@
  * After a write, the file is read back and byte-compared. A file with the
  * right name and size can still be full of zeroes; only the read-back proves
  * the card holds what was sent.
+ *
+ * One more fact shapes the session handling: the transport is not exclusive.
+ * The OS MIDI stacks multiplex, so a second editor tab — or any other app on
+ * the machine — receives every reply this Deluge sends, and its own session
+ * grant looks exactly like ours. Hence the per-client `tag` and `isOurs`:
+ * we adopt only the grant we asked for, ignore replies addressed to another
+ * session's msgIds, and report them through `onOtherClient` so the UI can
+ * warn that two editors can overwrite each other's saves (issue #8).
  */
 
 import { fresultMessage, fresultName } from './fatfs'
@@ -118,8 +126,20 @@ export interface SmsClientOptions {
   readChunk?: number
   /** Rewrites of one chunk before giving up on a persistent short write. */
   writeAttempts?: number
-  /** Session tag shown to the firmware. */
+  /**
+   * Session tag shown to the firmware, which echoes it back in the grant.
+   * Defaults to a per-client random one; see `newTag`. Only pass a fixed tag
+   * in tests, where one client is the only client.
+   */
   tag?: string
+  /**
+   * Called whenever a reply arrives that belongs to somebody else's session
+   * — the fingerprint of a second editor on the same Deluge (Web MIDI is not
+   * exclusive; see `isOurs`). The argument is the op that was answered.
+   * Advisory only: nothing here blocks, because nothing client-side can stop
+   * the other client from truncating a file we just wrote.
+   */
+  onOtherClient?: (op: string) => void
   /**
    * One line per request (op, elapsed, which timeout rung answered) and one
    * per late reply — a reply arriving after its attempt was abandoned, the
@@ -144,14 +164,27 @@ const MAX_DIR_LINES = 25
  */
 const PIPELINE = 1
 
-const DEFAULTS: Required<SmsClientOptions> = {
+/** Every option but `tag`, whose default is drawn per client (`newTag`). */
+const DEFAULTS: Required<Omit<SmsClientOptions, 'tag'>> = {
   timeouts: [2000, 2000, 4000, 10000],
   writeChunk: 512,
   readChunk: 1024,
   writeAttempts: 5,
-  tag: 'deluge-editor',
+  onOtherClient: () => {},
   debug: () => {},
 }
+
+/**
+ * A per-client session tag. The OS MIDI stacks multiplex, so two editor tabs
+ * on one Deluge both see every reply — including each other's `^session`
+ * grant, which arrives on msgId 0 (`startDirect`) and so matches any tab
+ * mid-negotiation. `assignSession` (smsysex.cpp) echoes back the tag it was
+ * given, and that echo is the only thing in the grant that says whose it is:
+ * with the static tag both tabs could adopt one sid, hence one msgId range,
+ * and then read each other's replies as their own. 16 bits of tag makes that
+ * collision a 1-in-65536 accident instead of a certainty.
+ */
+const newTag = (): string => `deluge-editor-${Math.floor(Math.random() * 0x10000).toString(16).padStart(4, '0')}`
 
 interface Session {
   midMin: number
@@ -207,15 +240,20 @@ export class SmsClient {
     private readonly send: (bytes: Uint8Array) => void,
     options: SmsClientOptions = {},
   ) {
-    this.opts = { ...DEFAULTS, ...options }
+    this.opts = { ...DEFAULTS, ...options, tag: options.tag ?? newTag() }
   }
 
   /** Feed every incoming MIDI message here; non-smSysex bytes are ignored. */
   receive(data: Uint8Array): void {
     const reply = parseReply(data)
     if (!reply) return
-    const entry = this.pending.get(reply.msgId)
     const op = Object.keys(reply.json)[0] ?? '?'
+    if (!this.isOurs(reply)) {
+      this.opts.debug(`another client's reply msgId 0x${reply.msgId.toString(16)} (${op}) — a second editor is on this Deluge`)
+      this.opts.onOtherClient(op)
+      return
+    }
+    const entry = this.pending.get(reply.msgId)
     if (!entry) {
       this.opts.debug(`late reply msgId 0x${reply.msgId.toString(16)} (${op}) — its attempt already timed out`)
       return
@@ -421,17 +459,49 @@ export class SmsClient {
   }
 
   /**
+   * Whether a reply is an answer to something *we* asked, as opposed to
+   * another editor's traffic — Web MIDI is not exclusive, so every open tab
+   * and app on this machine receives every reply the Deluge sends (issue #8).
+   *
+   * Two disjoint cases. A normal `JsonReply` carries the msgId of its
+   * request, and sessions hand out disjoint blocks of seven
+   * (`(sid<<3)+1 … +7`), so anything outside our block was answered to
+   * somebody else. The `^session` grant is the exception: it comes back on
+   * msgId 0 (`startDirect`), identical in shape whoever asked, and is told
+   * apart only by the tag the firmware echoes from the request. A grant with
+   * no tag at all is taken as ours — it can only come from a firmware that
+   * predates the echo, and a client that rejected it would never get a
+   * session.
+   *
+   * One known false positive: after a reconnect this is a fresh client with
+   * a fresh session, so a reply still in flight for the tab's *previous*
+   * session reads as a stranger's. That costs a needless advisory, never a
+   * wrong write.
+   */
+  private isOurs(reply: SysexReply): boolean {
+    if (reply.msgId === 0) {
+      const body = reply.json['^session'] as { tag?: unknown } | undefined
+      return !body || typeof body.tag !== 'string' || body.tag === this.opts.tag
+    }
+    return this.session !== null && reply.msgId >= this.session.midMin && reply.msgId <= this.session.midMax
+  }
+
+  /**
    * `{session:{tag}}` → `^session {sid, midMin, midMax}` (msgIds are
-   * `(sid<<3)+1 … (sid<<3)+7`; 15 sessions, LRU-reclaimed). If negotiation
-   * never answers, fall back to the last session's range: the firmware never
-   * validates msgId ownership — `noteSessionIdUse` only marks the session
-   * block as recently used — so any well-formed msgId works.
+   * `(sid<<3)+1 … (sid<<3)+7`; 15 sessions, LRU-reclaimed). Only a grant
+   * echoing our own tag is adopted (`isOurs`); another tab's, arriving on
+   * the same msgId 0, is ignored and we keep waiting for ours. If
+   * negotiation never answers, fall back to the last session's range: the
+   * firmware never validates msgId ownership — `noteSessionIdUse` only marks
+   * the session block as recently used — so any well-formed msgId works.
    */
   private async ensureSession(): Promise<Session> {
     if (this.session) return this.session
     for (const timeout of this.opts.timeouts) {
       try {
-        const r = await this.exchange(0, buildJsonFrame(0, { session: { tag: this.opts.tag } }), timeout)
+        const r = await this.exchange(0, buildJsonFrame(0, { session: { tag: this.opts.tag } }), timeout, (reply) =>
+          '^session' in reply.json,
+        )
         const body = r.json['^session'] as { midMin?: number; midMax?: number } | undefined
         if (body?.midMin !== undefined && body.midMax !== undefined) {
           this.session = { midMin: body.midMin, midMax: body.midMax }

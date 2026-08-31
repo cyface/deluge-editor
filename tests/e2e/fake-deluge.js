@@ -81,7 +81,9 @@
     const bin = sep === -1 ? new Uint8Array(0) : unpack(frame.subarray(sep + 1, end))
 
     if (cmd.session) {
-      answer(0, '{"^session": {"sid": 1,\n"midBase": 8,\n"midMin": 9,\n"midMax": 15}}', null, 0x04)
+      // assignSession echoes the tag it was given — the only thing that says
+      // which client a grant belongs to, since every grant lands on msgId 0.
+      answer(0, `{"^session": {"sid": 1,\n"tag": "${cmd.session.tag}",\n"midBase": 8,\n"midMin": 9,\n"midMax": 15}}`, null, 0x04)
     } else if (cmd.ping) {
       answer(msgId, '{"^ping": {}}')
     } else if (cmd.open) {
@@ -136,5 +138,9 @@
   window.__fakeCard = {
     files,
     text: (p) => (files.has(p) ? new TextDecoder().decode(files.get(p)) : null),
+    // Play a second editor on the same Deluge: a reply answered to another
+    // session's msgId block (sid 2 → 17…23). The OS MIDI stacks multiplex, so
+    // every open tab hears it — that is the whole detection (issue #8).
+    otherEditor: () => answer(17, '{"^read": {"fid": 99,\n"addr": 0,\n"size": 0,\n"err": 0}}'),
   }
 })()

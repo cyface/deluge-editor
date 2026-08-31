@@ -87,6 +87,15 @@
     </div>
   {/if}
 
+  {#if card.otherEditor}
+    <!-- A second editor on the same Deluge (issue #8): a sample push runs for
+         as long as the files are big, and the other one can truncate any of
+         them mid-flight. Shown here too — a push from this panel does not
+         need the card panel open. -->
+    <p class="caution" data-testid="kit-other-editor">
+      Another editor is talking to this Deluge. Samples written from both overwrite each other — last one wins.
+    </p>
+  {/if}
   {#if kit.busy}<p class="busy" data-testid="kit-busy">{kit.busy}… {Math.round(kit.progress * 100)}%</p>{/if}
   {#if kit.error}<p class="err" role="alert">{kit.error}</p>{/if}
   {#if kit.notice}<p class="okline" data-testid="kit-notice">{kit.notice}</p>{/if}
@@ -124,4 +133,8 @@
   .busy { color: #cfe3c9; }
   .okline { color: #9ed492; }
   .err { color: #e8a08f; padding: 5px 7px; border: 1px solid #5a2a22; background: #1d1210; border-radius: 3px; }
+  .caution {
+    margin: 8px 0 0 4px; padding: 5px 7px; border: 1px solid #6b4a1c; background: #1d1710; border-radius: 3px;
+    font-family: var(--cond); font-size: 11px; line-height: 1.3; color: #e8b06a;
+  }
 </style>

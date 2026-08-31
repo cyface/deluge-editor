@@ -149,6 +149,32 @@ because those are the firmware behaviours worth testing against. Loading from
 the card goes through the same `editor.load` as drag-drop, so the round-trip
 guarantees are identical.
 
+## A second editor is detected and named, not locked out
+
+Web MIDI is not exclusive. CoreMIDI and the other OS stacks multiplex, so
+every open tab, browser and app receives **every** reply the Deluge sends,
+and any of them can send. Most of that is harmless by construction: sessions
+are allocated fresh per `session` request (`assignSession`, smsysex.cpp), so
+each client gets its own block of seven message ids, and replies are matched
+against the ids we are actually waiting on.
+
+Two things had to change (issue #8). The `^session` grant is the exception to
+the id rule — it comes back on msgId 0 (`startDirect`), identical in shape
+whoever asked — so with the old static tag two tabs negotiating at once could
+each adopt the other's grant, land on one session, and read each other's
+replies as their own. The tag is now drawn per client and the firmware's echo
+of it is checked, so only the grant we asked for is adopted. And a reply on
+another session's ids is now reported (`onOtherClient`) instead of quietly
+dropped, which is a free and reliable tell that a second editor is live.
+
+The response is a warning, not a lock. `open` with write:1 is
+`FA_CREATE_ALWAYS` — a truncate — so two editors saving one path corrupt it,
+and nothing on this side can prevent that: even a save whose read-back
+verified can be overwritten a second later. So the card panel and the kit
+builder carry an advisory while another editor is heard, a save that
+completes says it may not stay written, and both keep working. The flag is
+sticky for the connection because "it went quiet" is not reassurance.
+
 ## The connected Deluge outranks the file's firmware attribute
 
 `firmwareVersion` in a preset says who *wrote* the file; a connected device

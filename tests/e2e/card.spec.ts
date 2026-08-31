@@ -207,3 +207,34 @@ test('card: connect, browse, load, edit, save with verification, reload', async 
   await expect(page.getByTestId('file-name')).toHaveText('Baseline.XML')
   await expect(page.getByTestId('firmware-locked')).toHaveText('c1.3.0')
 })
+
+test('card: a second editor on the same Deluge is detected and warned about (issue #8)', async ({ page }) => {
+  await page.addInitScript((seed) => {
+    ;(globalThis as unknown as { __cardSeed: unknown }).__cardSeed = seed
+  }, { '/SYNTHS/Default Synth.XML': fixtureText })
+  await page.addInitScript({ path: path.resolve('tests/e2e/fake-deluge.js') })
+  await page.goto('/')
+
+  // Web MIDI is not exclusive: another tab's replies arrive here too. Until
+  // one does, nothing is claimed — a lone editor sees no advisory.
+  await page.getByTestId('card-open-button').click()
+  await expect(page.getByTestId('card-path')).toHaveText('/SYNTHS')
+  await expect(page.getByTestId('card-other-editor')).toHaveCount(0)
+  await page.locator('[data-entry="Default Synth.XML"]').click()
+  await expect(page.getByTestId('file-name')).toHaveText('Default Synth.XML')
+
+  // One reply on another session's msgIds is the whole tell.
+  await page.evaluate(() => (globalThis as unknown as { __fakeCard: { otherEditor: () => void } }).__fakeCard.otherEditor())
+  await page.getByTestId('card-save-button').click()
+  await expect(page.getByTestId('card-other-editor')).toContainText('Another editor is talking to this Deluge')
+
+  // Saving is not blocked — no client can stop the other one writing — but
+  // the verified save says plainly that it may not stay written.
+  await page.getByTestId('card-save-name').fill('Contended.XML')
+  await page.getByTestId('card-save').click()
+  await expect(page.getByTestId('card-saved')).toContainText('Contended.XML written — another editor is also on this Deluge')
+  const onCard = await page.evaluate(() =>
+    (globalThis as unknown as { __fakeCard: { files: Map<string, unknown> } }).__fakeCard.files.has('/SYNTHS/Contended.XML'),
+  )
+  expect(onCard).toBe(true)
+})

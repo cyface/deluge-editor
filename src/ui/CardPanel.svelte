@@ -26,6 +26,18 @@
       {#if card.firmwareOk === false}
         <p class="err">This Deluge runs firmware {card.identity}, which predates the card protocol — it needs community 1.3.0 or later.</p>
       {/if}
+      {#if card.otherEditor}
+        <!--
+          Web MIDI is not exclusive: another tab, browser or app can be on
+          this Deluge, and the client has just heard its traffic (issue #8).
+          Nothing is blocked — a client cannot stop the other one writing —
+          but a save that was verified can still be overwritten a second
+          later, and that is worth saying out loud.
+        -->
+        <p class="caution" data-testid="card-other-editor">
+          Another editor is talking to this Deluge. Saves from both overwrite each other — last one wins.
+        </p>
+      {/if}
       <div class="pathbar">
         <button type="button" class="btn" onclick={() => card.up()} disabled={card.path === '/' || !!card.busy} title="Up one folder" aria-label="Up">↑</button>
         <span class="path" data-testid="card-path">{card.path}</span>
@@ -81,7 +93,9 @@
       {/if}
       {#if card.busy}<p class="busy" data-testid="card-busy">{card.busy}… {Math.round(card.progress * 100)}%</p>{/if}
       {#if card.error}<p class="err" role="alert">{card.error}</p>{/if}
-      {#if card.saved}<p class="okline" data-testid="card-saved">{card.saved}</p>{/if}
+      <!-- Green means "written and verified"; with another editor live that
+           line carries a qualifier, so it goes amber with it. -->
+      {#if card.saved}<p class="okline" class:qualified={card.otherEditor} data-testid="card-saved">{card.saved}</p>{/if}
     {/if}
   </aside>
 {/if}
@@ -110,6 +124,10 @@
   .list button.target { background: rgba(197, 160, 89, .14); box-shadow: inset 2px 0 0 var(--brass); }
   .warn { margin-left: auto; font-family: var(--cond); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; color: #e8b06a; white-space: nowrap; }
   .hint { margin: 0 0 8px; font-family: var(--cond); font-size: 11px; color: var(--faint); }
+  .caution {
+    margin: 0 0 7px; padding: 5px 7px; border: 1px solid #6b4a1c; background: #1d1710; border-radius: 3px;
+    font-family: var(--cond); font-size: 11px; line-height: 1.3; color: #e8b06a;
+  }
   .n { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .s { color: var(--faint); font-size: 10px; }
   .empty { padding: 7px 8px; color: var(--faint); font-family: var(--mono); font-size: 10.5px; }
@@ -123,5 +141,6 @@
   .busy, .okline, .err { margin: 3px 0; font-family: var(--mono); font-size: 10px; }
   .busy { color: #cfe3c9; }
   .okline { color: #9ed492; }
+  .okline.qualified { color: #e8b06a; }
   .err { color: #e8a08f; padding: 5px 7px; border: 1px solid #5a2a22; background: #1d1210; border-radius: 3px; }
 </style>

@@ -9,6 +9,8 @@
  * - `dir` caps at 25 lines per request and pages by `offset`
  * - `^open` on a missing file is a normal reply with a FatFS code
  * - replies are the JsonSerializer's actual shape (newlines, no indents)
+ * - the `^session` grant echoes the tag it was asked for, and every client on
+ *   the port sees it (`otherSession`/`otherClientReply` play a second editor)
  *
  * Used by unit tests only; nothing in the app imports it.
  */
@@ -33,7 +35,21 @@ export interface FakeOptions {
    * test observe how many requests the client keeps in flight.
    */
   holdWrites?: boolean
+  /**
+   * Answer `session` without echoing the tag, as a firmware predating the
+   * echo would (`assignSession` writes it on upstream `beta`).
+   */
+  omitSessionTag?: boolean
+  /**
+   * Before the first real grant, send the grant of another client's session
+   * — another tab negotiating at the same moment. It carries that client's
+   * tag and a different sid, and lands on msgId 0 like every grant does.
+   */
+  otherSessionFirst?: boolean
 }
+
+/** The tag the second client in `otherSessionFirst` asked for. */
+export const OTHER_CLIENT_TAG = 'deluge-editor-beef'
 
 interface OpenFile {
   path: string
@@ -47,6 +63,8 @@ export class FakeDeluge {
   dirs = new Set<string>(['/', '/SYNTHS', '/KITS'])
   /** Every JSON request seen, for assertions. */
   requests: Array<Record<string, unknown>> = []
+  /** The msgId of every request seen, in order — asserts which block is in use. */
+  msgIds: number[] = []
   /** Largest frame received, to assert the client stays under the buffer. */
   maxFrameSeen = 0
   private fidCounter = 1
@@ -54,6 +72,7 @@ export class FakeDeluge {
   private dropLeft: number
   private held: Uint8Array[] = []
   private holding = false
+  private otherSessionSent = false
 
   constructor(
     private readonly reply: (bytes: Uint8Array) => void,
@@ -98,6 +117,7 @@ export class FakeDeluge {
       return
     }
     this.requests.push(json)
+    this.msgIds.push(msgId)
     if (this.dropLeft > 0) {
       this.dropLeft--
       return
@@ -106,8 +126,14 @@ export class FakeDeluge {
 
     if (json.session) {
       if (this.opts.dropSession) return
+      if (this.opts.otherSessionFirst && !this.otherSessionSent) {
+        this.otherSessionSent = true
+        this.otherSession()
+      }
       // assignSession: sid 1 free → midBase 8, midMin 9, midMax 15; replied via startDirect (cmd Json, msgId 0).
-      this.answer(0, '^session', { sid: 1, tag: json.session.tag, midBase: 8, midMin: 9, midMax: 15 }, undefined, CMD_JSON)
+      const grant: Record<string, unknown> = { sid: 1, midBase: 8, midMin: 9, midMax: 15 }
+      if (!this.opts.omitSessionTag) grant.tag = json.session.tag
+      this.answer(0, '^session', grant, undefined, CMD_JSON)
     } else if (json.ping) {
       this.answer(msgId, '^ping', {})
     } else if (json.open) {
@@ -123,6 +149,21 @@ export class FakeDeluge {
     } else if (json.dir) {
       this.doDir(msgId, json.dir)
     }
+  }
+
+  /**
+   * The grant for another client's session — sid 2, msgIds 17…23, that
+   * client's tag — sent on msgId 0 like every grant. Web MIDI is not
+   * exclusive: this is what a second editor's negotiation looks like from
+   * here.
+   */
+  otherSession(): void {
+    this.answer(0, '^session', { sid: 2, tag: OTHER_CLIENT_TAG, midBase: 16, midMin: 17, midMax: 23 }, undefined, CMD_JSON)
+  }
+
+  /** A reply to another client's request, on that client's msgId block. */
+  otherClientReply(msgId = 17): void {
+    this.answer(msgId, '^read', { fid: 99, addr: 0, size: 0, err: 0 })
   }
 
   private doOpen(msgId: number, cmd: Record<string, unknown>): void {
