@@ -11,14 +11,12 @@
 import initKitTemplate from '../../assets/templates/Default Kit.XML?raw'
 import { addSampleRows, retargetSampleFiles, rowNameFor, rowTemplateFrom, type SampleRowSpec } from '../../core/kit/build'
 import { orderSamples } from '../../core/kit/classify'
-import { kitShareZip, type KitShareSample } from '../../core/kit/share'
-import { isKit, drumRows, type KitElement, type SoundElement } from '../../core/preset'
+import { shareZip, type ShareSample } from '../../core/kit/share'
+import { isKit, drumRows, referencedSampleFiles, type KitElement, type SoundElement } from '../../core/preset'
 import { bufferReader, readWavInfo } from '../../core/samples/wav'
-import { osc } from '../../core/preset/sound'
-import { child } from '../../core/xml'
 import { isDirectory } from '../../core/sysex'
 import { card } from './card.svelte'
-import { editor, isSoundRow } from './editor.svelte'
+import { editor } from './editor.svelte'
 
 export interface LocalSample {
   /** Path under the dropped/picked folder, e.g. `Kick.wav` or `sub/Kick.wav`. */
@@ -46,6 +44,14 @@ class KitBuilder {
   /** On-device browse: current path, null when the browser is closed. */
   cardPath = $state<string | null>(null)
   cardEntries = $state<{ name: string; dir: boolean }[]>([])
+  /**
+   * Sample files the kit references that are NOT on the connected card — the
+   * Deluge loads such a kit anyway and those rows stay silent (issue #10).
+   * Empty when no card is connected: absence of evidence is not a warning.
+   */
+  missing = $state<Set<string>>(new Set())
+  /** dir → lowercase file names, cached so edits don't re-list over SysEx. */
+  private cardListings = new Map<string, Set<string>>()
 
   private template: SoundElement | null = null
 
@@ -55,23 +61,9 @@ class KitBuilder {
     return this.kitSampleFiles().filter((f) => this.bytes.has(f))
   })
 
-  /** Every sample file the current kit references (deduplicated, in row order). */
+  /** Every sample file the current preset references (deduplicated, in row order). */
   kitSampleFiles(): string[] {
-    const preset = editor.preset
-    if (!preset || !isKit(preset)) return []
-    const files: string[] = []
-    for (const row of drumRows(preset)) {
-      if (!isSoundRow(row)) continue
-      const o = osc(row, 1)
-      const one = o?.attrs.fileName
-      if (one && !files.includes(one)) files.push(one)
-      const ranges = o && child(o, 'sampleRanges')
-      for (const r of ranges?.children ?? []) {
-        const f = r.attrs.fileName
-        if (f && !files.includes(f)) files.push(f)
-      }
-    }
-    return files
+    return editor.preset ? referencedSampleFiles(editor.preset) : []
   }
 
   /**
@@ -165,6 +157,39 @@ class KitBuilder {
   }
 
   /**
+   * Re-derive `missing` for the current kit against the connected card,
+   * listing only directories not seen since the last invalidation. FAT names
+   * compare case-insensitively.
+   */
+  async checkMissing(): Promise<void> {
+    const preset = editor.preset
+    if (!card.connected || !preset || !isKit(preset)) {
+      if (this.missing.size) this.missing = new Set()
+      return
+    }
+    const files = this.kitSampleFiles()
+    for (const dir of new Set(files.map((f) => `/${f.slice(0, f.lastIndexOf('/'))}`))) {
+      if (this.cardListings.has(dir)) continue
+      try {
+        this.cardListings.set(dir, new Set((await card.listPath(dir)).map((e) => e.name.toLowerCase())))
+      } catch {
+        this.cardListings.set(dir, new Set()) // no such folder: everything in it is missing
+      }
+    }
+    const missing = new Set<string>()
+    for (const f of files) {
+      const cut = f.lastIndexOf('/')
+      if (!this.cardListings.get(`/${f.slice(0, cut)}`)?.has(f.slice(cut + 1).toLowerCase())) missing.add(f)
+    }
+    this.missing = missing
+  }
+
+  /** The card changed under us (connect, writes): listings are stale. */
+  invalidateCardListings(): void {
+    this.cardListings.clear()
+  }
+
+  /**
    * Saving the kit to `savePath` moves its locally sourced samples to the
    * matching folder: `/KITS/AudioPilz/Rumbles.XML` puts them under
    * `SAMPLES/AudioPilz/Rumbles/`, and every row's `fileName` follows. Only
@@ -226,6 +251,10 @@ class KitBuilder {
       await card.writeSampleFile(`/${f}`, data, (d, t) => onStatus?.(`Copying ${f}`, (done + (t ? d / t : 0)) / want.length))
       done++
     }
+    if (want.length > 0) {
+      this.invalidateCardListings()
+      void this.checkMissing()
+    }
     return want.length
   }
 
@@ -241,17 +270,24 @@ class KitBuilder {
     })
   }
 
-  /** The share zip: kit XML under KITS/, byte-backed samples under SAMPLES/, README. */
+  /**
+   * The share zip: preset XML under KITS/ or SYNTHS/, byte-backed samples
+   * under SAMPLES/, README. Works for any preset that references files — a
+   * sample-based synth shares the same way a kit does.
+   */
   downloadZip(): void {
     const preset = editor.preset
-    if (!preset || !isKit(preset)) return
-    const kitFileName = (editor.fileName || `${this.folder ?? 'Kit'}.XML`).replace(/\.xml$/i, '.XML')
-    const samples: KitShareSample[] = this.kitSampleFiles().map((fileName) => ({
+    if (!preset) return
+    const kind = isKit(preset) ? ('kit' as const) : ('synth' as const)
+    const fallback = kind === 'kit' ? (this.folder ?? 'Kit') : 'Synth'
+    const presetFileName = (editor.fileName || `${fallback}.XML`).replace(/\.xml$/i, '.XML')
+    const samples: ShareSample[] = this.kitSampleFiles().map((fileName) => ({
       fileName,
       data: this.bytes.get(fileName),
     }))
-    const zip = kitShareZip(editor.output, {
-      kitFileName,
+    const zip = shareZip(editor.output, {
+      presetFileName,
+      kind,
       author: this.author.trim() || undefined,
       license: this.license.trim() || undefined,
       source: this.source.trim() || undefined,
@@ -260,7 +296,7 @@ class KitBuilder {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = kitFileName.replace(/\.XML$/, '.zip')
+    a.download = presetFileName.replace(/\.XML$/, '.zip')
     a.click()
     URL.revokeObjectURL(url)
   }

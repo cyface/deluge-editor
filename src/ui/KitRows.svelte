@@ -12,7 +12,21 @@
   import { setAttr } from '../core/xml'
   import NumberField from './controls/NumberField.svelte'
   import { audio } from './state/audio.svelte'
+  import { card } from './state/card.svelte'
   import { editor, isSoundRow } from './state/editor.svelte'
+  import { kit as builder } from './state/kit.svelte'
+
+  // Keep the missing-on-card check current: re-runs when the connection,
+  // the kit, or any row's sample reference changes (checkMissing reads them
+  // before its first await). A fresh connection drops the listing cache —
+  // the card may have changed while we weren't looking.
+  let wasConnected = false
+  $effect(() => {
+    const connected = card.status === 'connected'
+    if (connected && !wasConnected) builder.invalidateCardListings()
+    wasConnected = connected
+    void builder.checkMissing()
+  })
 
   const PADS = ['--osc', '--at', '--flt', '--env1', '--lfo1', '--lfo2', '--fx', '--vel']
   function describe(r: DrumRow): string {
@@ -102,7 +116,7 @@
 </script>
 
 <section class="panel">
-  <div class="ph"><h2>Rows</h2><span class="sub">{editor.rows.length} in pad order · bottom row first in the file · drag or ▲▼ to reorder</span></div>
+  <div class="ph"><h2>Rows</h2><span class="sub">{#if builder.missing.size}<span class="misscount" data-testid="missing-count">⚠ {builder.missing.size} sample{builder.missing.size === 1 ? '' : 's'} not on the card</span> · {/if}{editor.rows.length} in pad order · bottom row first in the file · drag or ▲▼ to reorder</span></div>
   <div class="scroll">
     <table class="rows" data-testid="kit-rows">
       <thead><tr><th></th><th></th><th></th><th class="num">#</th><th>Row</th><th>Source</th><th>Repeat</th><th>Direction</th><th class="num">Vol</th><th class="num">Pan</th><th></th></tr></thead>
@@ -159,7 +173,20 @@
                 <span class="rname">{r.attrs.name ?? '(unnamed)'}</span>
               {/if}
             </td>
-            <td><span class="file" title={describe(r)}>{describe(r)}</span></td>
+            <td class="src">
+              {#if sampleFile(r) && builder.missing.has(sampleFile(r)!)}
+                {@const held = builder.bytes.has(sampleFile(r)!)}
+                <span
+                  class="warn"
+                  class:pending={held}
+                  data-testid="row-missing"
+                  title={held
+                    ? 'Not on the card yet — saving the kit will copy it there'
+                    : 'Not on the card — the Deluge loads the kit anyway, but this row will be silent'}
+                >⚠</span>
+              {/if}
+              <span class="file" title={describe(r)}>{describe(r)}</span>
+            </td>
             <td>
               {#if sampleOsc(r)}
                 {@const o = sampleOsc(r)!}
@@ -278,6 +305,13 @@
   }
   .cell:hover, .cell:focus { border-color: var(--brass-dim); color: #efe6d7; outline: none; }
   .cell::placeholder { color: var(--faint); }
+  /* Source takes all spare width; the path only ellipsizes when the screen
+     truly runs out (the .scroll wrapper still allows a horizontal scroll). */
+  .src { width: 100%; }
+  .src .file { display: inline; max-width: none; }
+  .warn { color: #e8a08f; margin-right: 4px; cursor: help; }
+  .warn.pending { color: #e8b06a; }
+  .misscount { color: #e8a08f; }
   .play {
     background: none; border: 1px solid var(--edge-hi); border-radius: 3px; color: var(--muted); cursor: pointer;
     font-size: 9px; line-height: 1; padding: 3px 5px; min-width: 22px; font-variant-numeric: tabular-nums;

@@ -1,6 +1,8 @@
 <script lang="ts">
+  import { referencedSampleFiles } from '../core/preset'
   import { card } from './state/card.svelte'
   import { editor } from './state/editor.svelte'
+  import { kit } from './state/kit.svelte'
   import Mark from './Mark.svelte'
 
   let fileInput: HTMLInputElement | undefined = $state()
@@ -21,6 +23,10 @@
     URL.revokeObjectURL(url)
   }
   const kind = $derived(editor.preset?.tag === 'kit' ? 'Kit' : editor.preset ? 'Synth' : 'Editor')
+  /** A kit, or any preset referencing external files, can share as a zip. */
+  const showZip = $derived(
+    editor.preset !== null && (editor.preset.tag === 'kit' || referencedSampleFiles(editor.preset).length > 0),
+  )
   /** While a Deluge is connected the selector is locked to it: the device is the ground truth. */
   const fwLocked = $derived(card.status === 'connected' && editor.deviceFirmware !== null)
   const fwTitle = $derived(
@@ -67,7 +73,10 @@
   <button type="button" class="btn" title="Start a new synth from the Deluge's own init preset" data-testid="new-synth" onclick={() => editor.newSynth()}>New Synth</button>
   <button type="button" class="btn" title="Start a kit from the Deluge's own blank kit — then drop a folder of WAVs on the page" data-testid="new-kit" onclick={() => editor.newKit()}>New Kit</button>
   <button type="button" class="btn" title="Open a preset XML from this computer" onclick={() => fileInput?.click()}>Open File</button>
-  <button type="button" class="btn" disabled={!editor.preset} onclick={download}>Download</button>
+  <button type="button" class="btn" disabled={!editor.preset} title="Just the preset file being edited" onclick={download}>Download XML</button>
+  {#if showZip}
+    <button type="button" class="btn" data-testid="download-zip-top" title="Preset + samples + README, ready to share{editor.preset?.tag === 'kit' ? ' — credits are set in the Share section below' : ''}" onclick={() => kit.downloadZip()}>Download Zip</button>
+  {/if}
   <button type="button" class="btn" class:on={editor.showChanges} disabled={!editor.preset} data-testid="changes-button" onclick={() => (editor.showChanges = !editor.showChanges)}>
     Changes {#if editor.preset}<span class="badge" data-testid="change-count">{editor.changeCount}</span>{/if}
   </button>

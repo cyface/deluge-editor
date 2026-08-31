@@ -1,56 +1,60 @@
 /**
- * The "Download Zip" share package: the kit XML under `KITS/`, its samples
- * under `SAMPLES/` at the exact paths the kit references, and a README
- * telling the recipient to merge both folders onto their card. Optional
- * metadata (author, licensing, source) goes in the README — the XML itself
- * is never annotated, so the packaged kit stays byte-identical to the saved
- * one.
+ * The "Download Zip" share package: the preset XML under `KITS/` or
+ * `SYNTHS/`, the samples it references under `SAMPLES/` at the exact paths
+ * the XML names, and a README telling the recipient to merge the folders
+ * onto their card. Optional metadata (author, licensing, source) goes in the
+ * README — the XML itself is never annotated, so the packaged preset stays
+ * byte-identical to the saved one.
  */
 
 import { buildZip, type ZipEntry } from './zip'
 
-export interface KitShareMeta {
-  /** The kit file's name, e.g. `My Kit.XML`. */
-  kitFileName: string
+export interface ShareMeta {
+  /** The preset file's name, e.g. `My Kit.XML`. */
+  presetFileName: string
+  /** Decides the folder (`KITS/` or `SYNTHS/`) and the README wording. */
+  kind: 'kit' | 'synth'
   author?: string
   license?: string
   source?: string
 }
 
-export interface KitShareSample {
-  /** The path the kit XML references: `SAMPLES/<folder>/<file>`, no leading slash. */
+export interface ShareSample {
+  /** The path the preset references: `SAMPLES/<folder>/<file>`, no leading slash. */
   fileName: string
   /** Absent when the sample lives only on the card (browsed on-device). */
   data?: Uint8Array
 }
 
-const kitName = (fileName: string): string => fileName.replace(/\.xml$/i, '')
+const presetName = (fileName: string): string => fileName.replace(/\.xml$/i, '')
+const presetFolder = (kind: ShareMeta['kind']): string => (kind === 'kit' ? 'KITS' : 'SYNTHS')
 
-export function kitReadme(meta: KitShareMeta, samples: readonly KitShareSample[]): string {
+export function shareReadme(meta: ShareMeta, samples: readonly ShareSample[]): string {
   const included = samples.filter((s) => s.data)
   const missing = samples.filter((s) => !s.data)
+  const folder = presetFolder(meta.kind)
   const lines: string[] = [
-    `# ${kitName(meta.kitFileName)}`,
+    `# ${presetName(meta.presetFileName)}`,
     '',
-    'A kit for the Synthstrom Deluge.',
+    `A ${meta.kind} preset for the Synthstrom Deluge.`,
     '',
     '## Install',
     '',
-    'Copy the `KITS` and `SAMPLES` folders onto the root of your Deluge SD',
-    'card, merging them with the folders already there. Then load',
-    `**${kitName(meta.kitFileName)}** on the Deluge as a kit preset.`,
+    `Copy the \`${folder}\` and \`SAMPLES\` folders onto the root of your`,
+    'Deluge SD card, merging them with the folders already there. Then load',
+    `**${presetName(meta.presetFileName)}** on the Deluge as a ${meta.kind} preset.`,
     '',
     '## Contents',
     '',
-    `- \`KITS/${meta.kitFileName}\``,
+    `- \`${folder}/${meta.presetFileName}\``,
     ...included.map((s) => `- \`${s.fileName}\``),
   ]
   if (missing.length) {
     lines.push(
       '',
-      'These samples are referenced by the kit but not included in this zip',
-      '(they were read from a Deluge card, not from this computer) — the kit',
-      'loads without them, but those rows stay silent until the files exist at',
+      `These samples are referenced by the ${meta.kind} but not included in this`,
+      'zip (they were read from a Deluge card, not from this computer) — the',
+      `${meta.kind} loads without them, but stays silent until the files exist at`,
       'these paths:',
       '',
       ...missing.map((s) => `- \`${s.fileName}\``),
@@ -72,16 +76,16 @@ export function kitReadme(meta: KitShareMeta, samples: readonly KitShareSample[]
   return lines.join('\n')
 }
 
-export function kitShareZip(
+export function shareZip(
   xml: string,
-  meta: KitShareMeta,
-  samples: readonly KitShareSample[],
+  meta: ShareMeta,
+  samples: readonly ShareSample[],
   now?: Date,
 ): Uint8Array {
   const encoder = new TextEncoder()
   const entries: ZipEntry[] = [
-    { path: 'README.md', data: encoder.encode(kitReadme(meta, samples)) },
-    { path: `KITS/${meta.kitFileName}`, data: encoder.encode(xml) },
+    { path: 'README.md', data: encoder.encode(shareReadme(meta, samples)) },
+    { path: `${presetFolder(meta.kind)}/${meta.presetFileName}`, data: encoder.encode(xml) },
   ]
   for (const s of samples) {
     if (s.data) entries.push({ path: s.fileName, data: s.data })

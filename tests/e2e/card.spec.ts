@@ -59,7 +59,7 @@ test('kit builder: rows from card samples via header reads, local samples pushed
 
   // The zone ends are the WAVs' exact frame counts, read over SysEx.
   const downloadPromise = page.waitForEvent('download')
-  await page.getByRole('button', { name: 'Download', exact: true }).click()
+  await page.getByRole('button', { name: 'Download XML', exact: true }).click()
   const xml = fs.readFileSync((await (await downloadPromise).path())!, 'utf8')
   expect(xml).toContain('endSamplePos="32"')
   expect(xml).toContain('endSamplePos="45"')
@@ -70,6 +70,11 @@ test('kit builder: rows from card samples via header reads, local samples pushed
   fs.writeFileSync(path.join(dir, 'Clap.wav'), Buffer.from(asciiWav(40), 'latin1'))
   await page.getByTestId('folder-input').setInputFiles(dir)
   await expect(rows).toHaveCount(3)
+
+  // The local sample isn't on the card yet: its row carries a warning (amber
+  // "will be copied" — we hold the bytes); the card-sourced rows don't.
+  await expect(page.getByTestId('row-missing')).toHaveCount(1)
+  await expect(page.getByTestId('missing-count')).toContainText('1 sample not on the card')
 
   // Saving the kit retargets its local samples to the saved folder path
   // (KITS/Rumbles.XML → SAMPLES/Rumbles/) and copies them along.
@@ -91,6 +96,9 @@ test('kit builder: rows from card samples via header reads, local samples pushed
     ),
   )
   expect(xmlOnCard).toContain('SAMPLES/Rumbles/Clap.wav')
+
+  // The copy cleared the warning.
+  await expect(page.getByTestId('row-missing')).toHaveCount(0)
 
   // A second push finds nothing missing: the sync skips what the card holds.
   await page.getByTestId('card-button').click() // close the panel over the builder
