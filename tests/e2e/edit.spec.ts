@@ -10,7 +10,7 @@ test('load a fixture, see the whole preset, focus a block, edit one value, see e
   // The whole preset: OLED summary, firmware from the file, every block expanded.
   await expect(page.getByTestId('file-name')).toHaveText('Default Synth.XML')
   await expect(page.getByTestId('firmware')).toHaveValue('c1.3.0')
-  await expect(page.getByTestId('summary')).toContainText('Saw and square, 4 voices thick')
+  await expect(page.getByTestId('summary')).toContainText('Saw and square, 4 voices in unison')
   const panels = page.locator('[data-group]')
   await expect(panels).toHaveCount(11)
   await expect(page.getByTestId('collapsed')).toHaveCount(0)

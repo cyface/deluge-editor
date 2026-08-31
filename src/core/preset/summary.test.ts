@@ -20,7 +20,7 @@ describe('summariseSound', () => {
     if (!isSound(p)) throw new Error('not a sound')
     const s = summariseSound(p)
     expect(s.sentence).toBe(
-      'Saw and square, 4 voices thick and detuned, sustained, through a half-open 24 dB ladder, ' +
+      'Saw and square, 4 voices in unison and detuned, sustained, through a half-open 24 dB ladder, ' +
         'with Note, Env 2, Velocity and MPE Y on the cutoff and Aftertouch and Velocity on the level.',
     )
     expect(s.chips.slice(0, 3)).toEqual(['SAW+SQR', 'UNI4', 'SUSTAINED'])

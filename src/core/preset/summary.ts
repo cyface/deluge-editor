@@ -145,7 +145,7 @@ export function summariseSound(sound: SoundElement): Summary {
   const uniDetune = Number(uni?.attrs.detune ?? 0)
   const uniSpread = Number(uni?.attrs.spread ?? 0)
   if (uniNum > 1) {
-    t += `, ${uniNum} voices thick`
+    t += `, ${uniNum} voices in unison`
     if (uniDetune > 22) t += ' and heavily detuned'
     else if (uniDetune > 4) t += ' and detuned'
     if (uniSpread > 25) t += ', spread wide'
