@@ -115,9 +115,7 @@ button { font-family: inherit; }
 .chip.hl { color: #0b1410; background: #7fc79b; border-color: #7fc79b; }
 
 .toggle { display: inline-flex; align-items: center; gap: 7px; font-family: var(--cond); font-size: 11px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); cursor: pointer; border: 1px solid var(--edge-hi); background: #151210; border-radius: 3px; padding: 0 9px; height: 28px; }
-.toggle .led { width: 8px; height: 8px; border-radius: 50%; background: #3a332a; }
 .toggle.on { color: var(--brass-hi); border-color: var(--brass-dim); }
-.toggle.on .led { background: var(--ok); box-shadow: 0 0 7px var(--ok); }
 .toggle.default { opacity: .6; font-style: italic; }
 
 table.rows { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }

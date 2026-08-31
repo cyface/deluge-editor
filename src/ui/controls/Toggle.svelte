@@ -22,5 +22,5 @@
   title={value === undefined && fallback !== undefined ? `default · ${fallback === '1' ? 'on' : 'off'}` : undefined}
   onclick={() => onchange(on ? '0' : '1')}
 >
-  <span class="led"></span>{label}
+  {label}
 </button>
