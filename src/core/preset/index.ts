@@ -3,6 +3,7 @@ export * from './params'
 export * from './order'
 export * from './names'
 export * from './describe'
+export * from './stock'
 export type * from './types'
 
 import { child } from '../xml/element'

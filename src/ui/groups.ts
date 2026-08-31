@@ -12,11 +12,14 @@ import {
   OSC_TYPE_SHORT,
   POLYPHONY_NAMES,
   paramLabel,
+  envelopeIsStock,
+  lfoIsStock,
+  modKnobDeviations,
   type ParamName,
   type SoundElement,
 } from '../core/preset'
 import { syncLevelName } from '../core/params/sync'
-import { cables, envelopeMenu, lfo, modKnobs, osc, paramMenu } from '../core/preset/sound'
+import { cables, modKnobs, osc, paramMenu } from '../core/preset/sound'
 import { editor } from './state/editor.svelte'
 
 export type Lane = 'src' | 'chain' | 'mod'
@@ -194,10 +197,10 @@ export const GROUPS: readonly Group[] = [
       'lfo1Rate', 'lfo2Rate', 'lfo3Rate', 'lfo4Rate',
     ],
     summary: (s) => {
-      const e = [1, 2, 3, 4].filter((i) => !!child(s.children.find((c) => c.tag === 'defaultParams') ?? s, `envelope${i}`)).length
-      const l = [1, 2, 3, 4].filter((i) => !!lfo(s, i as 1 | 2 | 3 | 4)).length
-      const env1 = `A${n(envelopeMenu(s, 1, 'attack'))} D${n(envelopeMenu(s, 1, 'decay'))} S${n(envelopeMenu(s, 1, 'sustain'))} R${n(envelopeMenu(s, 1, 'release'))}`
-      return `${e} env · ${l} LFO · env 1 ${env1}`
+      const off: string[] = []
+      for (const i of [1, 2, 3, 4] as const) if (!envelopeIsStock(s, i)) off.push(`env ${i}`)
+      for (const i of [1, 2, 3, 4] as const) if (!lfoIsStock(s, i)) off.push(`LFO ${i}`)
+      return off.length ? `${off.join(', ')} non-standard` : 'stock'
     },
     value: (s) => `${cables(s).filter((c) => /^(lfo|envelope)/.test(c.attrs.source ?? '')).length}⇢`,
   },
@@ -247,10 +250,16 @@ export const GROUPS: readonly Group[] = [
     icon: IC.gold,
     owns: [],
     summary: (s) => {
-      const k = modKnobs(s)
-      return k.length ? `${k.length} assignments · ${k.slice(0, 4).map((x) => paramLabel(x.attrs.controlsParam ?? '?')).join(', ')}…` : 'firmware defaults'
+      if (modKnobs(s).length === 0) return 'firmware defaults'
+      const dev = modKnobDeviations(s)
+      if (dev.length === 0) return 'stock assignments'
+      const names = dev.slice(0, 3).map((x) => paramLabel(x.attrs.controlsParam ?? '?')).join(', ')
+      return `${dev.length} reassigned · ${names}${dev.length > 3 ? '…' : ''}`
     },
-    value: (s) => String(modKnobs(s).length || 16),
+    value: (s) => {
+      const dev = modKnobDeviations(s).length
+      return dev ? String(dev) : 'std'
+    },
   },
 ]
 
