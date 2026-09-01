@@ -96,6 +96,50 @@ describe('New Synth (issue #25)', () => {
   })
 })
 
+/*
+ * Issue #28. The pill gates controls; it is not a target the file is stamped
+ * with. `firmwareVersion` is the reader's key for legacy fixups and
+ * `earliestCompatibleFirmware` is its refuse-to-load floor, so restamping
+ * either would change values on the instrument — see decisions.md, "A save
+ * never restamps the file's firmware attributes".
+ */
+describe('retargeting never restamps the file (issue #28)', () => {
+  const stamps = (xml: string) => [
+    /firmwareVersion="([^"]*)"/.exec(xml)?.[1],
+    /earliestCompatibleFirmware="([^"]*)"/.exec(xml)?.[1],
+  ]
+
+  it('a community file retargeted to official saves byte-identically', () => {
+    editor.load(community, 'Default Synth.XML')
+    editor.firmware = '4.1.4'
+    expect(stamps(editor.output)).toEqual(['c1.3.0', '4.1.0-alpha'])
+    expect(editor.changeCount).toBe(0)
+    expect(editor.identical).toBe(true)
+  })
+
+  it('an official file retargeted to community saves byte-identically', () => {
+    editor.load(official, 'Baseline.XML')
+    editor.firmware = 'c1.3.0'
+    expect(stamps(editor.output)).toEqual(['4.0.1', '4.0.0'])
+    expect(editor.changeCount).toBe(0)
+    expect(editor.identical).toBe(true)
+  })
+
+  it('a New Synth keeps the template writer’s stamps whatever the target', () => {
+    editor.newSynth()
+    editor.firmware = '4.1.4'
+    expect(stamps(editor.output)).toEqual(['c1.3.0', '4.1.0-alpha'])
+    expect(editor.identical).toBe(true)
+  })
+
+  it('a connected device does not restamp either', () => {
+    editor.load(official, 'Baseline.XML')
+    editor.setDeviceFirmware('c1.3.0')
+    expect(stamps(editor.output)).toEqual(['4.0.1', '4.0.0'])
+    expect(editor.identical).toBe(true)
+  })
+})
+
 describe('per-change revert', () => {
   it('a changed value goes back to the file, byte-identically', async () => {
     const { setParamMenu } = await import('../../core/preset/sound')

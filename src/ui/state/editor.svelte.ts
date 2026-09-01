@@ -39,6 +39,13 @@ class Editor {
   source = $state<string | null>(null)
   fileName = $state('')
   preset = $state<Preset | null>(null)
+  /**
+   * Firmware the controls are gated for. It gates *only* that: a save keeps
+   * whatever `firmwareVersion` / `earliestCompatibleFirmware` the file
+   * carried, because the instrument reads those to decide which legacy
+   * conversions to run on the values (issue #28, decisions.md — "A save never
+   * restamps the file's firmware attributes").
+   */
   firmware = $state<string>(FALLBACK_FIRMWARE)
   /** Firmware of the connected (or last-connected) Deluge; set by the card store, sticky after disconnect. */
   deviceFirmware = $state<string | null>(null)

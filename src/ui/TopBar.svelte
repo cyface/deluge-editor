@@ -29,10 +29,18 @@
   )
   /** While a Deluge is connected the selector is locked to it: the device is the ground truth. */
   const fwLocked = $derived(card.status === 'connected' && editor.deviceFirmware !== null)
+  /*
+   * The pill gates controls and nothing else — a save keeps the file's own
+   * `firmwareVersion` and `earliestCompatibleFirmware`, because those tell the
+   * instrument which legacy conversions to run on the values (issue #28,
+   * decisions.md). The tooltip says so rather than letting “target” be read as
+   * a stamp the save applies.
+   */
   const fwTitle = $derived(
-    fwLocked
+    (fwLocked
       ? 'Firmware of the connected Deluge. A control this firmware can’t honour is omitted.'
-      : 'Firmware the controls are shown for. A control this firmware can’t honour is omitted.',
+      : 'Firmware the controls are shown for. A control this firmware can’t honour is omitted.') +
+      ' Saving does not restamp the file — it keeps the version that wrote it.',
   )
 </script>
 
