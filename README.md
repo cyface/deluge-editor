@@ -54,8 +54,9 @@ A sample oscillator with more than one sample opens a **range editor** the
 width of the page: the key zones as bands across the keyboard, with the splits
 draggable, plus root note, tuning and zone for whichever range is selected.
 
-*From folder…* on an oscillator (or dropping a folder of pitched samples on a
-synth) asks one question — are the samples on this computer or on the Deluge —
+*From folder…* on a sample oscillator — set the waveform to Sample and the
+panel offers it, beside *Sample…* for a single file — or dropping a folder of
+pitched samples on a synth, asks one question — are the samples on this computer or on the Deluge —
 and builds the instrument: it works out what note each file was recorded at
 from the note embedded in the WAV, then from its file name through one offset
 fitted for the whole folder, and lands you in the range editor with the ranges

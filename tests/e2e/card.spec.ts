@@ -250,6 +250,7 @@ test('multi-sample import: the Deluge option connects by itself and builds from 
   await page.addInitScript({ path: path.resolve('tests/e2e/fake-deluge.js') })
   await page.goto('/')
   await page.getByTestId('new-synth').click()
+  await page.locator('[data-attr="osc1.type"]').selectOption('sample')
   await page.getByTestId('build-multisample-1').click()
 
   // Nothing has connected yet: choosing the Deluge does it, the way Open from

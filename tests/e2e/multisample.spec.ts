@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -28,6 +28,46 @@ function wavBytes(frames: number): Buffer {
   return b
 }
 
+/**
+ * Drop a folder on the page, the way a file manager does: the directory
+ * entries the browser hands `collectDroppedSamples` (`src/ui/dropdir.ts`),
+ * which Playwright cannot produce with a real drag.
+ */
+function dropFolder(page: Page, folder: string, names: string[]): Promise<void> {
+  return page.evaluate(([dir, files]) => {
+    // globalThis-cast: the browser DOM types aren't in the node tsconfig's lib
+    const g = globalThis as unknown as {
+      File: new (bits: string[], name: string) => unknown
+      dispatchEvent(e: Event): boolean
+    }
+    const fileEntry = (name: string) => ({
+      isFile: true,
+      isDirectory: false,
+      name,
+      file: (ok: (f: unknown) => void) => ok(new g.File(['x'], name)),
+    })
+    const entry = {
+      isFile: false,
+      isDirectory: true,
+      name: dir,
+      createReader() {
+        let done = false
+        return {
+          // Asynchronous and empty the second time, as the real reader is:
+          // `readAllEntries` keeps calling until it gets nothing.
+          readEntries(ok: (e: unknown[]) => void) {
+            const batch = done ? [] : files.map(fileEntry)
+            done = true
+            queueMicrotask(() => ok(batch))
+          },
+        }
+      },
+    }
+    const dataTransfer = { items: [{ webkitGetAsEntry: () => entry }], files: [] }
+    g.dispatchEvent(Object.assign(new Event('drop', { bubbles: true, cancelable: true }), { dataTransfer }))
+  }, [folder, names] as const)
+}
+
 test('build a multi-sampled synth from a folder of samples (issue #33)', async ({ page }) => {
   // Named the way a sampled library names things — an octave above what the
   // Deluge calls the same note, which is what the shift is for.
@@ -41,10 +81,12 @@ test('build a multi-sampled synth from a folder of samples (issue #33)', async (
   await page.goto('/')
   await page.getByTestId('new-synth').click()
 
-  // The oscillator asks where the samples are, and turns into a sample
-  // oscillator while the question is up.
+  // The folder import belongs to a sample oscillator: the waveform is the way
+  // in, and only then does the panel ask where the samples are.
   const waveform = page.locator('[data-attr="osc1.type"]')
   await expect(waveform).toHaveValue('square')
+  await expect(page.getByTestId('build-multisample-1')).toHaveCount(0)
+  await waveform.selectOption('sample')
   await page.getByTestId('build-multisample-1').click()
   await expect(page.getByTestId('folder-import')).toContainText('Build Osc A from a folder')
   await expect(waveform).toHaveValue('sample')
@@ -90,11 +132,16 @@ test('build a multi-sampled synth from a folder of samples (issue #33)', async (
 })
 
 test('dismissing the folder question leaves the oscillator as it was (issue #33)', async ({ page }) => {
+  // A folder dropped on a synth is a multi-sample import wherever the waveform
+  // stood, so this is the way in that can find a square oscillator: it becomes
+  // a sample oscillator while the question is up, and only stays one if a
+  // sample lands on it.
   await page.goto('/')
   await page.getByTestId('new-synth').click()
   const waveform = page.locator('[data-attr="osc1.type"]')
 
-  await page.getByTestId('build-multisample-1').click()
+  await dropFolder(page, 'Piano', ['notes.txt'])
+  await expect(page.getByTestId('folder-import')).toContainText('no .wav files in that folder')
   await expect(waveform).toHaveValue('sample')
   // While it is in that state the oscillator says what it would do on the
   // instrument, because silence is the hardest fault to find there.
@@ -114,6 +161,7 @@ test('the preview button keeps its width when it becomes a stop button (issue #3
 
   await page.goto('/')
   await page.getByTestId('new-synth').click()
+  await page.locator('[data-attr="osc1.type"]').selectOption('sample')
   await page.getByTestId('build-multisample-1').click()
   await page.getByTestId('ms-folder-input').setInputFiles(dir)
 
@@ -139,17 +187,20 @@ test('a synth takes one sample, without a folder', async ({ page }) => {
   const waveform = page.locator('[data-attr="osc1.type"]')
   await expect(waveform).toHaveValue('square')
 
-  // One sample and a whole folder are offered side by side.
+  // Nothing is offered until the oscillator is a sample oscillator; then one
+  // sample and a whole folder are offered side by side.
+  await expect(page.getByTestId('pick-sample-1')).toHaveCount(0)
+  await waveform.selectOption('sample')
   await expect(page.getByTestId('build-multisample-1')).toBeVisible()
   await page.getByTestId('pick-sample-1').click()
   const picker = page.getByTestId('sample-picker')
   await expect(picker).toContainText('Sample for Osc A')
 
-  // Dismissed, it leaves nothing behind — not even a sample oscillator with
-  // no sample, which is silent on the instrument.
+  // Dismissed, it leaves nothing behind: the waveform the user chose, and no
+  // file on it.
   await picker.getByTestId('sample-cancel').click()
-  await expect(waveform).toHaveValue('square')
-  await expect(page.getByTestId('change-count')).toHaveText('0')
+  await expect(waveform).toHaveValue('sample')
+  await expect(page.getByTestId('osc-no-sample-1')).toBeVisible()
 
   await page.getByTestId('pick-sample-1').click()
   await picker.getByTestId('sample-file-input').setInputFiles(wav)

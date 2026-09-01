@@ -138,9 +138,11 @@
       />
     {/if}
     <!-- One sample or a whole folder, side by side: the two ways a sample
-         oscillator is filled in. The single one is the only one a drum has —
-         every hit sounds the same note, so the key map would be a map of
-         nothing — and it stands down once there is more than one sample,
+         oscillator is filled in. Only a sample oscillator is offered them —
+         the Waveform select is the way in, so the panel never invites a file
+         onto something that would not play it. The single one is the only one
+         a drum has — every hit sounds the same note, so the key map would be a
+         map of nothing — and it stands down once there is more than one sample,
          where "which of them" is the range editor's question. -->
     <div class="rangeact">
       {#if list.length <= 1}
@@ -161,20 +163,6 @@
           From folder…
         </button>
       {/if}
-    </div>
-  {:else if !fm && !drum}
-    <!-- The two ways into a sampled instrument from a synth that isn't one
-         yet. The single sample makes the oscillator a sample oscillator only
-         once a file is actually chosen; the folder switches it now — so the
-         panel and the waveform agree while the question is up — and puts the
-         waveform back if it is dismissed. -->
-    <div class="rangeact">
-      <button type="button" class="btn small" data-testid="pick-sample-{n}" title="Play one sample on this oscillator" onclick={() => samplePick.start(ensureOsc(n), { label: sampleFor(n) })}>
-        Sample…
-      </button>
-      <button type="button" class="btn small" data-testid="build-multisample-{n}" title="Build a multi-sampled instrument on this oscillator from a folder of samples" onclick={() => multisample.start(n)}>
-        Build from folder…
-      </button>
     </div>
   {/if}
   {#if wavetableFiles(o).length}

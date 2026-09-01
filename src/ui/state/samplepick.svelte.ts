@@ -72,9 +72,6 @@ export interface PickOptions {
   onDone?: (index: number) => void
 }
 
-/** An oscillator, or a way to make one — see `start`. */
-type OscSource = OscElement | (() => OscElement)
-
 const isWav = (name: string): boolean => /\.wav$/i.test(name)
 
 /** A folder name FAT and the firmware are happy with, or `fallback` if nothing is left. */
@@ -95,7 +92,7 @@ class SamplePick {
   /** A path typed in, for a sample on a card that isn't plugged in. */
   typed = $state('')
 
-  private source: OscSource | null = null
+  private source: OscElement | null = null
   private target: PickTarget = { mode: 'only' }
   private onDone: ((index: number) => void) | null = null
   /** The preset the dialog was opened over; loading another closes it. */
@@ -106,12 +103,11 @@ class SamplePick {
   readonly open = $derived(this.for !== null && editor.preset === this.opened)
 
   /**
-   * Ask where the sample is. `osc` may be a function that makes the
-   * oscillator: it is called only once a file is actually chosen, so a
-   * question dismissed leaves nothing behind — no half-made sample oscillator
-   * with no sample, which is silent on the instrument.
+   * Ask where the sample is. The oscillator already exists: only a sample
+   * oscillator is offered a file, so there is nothing to make here and a
+   * question dismissed leaves nothing behind.
    */
-  start(osc: OscSource, options: PickOptions): void {
+  start(osc: OscElement, options: PickOptions): void {
     this.source = osc
     this.target = options.target ?? { mode: 'only' }
     this.onDone = options.onDone ?? null
@@ -215,7 +211,7 @@ class SamplePick {
 
   /** The file the target range holds now, as the typed field's starting value. */
   private currentFileName(): string {
-    const osc = typeof this.source === 'function' ? null : this.source
+    const osc = this.source
     if (!osc) return ''
     const list = soundingOrder(sampleRanges(osc))
     const at = this.target.mode === 'set' ? this.target.index : this.target.mode === 'only' ? 0 : -1
@@ -233,7 +229,7 @@ class SamplePick {
       this.error = 'the preset this was for is no longer loaded'
       return false
     }
-    const osc = typeof this.source === 'function' ? this.source() : this.source
+    const osc = this.source
     const name = fileName.replace(/^\/+/, '')
     const sample = {
       fileName: name,
