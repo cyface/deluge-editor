@@ -15,14 +15,13 @@
    * are the two ways in, side by side.
    */
   import { noteName } from '../core/preset/notes'
-  import type { RootFrom } from '../core/samples/roots'
   import { removeRange, rootName, rootParts, setRangeRoot, setRangeTopNote, setRangeZone, type SampleRange } from '../core/preset/ranges'
   import KeyMap from './controls/KeyMap.svelte'
   import NumberField from './controls/NumberField.svelte'
   import { audio } from './state/audio.svelte'
   import { card } from './state/card.svelte'
   import { editor } from './state/editor.svelte'
-  import { multisample } from './state/multisample.svelte'
+  import { multisample, type RangeRootFrom } from './state/multisample.svelte'
   import { ranges as ed } from './state/ranges.svelte'
   import { samples as stash } from './state/samples.svelte'
 
@@ -96,18 +95,43 @@
    * what the import wrote, and an import is a way of filling it in.
    */
   const session = $derived(multisample.session?.which === ed.which ? multisample.session : null)
-  const SOURCE: Record<RootFrom, { short: string; why: string }> = {
+  const SOURCE: Record<RangeRootFrom, { short: string; why: string }> = {
     user: { short: 'you', why: 'you set this root by hand' },
     file: { short: 'WAV tag', why: 'the note the file itself declares, in its smpl/inst chunk' },
     name: { short: 'file name', why: 'read from the name, through the folder offset' },
     between: { short: 'spaced', why: 'evenly between the neighbours that did resolve' },
+    kept: { short: 'kept', why: 'nothing in the file or its name placed it, so its root is untouched' },
     unknown: { short: '—', why: 'nothing placed this one' },
   }
-  const LEGEND = ['file', 'name', 'between', 'user'] as const
+  const LEGEND = $derived(
+    session?.kind === 'redetect' ? (['file', 'name', 'between', 'kept'] as const) : (['file', 'name', 'between', 'user'] as const),
+  )
+
+  /**
+   * Re-detecting the roots of ranges that are already here (issue #33): read
+   * again, then show what would move. Nothing is written until Apply, and
+   * boundaries are never part of it — the instrument's own route to this
+   * question throws every range away first, which is why it lives here.
+   */
+  const plan = $derived(multisample.plan?.which === ed.which ? multisample.plan : null)
+  /** The rows worth showing: the ones that would move, and the ones nothing placed. */
+  const moves = $derived(plan ? plan.rows.filter((r) => r.root === undefined || r.root !== r.was) : [])
+  const agreed = $derived(plan ? plan.rows.length - moves.length : 0)
+  const readable = $derived(plan ? plan.rows.length - plan.unreadable.length : 0)
+  const hasFiles = $derived(list.some((r) => r.fileName))
   /** The note field beside each left-out file, keyed by its path. */
   let assignNote = $state<Record<string, number>>({})
   const noteFor = (fileName: string, named: number | undefined): number =>
     assignNote[fileName] ?? (named === undefined ? 60 : Math.round(named / 100))
+
+  const sessionLead = $derived(session?.kind === 'redetect' ? 'Re-detected' : 'From folder')
+  const sessionWhat = $derived(
+    !session
+      ? ''
+      : session.kind === 'redetect'
+        ? `${session.placed} root${session.placed === 1 ? '' : 's'} changed`
+        : `${session.placed} sample${session.placed === 1 ? '' : 's'} placed${session.leftOut.length ? `, ${session.leftOut.length} left out` : ''}`,
+  )
 
   const summary = $derived(
     list.length === 0
@@ -142,13 +166,73 @@
     />
   {/if}
 
+  {#if plan}
+    <!-- A re-detect the user hasn't accepted: nothing has been written yet
+         (issue #33). Roots only — the boundaries between them are decisions,
+         and the instrument's own version of this deletes every range first. -->
+    <div class="import propose" data-testid="range-redetect">
+      <div class="line">
+        <span class="lead">Re-detected</span>
+        <span class="mono who">
+          {plan.changed === 0
+            ? 'nothing would move'
+            : `${plan.changed} of ${plan.rows.length} root${plan.rows.length === 1 ? '' : 's'} would move`}
+        </span>
+        <span class="why">
+          {#if plan.folders.length > 1}
+            {plan.folders.length} folders, each calibrated on its own
+          {:else if plan.folders[0]?.offsetFrom === 'anchors'}
+            calibrated against the files that declare a root
+          {:else}
+            read from the file names — nothing declares a root to calibrate against
+          {/if}
+          {#if agreed}· {agreed} already agree{/if}
+        </span>
+        <span class="shift">
+          <button type="button" class="btn small go" data-testid="range-redetect-apply" onclick={() => multisample.applyRedetect()}>Apply</button>
+          <button type="button" class="btn small" data-testid="range-redetect-cancel" onclick={() => multisample.cancelRedetect()}>Cancel</button>
+        </span>
+      </div>
+
+      {#if plan.disordered}
+        <p class="caution" data-testid="range-redetect-disordered">
+          These roots don't climb with the keyboard — a sample would be rooted below the one beneath it. That is what a
+          misread name or an assumed offset looks like, so read the list before applying.
+        </p>
+      {/if}
+      {#if plan.unreadable.length}
+        <p class="caution" data-testid="range-redetect-unread">
+          {readable === 0
+            ? 'No WAV header could be read, so this comes from the file names alone.'
+            : `${plan.unreadable.length} of ${plan.rows.length} WAV headers could not be read; those files were placed by name alone.`}
+          Connect the Deluge, or import the folder from this computer, to use the notes the files themselves declare.
+        </p>
+      {/if}
+
+      {#if moves.length}
+        <div class="leftout">
+          <span class="lead">What this would do</span>
+          <ul class="props">
+            {#each moves as m (m.index)}
+              <li>
+                <span class="fname" title={m.fileName}>{m.base}</span>
+                <span class="mono move">{rootName(m.was)} → {m.root === undefined ? 'kept' : rootName(m.root)}</span>
+                <span class="why">{SOURCE[m.from].why}</span>
+              </li>
+            {/each}
+          </ul>
+        </div>
+      {/if}
+    </div>
+  {/if}
+
   {#if session}
     <div class="import" data-testid="range-import">
       <div class="line">
-        <span class="lead">From folder</span>
+        <span class="lead">{sessionLead}</span>
         <span class="mono who">{session.folder ?? 'samples'}</span>
         <span class="why">
-          {session.placed} sample{session.placed === 1 ? '' : 's'} placed{session.leftOut.length ? `, ${session.leftOut.length} left out` : ''}
+          {sessionWhat}
           · roots {session.offsetFrom === 'anchors' ? 'calibrated against the files that declare one' : 'read from the file names'}
         </span>
         <span class="shift">
@@ -278,6 +362,18 @@
       <button type="button" class="btn small" data-testid="range-add" onclick={() => ed.startPick({ mode: 'add' })}>Add sample…</button>
       <!-- A whole folder at once, roots and boundaries worked out (issue #33). -->
       <button type="button" class="btn small" data-testid="range-from-folder" onclick={() => ed.which && multisample.start(ed.which)}>From folder…</button>
+      {#if hasFiles}
+        <!-- The one thing the instrument cannot do to a preset it already has:
+             work out its roots again without throwing the ranges away. -->
+        <button
+          type="button"
+          class="btn small"
+          data-testid="range-redetect-start"
+          disabled={!!multisample.busy}
+          title="Read these samples again and work out what note each was recorded at"
+          onclick={() => ed.which && void multisample.redetect(ed.which)}
+        >Re-detect roots…</button>
+      {/if}
       {#if current}
         <button type="button" class="btn small" data-testid="range-change" onclick={() => ed.startPick({ mode: 'set', index: sel })}>Change sample…</button>
         <button type="button" class="btn small" data-testid="range-split-below" onclick={() => ed.startPick({ mode: 'below', index: sel })}>Split, new below…</button>
@@ -286,6 +382,20 @@
     </div>
   {/if}
 
+  <!-- The import's modal owns these while it is open; the rest of the time
+       (a re-detect, a shift, a left-out file that won't fit) this is where
+       they land. -->
+  {#if !multisample.open && (multisample.busy || multisample.error || multisample.notice)}
+    <div class="status" data-testid="range-status">
+      {#if multisample.busy}
+        <p class="busy">{multisample.busy}… {Math.round(multisample.progress * 100)}%</p>
+      {:else if multisample.error}
+        <p class="err" role="alert" data-testid="range-error">{multisample.error}</p>
+      {:else if multisample.notice}
+        <p class="okline" data-testid="range-notice">{multisample.notice}</p>
+      {/if}
+    </div>
+  {/if}
 </section>
 
 <style>
@@ -328,5 +438,13 @@
   .legend { display: flex; flex-wrap: wrap; align-items: baseline; gap: 3px 14px; margin: 9px 0 0 4px; font-family: var(--cond); font-size: 11px; line-height: 1.4; color: var(--faint); }
   .legend b { color: #cfc6b6; font-weight: 600; }
   .caution { margin: 8px 0 0 4px; padding: 6px 8px; border: 1px solid #4a3a1a; background: #171208; border-radius: 3px; font-size: 11px; color: var(--warn); }
+  .propose { border-color: var(--brass, #c5a059); }
+  .props { max-height: 30vh; overflow-y: auto; }
+  .props .move { min-width: 130px; }
+  .status { margin: 9px 0 0 4px; }
+  .status p { margin: 0; font-family: var(--mono); font-size: 10.5px; }
+  .busy { color: #cfe3c9; }
+  .err { padding: 5px 7px; border: 1px solid #5a2a22; background: #1d1210; color: #e8a08f; border-radius: 3px; }
+  .okline { color: #a9c99f; }
   .lbl { font-family: var(--cond); font-size: 10px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
 </style>

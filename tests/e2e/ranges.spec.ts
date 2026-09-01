@@ -146,7 +146,7 @@ test('assign a range a sample browsed on the card, zone and all', async ({ page 
 
   await page.getByTestId('card-open-button').click()
   await expect(page.getByTestId('card-path')).toHaveText('/SYNTHS')
-  await page.getByTestId('card-open-button').click() // close the panel, keep the connection
+  await page.keyboard.press('Escape') // dismiss the dialog, keep the connection
   await page.getByTestId('file-input').setInputFiles(FIXTURE)
   await page.getByTestId('edit-ranges-1').click()
 

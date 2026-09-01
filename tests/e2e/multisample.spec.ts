@@ -131,6 +131,51 @@ test('build a multi-sampled synth from a folder of samples (issue #33)', async (
   await expect(rows.nth(0)).toContainText('0–1000')
 })
 
+test('re-detect the roots of ranges that are already there (issue #33)', async ({ page }) => {
+  // The one thing the instrument cannot do: ask the question again without
+  // throwing the ranges away first.
+  const dir = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'deluge-ms-')), 'Piano')
+  fs.mkdirSync(dir)
+  for (const name of ['Piano C4.wav', 'Piano C5.wav', 'Piano C6.wav']) {
+    fs.writeFileSync(path.join(dir, name), wavBytes(1000))
+  }
+
+  await page.goto('/')
+  await page.getByTestId('new-synth').click()
+  await page.locator('[data-attr="osc1.type"]').selectOption('sample')
+  await page.getByTestId('build-multisample-1').click()
+  await page.getByTestId('ms-folder-input').setInputFiles(dir)
+
+  const editor = page.getByTestId('range-editor')
+  const rows = editor.locator('[data-range]')
+  await expect(rows).toHaveCount(3)
+
+  // Knock the whole instrument an octave out, then put the import's row away:
+  // what follows has to stand on the ranges themselves.
+  await editor.getByRole('button', { name: 'Down an octave' }).click()
+  await expect(rows.nth(0)).toContainText('C3')
+  await editor.getByTestId('range-import-dismiss').click()
+  // The Keys cell, not the whole row: the row's text is about to gain a
+  // provenance column and its root is meant to change.
+  const keys = rows.nth(0).locator('td').nth(1)
+  const boundary = await keys.innerText()
+
+  await editor.getByTestId('range-redetect-start').click()
+  const proposal = editor.getByTestId('range-redetect')
+  await expect(proposal).toContainText('3 of 3 roots would move')
+  await expect(proposal).toContainText('C3 → C4')
+  // Still a proposal: the ranges have not moved.
+  await expect(rows.nth(0)).toContainText('C3')
+
+  await proposal.getByTestId('range-redetect-apply').click()
+  await expect(editor.getByTestId('range-redetect')).toHaveCount(0)
+  await expect(rows.nth(0)).toContainText('C4')
+  await expect(editor.getByTestId('range-import')).toContainText('3 roots changed')
+  // Roots only. The boundary is where the shift left it, because a boundary is
+  // a decision and this was not asked to repair one.
+  await expect(keys).toHaveText(boundary)
+})
+
 test('dismissing the folder question leaves the oscillator as it was (issue #33)', async ({ page }) => {
   // A folder dropped on a synth is a multi-sample import wherever the waveform
   // stood, so this is the way in that can find a square oscillator: it becomes

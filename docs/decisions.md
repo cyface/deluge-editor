@@ -142,6 +142,18 @@ data-loser on, so the client treats the card as hostile:
   reports a plain "written" — but it never says it before the read-back
   matched.
 
+The browser those saves happen in is a **modal**, not a panel hanging off its
+button. It is a file browser — path bar, listing, save name — somewhere you
+work for a moment rather than a menu you glance at, and as a popover it
+floated over the very editor it was about while the page behind it stayed
+live. Loading a file has always closed it; a verified save now closes it too,
+and the confirmation moves to the page for a few seconds rather than dying
+with the dialog that earned it. That line still carries the second-editor
+qualifier below, because "this may not stay written" is the last thing a
+dismissal should swallow. The button that opened the dialog no longer doubles
+as its close, since it sits behind the veil: the × and Escape do that, as they
+do for every other dialog here.
+
 The client is framework-free and its tests run against a fake Deluge
 (`src/core/sysex/fake-deluge.ts`) transcribed from `smsysex.cpp` — the fake
 drops oversized frames, short-writes, and pages directories at 25 lines,
@@ -361,6 +373,26 @@ apart. Boundaries are computed **only** at import — across the same 36 presets
 the midpoint rule holds for 716 of 783 adjacent pairs, and every clear miss is
 a preset a human touched, so a boundary that isn't the midpoint is a decision,
 not a defect.
+
+**Re-detecting the roots of a preset that already has them.** The same reading
+runs the other way round, on ranges that are already on an oscillator: read
+the files they point at — held bytes first, then over SysEx from the card —
+and offer what the cascade makes of them. The instrument cannot do this at
+all. Its only route to the question is a whole-folder re-import that deletes
+every range first, so a preset with hand-placed splits cannot be re-rooted on
+the hardware; here it is a proposal that says what would move, from where to
+where and on what evidence, and is applied or turned down.
+
+Three things it deliberately does not do. It does not touch boundaries — the
+midpoint rule is an import-time answer and a split that disagrees with it is a
+decision. It does not anchor the folder's offset to the roots already stored:
+fitting the answer to what is there would report "nothing to change" for
+exactly the library that is uniformly an octave out, which is the case this
+exists for, so a folder with no tags of its own gets an assumed offset that
+says so and Shift all moves the lot afterwards. And it never silently leaves a
+range unexplained: one the cascade cannot place keeps the root it has and is
+captioned `kept`. Folders are resolved one at a time, because both the discard
+rule and the offset are properties of a library rather than of a preset.
 
 Two consequences elsewhere. The bytes of locally sourced samples moved out of
 the kit builder into a shared stash (`src/ui/state/samples.svelte.ts`): a

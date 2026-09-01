@@ -13,6 +13,7 @@
   import SamplePicker from './SamplePicker.svelte'
   import TopBar from './TopBar.svelte'
   import { collectDroppedSamples } from './dropdir'
+  import { card } from './state/card.svelte'
   import { editor } from './state/editor.svelte'
   import { ranges as rangeEditor } from './state/ranges.svelte'
   import { kit as kitBuilder } from './state/kit.svelte'
@@ -73,7 +74,7 @@
   ondragover={(e) => { e.preventDefault(); dragging = true }}
   ondragleave={() => (dragging = false)}
   ondrop={drop}
-  onkeydown={(e) => { if (e.key === 'Escape') { confirmDrop = null; if (multisample.open) multisample.cancel(); if (samplePick.open) samplePick.cancel() } }}
+  onkeydown={(e) => { if (e.key === 'Escape') { confirmDrop = null; if (multisample.open) multisample.cancel(); if (samplePick.open) samplePick.cancel(); if (card.open) card.close() } }}
 />
 
 {#if multisample.open}<FolderImport />{/if}
@@ -97,6 +98,13 @@
   <TopBar />
   {#if editor.error}
     <p class="error" role="alert">{editor.error}</p>
+  {/if}
+  <!-- A verified save closes the card dialog, so its confirmation lands here
+       — green for "written and verified", amber when another editor on the
+       same Deluge could overwrite it a second later (issue #8). It takes
+       itself away after a few seconds. -->
+  {#if card.saved}
+    <p class="saved" class:qualified={card.otherEditor} role="status" data-testid="card-saved">{card.saved}</p>
   {/if}
   {#if editor.preset}
     <Oled />
@@ -126,6 +134,8 @@
   .foot { margin-top: auto; padding: 26px 0 12px; font-family: var(--cond); font-size: 10.5px; letter-spacing: .06em; color: var(--faint); text-align: center; }
   .foot a { color: var(--muted); }
   .error { margin: 10px 0 0; padding: 8px 10px; border: 1px solid #5a2a22; background: #1d1210; color: #e8a08f; font-family: var(--mono); font-size: 11px; border-radius: 3px; }
+  .saved { margin: 10px 0 0; padding: 8px 10px; border: 1px solid #2f4a2c; background: #101710; color: #9ed492; font-family: var(--mono); font-size: 11px; border-radius: 3px; }
+  .saved.qualified { border-color: #6b4a1c; background: #1d1710; color: #e8b06a; }
   .veil { position: fixed; inset: 0; z-index: 90; display: flex; align-items: center; justify-content: center; background: rgba(8, 6, 5, .6); }
   .ask { width: 360px; max-width: 90vw; background: linear-gradient(180deg, #171412, #100e0d); border: 1px solid var(--edge-hi); border-radius: 5px; box-shadow: 0 14px 40px rgba(0, 0, 0, .6); padding: 14px 16px 12px; }
   .ask p { margin: 0 0 12px; font-family: var(--cond); font-size: 12.5px; letter-spacing: .04em; color: #e2d9ca; line-height: 1.5; }

@@ -45,7 +45,7 @@ test('kit builder: rows from card samples via header reads, local samples pushed
 
   await page.getByTestId('card-open-button').click()
   await expect(page.getByTestId('card-path')).toHaveText('/SYNTHS')
-  await page.getByTestId('card-open-button').click() // close the panel; the connection stays
+  await page.keyboard.press('Escape') // dismiss the dialog; the connection stays
   await page.getByTestId('new-kit').click()
 
   // Browse SAMPLES/ on the device and build rows from the WAVs' headers.
@@ -101,7 +101,7 @@ test('kit builder: rows from card samples via header reads, local samples pushed
   await expect(page.getByTestId('row-missing')).toHaveCount(0)
 
   // A second push finds nothing missing: the sync skips what the card holds.
-  await page.getByTestId('card-save-button').click() // close the panel over the builder
+  // (The save closed the dialog by itself, so the builder is reachable.)
   await page.getByTestId('push-samples').click()
   await expect(page.getByTestId('kit-notice')).toContainText('already on the card')
 })
@@ -185,8 +185,13 @@ test('card: connect, browse, load, edit, save with verification, reload', async 
   await page.getByTestId('card-save-button').click()
   await page.getByTestId('card-save-name').fill('Rumbles')
   await page.getByTestId('card-save').click()
-  await expect(page.getByTestId('card-save-name')).toHaveValue('Rumbles.XML')
+  // A verified save closes the dialog and leaves its confirmation on the page.
+  await expect(page.getByTestId('card-panel')).toBeHidden()
   await expect(page.getByTestId('card-saved')).toContainText('Rumbles.XML')
+  // The name the save actually used, kept for the next one.
+  await page.getByTestId('card-save-button').click()
+  await expect(page.getByTestId('card-save-name')).toHaveValue('Rumbles.XML')
+  await page.keyboard.press('Escape')
   const bare = await page.evaluate(() =>
     (globalThis as unknown as { __fakeCard: { files: Map<string, unknown> } }).__fakeCard.files.has('/SYNTHS/Rumbles.XML'),
   )

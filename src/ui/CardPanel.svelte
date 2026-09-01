@@ -1,4 +1,14 @@
 <script lang="ts">
+  /**
+   * The Deluge's SD card, as one browser with two intents (open or save,
+   * chosen by the top-bar button that opened it).
+   *
+   * It is a modal, not a panel hanging off its button: it is a file browser
+   * with a path bar, a listing and a save name — a place you work for a
+   * moment, not a menu you glance at — and as a popover it sat over the
+   * editor it was about while the page behind it stayed live. Dismissed the
+   * way the other dialogs here are: the ×, or Escape (`App.svelte`).
+   */
   import { isDirectory } from '../core/sysex'
   import { card } from './state/card.svelte'
   import { editor } from './state/editor.svelte'
@@ -8,6 +18,7 @@
 </script>
 
 {#if card.open}
+  <div class="veil" role="dialog" aria-modal="true" aria-label={card.mode === 'open' ? 'Open from Deluge' : 'Save to Deluge'}>
   <aside class="card" data-testid="card-panel">
     <header>
       <b>{card.mode === 'open' ? 'Open from Deluge' : 'Save to Deluge'}</b>
@@ -93,19 +104,23 @@
       {/if}
       {#if card.busy}<p class="busy" data-testid="card-busy">{card.busy}… {Math.round(card.progress * 100)}%</p>{/if}
       {#if card.error}<p class="err" role="alert">{card.error}</p>{/if}
-      <!-- Green means "written and verified"; with another editor live that
-           line carries a qualifier, so it goes amber with it. -->
-      {#if card.saved}<p class="okline" class:qualified={card.otherEditor} data-testid="card-saved">{card.saved}</p>{/if}
+      <!-- A verified save closes this dialog, so its confirmation is shown by
+           the page instead (`App.svelte`) — there is nothing left here to
+           carry it. -->
     {/if}
   </aside>
+  </div>
 {/if}
 
 <style>
+  /* Above the changes dock (60) as well as the bar: a modal covers the page
+     it is about, and the dock is part of that page. */
+  .veil { position: fixed; inset: 0; z-index: 70; display: grid; place-items: center; background: rgba(6, 5, 4, .72); }
   .card {
-    position: fixed; top: 56px; right: calc(var(--cheek) + var(--gut) + 8px); z-index: 50; width: 300px;
-    max-height: calc(100vh - 76px); display: flex; flex-direction: column;
-    background: linear-gradient(180deg, #171412, #100e0d); border: 1px solid var(--edge); border-radius: 5px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, .55); padding: 10px 11px;
+    width: min(520px, calc(100vw - 40px)); max-height: min(76vh, calc(100vh - 80px));
+    display: flex; flex-direction: column;
+    background: linear-gradient(180deg, #171412, #100e0d); border: 1px solid var(--edge-hi); border-radius: 5px;
+    box-shadow: 0 18px 50px rgba(0, 0, 0, .5); padding: 12px 14px 14px;
   }
   header { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; }
   header b { font-family: var(--cond); font-size: 12.5px; letter-spacing: .13em; text-transform: uppercase; color: var(--brass); }
@@ -138,9 +153,7 @@
   }
   .saverow input:focus { outline: 1px solid var(--brass); }
   .save.armed { border-color: #8a5a2a; color: #e8b06a; }
-  .busy, .okline, .err { margin: 3px 0; font-family: var(--mono); font-size: 10px; }
+  .busy, .err { margin: 3px 0; font-family: var(--mono); font-size: 10px; }
   .busy { color: #cfe3c9; }
-  .okline { color: #9ed492; }
-  .okline.qualified { color: #e8b06a; }
   .err { color: #e8a08f; padding: 5px 7px; border: 1px solid #5a2a22; background: #1d1210; border-radius: 3px; }
 </style>

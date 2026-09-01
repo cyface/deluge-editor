@@ -178,3 +178,43 @@ function fillGaps(rows: RootRow[]): void {
     }
   }
 }
+
+/** The path above a sample's file name — `SAMPLES/Piano` for `SAMPLES/Piano/C3.wav`, `''` at the root. */
+export const sampleFolder = (name: string): string => {
+  const cut = name.lastIndexOf('/')
+  return cut < 0 ? '' : name.slice(0, cut)
+}
+
+/** A folder's own answer, and which folder it is. */
+export interface FolderPlan extends RootPlan {
+  folder: string
+}
+
+/**
+ * Resolve a set of files a folder at a time, for a caller holding samples that
+ * did not all arrive together — re-detecting the roots of ranges a preset
+ * already has (issue #33).
+ *
+ * Both of the things `resolveRoots` decides for a whole set are properties of
+ * one folder: the discard rule asks whether *this library's* exporter tagged
+ * every file the same, and the offset calibrates *this library's* naming
+ * convention. Pooling two folders would let one library's tags poison the
+ * other's answer. The multi-sampled oscillators surveyed on Tim's card each
+ * draw from a single folder, so this changes nothing for them — it costs a Map
+ * and removes the question for a preset whose ranges were pointed by hand.
+ *
+ * Folders come back in name order; the rows inside each stay in file-name
+ * order, as `resolveRoots` returns them.
+ */
+export function resolveRootsByFolder(files: readonly SampleFile[], opts: ResolveOptions = {}): FolderPlan[] {
+  const groups = new Map<string, SampleFile[]>()
+  for (const file of files) {
+    const folder = sampleFolder(file.name)
+    const group = groups.get(folder)
+    if (group) group.push(file)
+    else groups.set(folder, [file])
+  }
+  return [...groups.keys()]
+    .sort(byFileName)
+    .map((folder) => ({ folder, ...resolveRoots(groups.get(folder) as SampleFile[], opts) }))
+}

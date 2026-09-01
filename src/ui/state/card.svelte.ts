@@ -47,7 +47,14 @@ class Card {
   saveName = $state('')
   busy = $state<string | null>(null)
   progress = $state(0)
+  /**
+   * The last verified save, in words. A save closes the panel, so this line is
+   * shown by the page rather than by the panel that earned it (`App.svelte`)
+   * and takes itself away again — a confirmation is worth reading once, not
+   * for the rest of the session.
+   */
   saved = $state<string | null>(null)
+  private savedTimer: ReturnType<typeof setTimeout> | null = null
   error = $state<string | null>(null)
   /** Path armed for overwrite: the first Save click on an existing name only arms. */
   armed = $state<string | null>(null)
@@ -92,7 +99,7 @@ class Card {
   })
 
   /**
-   * The panel is one browser with two intents, chosen by which top-bar
+   * The dialog is one browser with two intents, chosen by which top-bar
    * button opened it: in `open` mode clicking a file loads it; in `save`
    * mode clicking a file picks it as the save target (name filled,
    * overwrite armed) — the two gestures a mixed-mode panel confused.
@@ -101,11 +108,12 @@ class Card {
   /** Open-mode discard guard: the file whose first click is awaiting a confirming second. */
   armedLoad = $state<string | null>(null)
 
+  /**
+   * Open the browser in one intent or the other. The button that opened it
+   * used to double as its close; it is a modal now, so the button is behind
+   * the veil and the × and Escape do that instead.
+   */
   openPanel(mode: 'open' | 'save'): void {
-    if (this.open && this.mode === mode) {
-      this.open = false // the active mode's button doubles as its close
-      return
-    }
     this.mode = mode
     this.armedLoad = null
     this.armed = null
@@ -115,6 +123,25 @@ class Card {
 
   close(): void {
     this.open = false
+  }
+
+  /** How long the save confirmation stays on the page. */
+  private static readonly SAVED_FOR = 8000
+
+  private announce(message: string): void {
+    this.clearSaved()
+    this.saved = message
+    this.savedTimer = setTimeout(() => {
+      this.saved = null
+      this.savedTimer = null
+    }, Card.SAVED_FOR)
+  }
+
+  /** Take the confirmation down now — any new card work supersedes it. */
+  private clearSaved(): void {
+    if (this.savedTimer !== null) clearTimeout(this.savedTimer)
+    this.savedTimer = null
+    this.saved = null
   }
 
   /**
@@ -236,7 +263,7 @@ class Card {
   pickSaveTarget(name: string): void {
     this.saveName = name
     this.armed = this.join(name)
-    this.saved = null
+    this.clearSaved()
     this.error = null
   }
 
@@ -281,13 +308,17 @@ class Card {
       // now. With another editor on the same Deluge, its next `open` for
       // write truncates whatever it names, so a verified save is not a
       // durable one (issue #8).
-      this.saved = this.otherEditor ? `${written} — another editor is also on this Deluge and could overwrite it` : written
+      this.announce(this.otherEditor ? `${written} — another editor is also on this Deluge and could overwrite it` : written)
       // The verified card copy is the new clean baseline: the Changes dock
       // reads 0 against the file just written, and open mode's discard
       // guard won't arm over work that is already safe.
       editor.source = editor.output
       editor.fileName = name
       await this.list()
+      // The file is written and verified: the browser has done its job and
+      // gets out of the way, as loading one does. The confirmation outlives
+      // it on the page.
+      this.open = false
     })
   }
 
@@ -362,7 +393,7 @@ class Card {
   private async run(label: string, fn: () => Promise<void>): Promise<void> {
     this.busy = label
     this.progress = 0
-    this.saved = null
+    this.clearSaved()
     this.error = null
     try {
       await fn()

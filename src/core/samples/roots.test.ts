@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { discardsFileRoots, fitOffset, parseNoteName, resolveRoots } from './roots'
+import { discardsFileRoots, fitOffset, parseNoteName, resolveRoots, resolveRootsByFolder, sampleFolder } from './roots'
 
 const cents = (note: number) => note * 100
 
@@ -155,5 +155,60 @@ describe('resolveRoots', () => {
   it('orders rows by file name, counting numbers as numbers', () => {
     const plan = resolveRoots(named('layer10 C4.wav', 'layer2 C3.wav'))
     expect(plan.rows.map((r) => r.name)).toEqual(['layer2 C3.wav', 'layer10 C4.wav'])
+  })
+})
+
+describe('resolveRootsByFolder', () => {
+  it('splits a set by the folder each file sits in, in folder-name order', () => {
+    const plans = resolveRootsByFolder([
+      { name: 'SAMPLES/Rhodes/C3.wav' },
+      { name: 'SAMPLES/Piano/C3.wav' },
+      { name: 'SAMPLES/Piano/D3.wav' },
+    ])
+    expect(plans.map((p) => [p.folder, p.rows.length])).toEqual([
+      ['SAMPLES/Piano', 2],
+      ['SAMPLES/Rhodes', 1],
+    ])
+  })
+
+  it('keeps one folder’s discarded tags from deciding another folder’s roots', () => {
+    // Piano is the lazy-exporter case — every file tagged C3, so its tags go
+    // and its names carry it. Rhodes tags two files honestly. Pooled, the
+    // discard check would see roots that differ and keep Piano's bad tags.
+    const plans = resolveRootsByFolder([
+      { name: 'SAMPLES/Piano/C3.wav', fileRoot: cents(60) },
+      { name: 'SAMPLES/Piano/E3.wav', fileRoot: cents(60) },
+      { name: 'SAMPLES/Rhodes/C3.wav', fileRoot: cents(48) },
+      { name: 'SAMPLES/Rhodes/E3.wav', fileRoot: cents(52) },
+    ])
+    const [piano, rhodes] = plans
+    expect(piano.discardedFileRoots).toBe(true)
+    expect(piano.rows.map((r) => [r.root, r.from])).toEqual([
+      [cents(60), 'name'],
+      [cents(64), 'name'],
+    ])
+    expect(rhodes.discardedFileRoots).toBe(false)
+    expect(rhodes.rows.map((r) => r.from)).toEqual(['file', 'file'])
+  })
+
+  it('fits each folder’s naming convention on its own', () => {
+    // One library names middle C as C4 and one as C3; a single offset over
+    // both would put one of them an octave out.
+    const plans = resolveRootsByFolder([
+      { name: 'SAMPLES/Salamander/C4.wav', fileRoot: cents(60) },
+      { name: 'SAMPLES/Salamander/D4.wav' },
+      { name: 'SAMPLES/Straight/C3.wav', fileRoot: cents(60) },
+      { name: 'SAMPLES/Straight/D3.wav' },
+    ])
+    expect(plans.map((p) => [p.folder, p.offset, p.offsetFrom])).toEqual([
+      ['SAMPLES/Salamander', -12, 'anchors'],
+      ['SAMPLES/Straight', 0, 'anchors'],
+    ])
+    expect(plans.map((p) => p.rows[1].root)).toEqual([cents(62), cents(62)])
+  })
+
+  it('treats a file with no folder as its own group', () => {
+    expect(sampleFolder('C3.wav')).toBe('')
+    expect(resolveRootsByFolder([{ name: 'C3.wav' }]).map((p) => p.folder)).toEqual([''])
   })
 })

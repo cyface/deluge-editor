@@ -15,21 +15,26 @@
  */
 import { beforeEach, describe, expect, it } from 'vitest'
 import synthTemplate from '../../assets/templates/Default Synth.XML?raw'
-import { sampleRanges } from '../../core/preset/ranges'
+import { removeRange, sampleRanges, setRangeFileName } from '../../core/preset/ranges'
 import { osc as oscOf } from '../../core/preset/sound'
 import type { SoundElement } from '../../core/preset/types'
 import { editor } from './editor.svelte'
 import { multisample as ms } from './multisample.svelte'
 import { samples } from './samples.svelte'
 
-/** A minimal 16-bit mono WAV of `frames` frames at 44.1 kHz. */
-function wav(frames: number): Uint8Array {
+/**
+ * A minimal 16-bit mono WAV of `frames` frames at 44.1 kHz, optionally
+ * declaring `root` as its MIDI unity note in a `smpl` chunk — the strongest
+ * signal in the cascade, and the one a file name can't stand in for.
+ */
+function wav(frames: number, root?: number): Uint8Array {
   const data = frames * 2
-  const b = new Uint8Array(44 + data)
+  const smpl = root === undefined ? 0 : 44
+  const b = new Uint8Array(44 + data + smpl)
   const view = new DataView(b.buffer)
   const ascii = (at: number, s: string) => [...s].forEach((c, i) => (b[at + i] = c.charCodeAt(0)))
   ascii(0, 'RIFF')
-  view.setUint32(4, 36 + data, true)
+  view.setUint32(4, 36 + data + smpl, true)
   ascii(8, 'WAVEfmt ')
   view.setUint32(16, 16, true)
   view.setUint16(20, 1, true)
@@ -40,11 +45,22 @@ function wav(frames: number): Uint8Array {
   view.setUint16(34, 16, true)
   ascii(36, 'data')
   view.setUint32(40, data, true)
+  if (root !== undefined) {
+    // `smpl` is 36 bytes: MIDIUnityNote is the fourth field, the loop count the eighth.
+    ascii(44 + data, 'smpl')
+    view.setUint32(48 + data, 36, true)
+    view.setUint32(52 + data + 12, root, true)
+  }
   return b
 }
 
-const drop = (...names: string[]) =>
-  names.map((relPath) => ({ relPath, file: new File([wav(4410) as BlobPart], relPath.split('/').pop() as string) }))
+/** A dropped folder. A name paired with a note gets that note in its header. */
+const drop = (...names: (string | [string, number])[]) =>
+  names.map((entry) => {
+    const relPath = typeof entry === 'string' ? entry : entry[0]
+    const root = typeof entry === 'string' ? undefined : entry[1]
+    return { relPath, file: new File([wav(4410, root) as BlobPart], relPath.split('/').pop() as string) }
+  })
 
 const osc1 = () => oscOf(editor.sound as SoundElement, 1)!
 const built = () => sampleRanges(osc1()).map((r) => [r.fileName?.split('/').pop(), r.topNote])
@@ -186,5 +202,106 @@ describe('shifting the whole instrument', () => {
     ms.shift(48)
     ms.shift(48)
     expect(ms.notice).toMatch(/end of the keyboard/)
+  })
+})
+
+describe('re-detecting the roots of ranges already there', () => {
+  const tops = () => sampleRanges(osc1()).map((r) => r.topNote)
+
+  /** A folder imported, then knocked an octave out, with the import's own row put away. */
+  async function octaveOut() {
+    await ms.addLocalFolder('Piano', drop('C3.wav', 'D3.wav', 'E3.wav'))
+    ms.shift(12)
+    ms.dismissSession()
+  }
+
+  it('proposes what would move, and writes nothing until it is applied', async () => {
+    await octaveOut()
+    expect(roots()).toEqual([72, 74, 76])
+    await ms.redetect(1)
+    expect(ms.plan?.changed).toBe(3)
+    expect(ms.plan?.rows.map((r) => [r.was / 100, (r.root as number) / 100, r.from])).toEqual([
+      [72, 60, 'name'],
+      [74, 62, 'name'],
+      [76, 64, 'name'],
+    ])
+    expect(roots()).toEqual([72, 74, 76])
+    ms.applyRedetect()
+    expect(roots()).toEqual([60, 62, 64])
+  })
+
+  it('never touches the boundaries, which are decisions rather than defects', async () => {
+    await octaveOut()
+    const before = tops()
+    await ms.redetect(1)
+    ms.applyRedetect()
+    expect(tops()).toEqual(before)
+  })
+
+  it('leaves the ranges alone when the proposal is turned down', async () => {
+    await octaveOut()
+    await ms.redetect(1)
+    ms.cancelRedetect()
+    expect(ms.plan).toBeNull()
+    expect(roots()).toEqual([72, 74, 76])
+  })
+
+  it('reads the note the WAV itself declares, over the one in its name', async () => {
+    await ms.addLocalFolder('Piano', drop(['C3.wav', 48], ['E3.wav', 52]))
+    expect(roots()).toEqual([48, 52])
+    ms.shift(-5)
+    ms.dismissSession()
+    await ms.redetect(1)
+    expect(ms.plan?.rows.map((r) => [(r.root as number) / 100, r.from])).toEqual([
+      [48, 'file'],
+      [52, 'file'],
+    ])
+  })
+
+  it('keeps a range nothing can place, rather than moving it somewhere', async () => {
+    await ms.addLocalFolder('Piano', drop('C3.wav', 'D3.wav', 'noise.wav'))
+    ms.assign('SAMPLES/Piano/noise.wav', 70)
+    ms.dismissSession()
+    await ms.redetect(1)
+    expect(ms.plan?.rows.map((r) => [r.base, r.from])).toEqual([
+      ['C3.wav', 'name'],
+      ['D3.wav', 'name'],
+      ['noise.wav', 'kept'],
+    ])
+    expect(ms.plan?.changed).toBe(0)
+    ms.applyRedetect()
+    expect(roots()).toEqual([60, 62, 70])
+    expect(ms.session?.kind).toBe('redetect')
+    expect(ms.session?.from['SAMPLES/Piano/noise.wav']).toBe('kept')
+  })
+
+  it('says so when the answer would leave the roots out of key order', async () => {
+    // What a repointed range looks like: the low band now holds the high
+    // sample. The proposal is right about each file and wrong as an
+    // instrument, which is worth saying before it is applied.
+    await ms.addLocalFolder('Piano', drop('C3.wav', 'G3.wav'))
+    setRangeFileName(osc1(), 0, 'SAMPLES/Piano/G3.wav')
+    setRangeFileName(osc1(), 1, 'SAMPLES/Piano/C3.wav')
+    ms.dismissSession()
+    await ms.redetect(1)
+    expect(ms.plan?.rows.map((r) => (r.root as number) / 100)).toEqual([67, 60])
+    expect(ms.plan?.disordered).toBe(true)
+  })
+
+  it('refuses to write onto ranges that changed while it was on screen', async () => {
+    await octaveOut()
+    await ms.redetect(1)
+    removeRange(osc1(), 0)
+    ms.applyRedetect()
+    expect(ms.error).toMatch(/changed while/)
+    expect(ms.plan).toBeNull()
+    expect(roots()).toEqual([74, 76])
+  })
+
+  it('has nothing to read on an oscillator with no samples', async () => {
+    editor.load(synthTemplate, 'Test Synth.XML')
+    await ms.redetect(1)
+    expect(ms.plan).toBeNull()
+    expect(ms.error).toMatch(/no samples/)
   })
 })
