@@ -51,12 +51,24 @@
     startLoopPos: num(r?.zone?.attrs.startLoopPos),
     endLoopPos: num(r?.zone?.attrs.endLoopPos),
   })
+  /**
+   * A zero loop point is not a position — it means the marker isn't set. The
+   * voice falls back to the zone's own start and end when it loops
+   * (`loopStart = holder->loopStartPos ? … : holder->startPos`, and the same
+   * for the end, `model/voice/voice.cpp:2138-2139`, upstream/community beta),
+   * and the serializer omits the attribute rather than writing 0
+   * (`sound.cpp:3650-3655`). So say so, instead of printing a marker at 0.
+   */
+  const loopText = (start: number, end: number): string =>
+    `loop ${start || 'zone start'}–${end || 'zone end'}`
   const zoneText = (r: SampleRange): string => {
     const z = zoneOf(r)
     if (!r.zone) return '—'
     const play = `${z.startSamplePos}–${z.endSamplePos || 'end'}`
-    return z.startLoopPos || z.endLoopPos ? `${play} · loop ${z.startLoopPos}–${z.endLoopPos}` : play
+    return z.startLoopPos || z.endLoopPos ? `${play} · ${loopText(z.startLoopPos, z.endLoopPos)}` : play
   }
+  /** Zero in a loop field is the marker being off, not a position of zero. */
+  const loopFmt = (n: number): string => (n === 0 ? 'off' : String(n))
 
   /** Every zone write sends the whole zone: the writer omits the loop points when they are zero, as the firmware does. */
   function setZone(field: 'startSamplePos' | 'endSamplePos' | 'startLoopPos' | 'endLoopPos', v: number) {
@@ -253,8 +265,8 @@
       <NumberField label="Zone Start" name="range.startSamplePos" value={current.zone?.attrs.startSamplePos} min={0} max={2147483647} fallback={0} onchange={(v) => setZone('startSamplePos', v)} />
       <!-- The firmware reads a zero end as the whole file (`SampleHolder::setAudioFile`). -->
       <NumberField label="Zone End" name="range.endSamplePos" value={current.zone?.attrs.endSamplePos} min={0} max={2147483647} fallback={0} format={(n) => (n === 0 ? 'whole file' : String(n))} onchange={(v) => setZone('endSamplePos', v)} />
-      <NumberField label="Loop Start" name="range.startLoopPos" value={current.zone?.attrs.startLoopPos} min={0} max={2147483647} fallback={0} onchange={(v) => setZone('startLoopPos', v)} />
-      <NumberField label="Loop End" name="range.endLoopPos" value={current.zone?.attrs.endLoopPos} min={0} max={2147483647} fallback={0} onchange={(v) => setZone('endLoopPos', v)} />
+      <NumberField label="Loop Start" name="range.startLoopPos" value={current.zone?.attrs.startLoopPos} min={0} max={2147483647} fallback={0} format={loopFmt} onchange={(v) => setZone('startLoopPos', v)} />
+      <NumberField label="Loop End" name="range.endLoopPos" value={current.zone?.attrs.endLoopPos} min={0} max={2147483647} fallback={0} format={loopFmt} onchange={(v) => setZone('endLoopPos', v)} />
     </div>
   {/if}
 
