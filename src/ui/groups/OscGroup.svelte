@@ -3,15 +3,18 @@
     OSC_ATTR_ORDER, MODULATOR_ATTR_ORDER, SOUND_ATTR_ORDER, SOUND_CHILD_ORDER, SOUND_PARAM_ATTRS,
     type OscElement, type SoundElement,
   } from '../../core/preset'
+  import { sampleRanges, soundingOrder } from '../../core/preset/ranges'
   import { ensureParams, osc, params } from '../../core/preset/sound'
   import { degreesToRetrig, retrigToDegrees } from '../../core/params/scale'
   import { child, childrenOf, ensureChild, setAttr } from '../../core/xml'
   import HexKnob from '../controls/HexKnob.svelte'
+  import KeyMap from '../controls/KeyMap.svelte'
   import NumberField from '../controls/NumberField.svelte'
   import Select from '../controls/Select.svelte'
   import Toggle from '../controls/Toggle.svelte'
   import { loopModeOptions, oscTypeOptions, synthModeOptions } from '../options'
   import { editor } from '../state/editor.svelte'
+  import { ranges as rangeEditor } from '../state/ranges.svelte'
 
   interface Props { sound: SoundElement }
   let { sound }: Props = $props()
@@ -21,15 +24,15 @@
   const P = () => ensureParams(sound)
   const retrigFmt = (n: number) => (n < 0 ? 'off' : `${n}°`)
 
-  function rangeFiles(o: OscElement | undefined): string[] {
-    if (!o) return []
-    const s = child(o, 'sampleRanges')
-    const w = child(o, 'wavetableRanges')
-    return [
-      ...(s ? childrenOf(s, 'sampleRange').map((r) => r.attrs.fileName ?? '?') : []),
-      ...(w ? childrenOf(w, 'wavetableRange').map((r) => r.attrs.fileName ?? '?') : []),
-    ]
+  /**
+   * A wavetable oscillator's ranges, which this editor reads but does not
+   * write; sample ranges get the key map and the editor below (issue #29).
+   */
+  function wavetableFiles(o: OscElement | undefined): string[] {
+    const w = o ? child(o, 'wavetableRanges') : undefined
+    return w ? childrenOf(w, 'wavetableRange').map((r) => r.attrs.fileName ?? '?') : []
   }
+  const shortName = (f: string | undefined): string => (f ?? '').split('/').pop() ?? ''
   const label = ['', 'A', 'B'] as const
   const attr = (n: 1 | 2, s: string) => `osc${label[n]}${s}` as (typeof SOUND_PARAM_ATTRS)[number]
 </script>
@@ -88,11 +91,35 @@
       <div class="f"><span class="lbl">Interp.</span><Toggle label="Linear" name="osc{n}.linearInterpolation" value={o?.attrs.linearInterpolation} onchange={(v) => setAttr(ensureOsc(n)(), 'linearInterpolation', v, OSC_ATTR_ORDER)} /></div>
     </div>
   {/if}
-  {#if o?.attrs.fileName !== undefined}
-    <div class="fields"><div class="f"><span class="lbl">File</span><div class="ro" title={o.attrs.fileName}>{o.attrs.fileName || '(none)'}</div></div></div>
+  {#if type === 'sample' && o}
+    <!-- Every range, not just the first: a multi-sample oscillator's key map
+         is the only place its boundaries are legible. Clicking a band opens
+         the range editor on that range. -->
+    {@const list = soundingOrder(sampleRanges(o))}
+    <div class="fields">
+      <div class="f">
+        <span class="lbl">{list.length === 1 ? 'Sample' : `${list.length} samples`}</span>
+        <div class="ro" title={list.map((r) => r.fileName ?? '(no file)').join('\n')}>
+          {list.map((r) => shortName(r.fileName) || '(none)').join(' · ') || '(none)'}
+        </div>
+      </div>
+    </div>
+    {#if list.length}
+      <KeyMap
+        ranges={list}
+        compact
+        selected={rangeEditor.openOn === n ? rangeEditor.index : -1}
+        onselect={(i) => { rangeEditor.open(n); rangeEditor.select(i) }}
+      />
+    {/if}
+    <div class="rangeact">
+      <button type="button" class="btn small" data-testid="edit-ranges-{n}" onclick={() => rangeEditor.toggle(n)}>
+        {rangeEditor.openOn === n ? 'Close ranges' : list.length > 1 ? 'Edit ranges' : 'Ranges…'}
+      </button>
+    </div>
   {/if}
-  {#if rangeFiles(o).length}
-    <div class="fields"><div class="f"><span class="lbl">{rangeFiles(o).length} ranges</span><div class="ro" title={rangeFiles(o).join('\n')}>{rangeFiles(o).map((f) => f.split('/').pop()).join(' · ')}</div></div></div>
+  {#if wavetableFiles(o).length}
+    <div class="fields"><div class="f"><span class="lbl">{wavetableFiles(o).length} wavetable ranges</span><div class="ro" title={wavetableFiles(o).join('\n')}>{wavetableFiles(o).map(shortName).join(' · ')}</div></div></div>
   {/if}
   {#if type === 'dx7'}
     <div class="fields">
@@ -128,5 +155,6 @@
 {/if}
 
 <style>
+  .rangeact { display: flex; gap: 6px; margin: 8px 0 0 4px; }
   .lbl { font-family: var(--cond); font-size: 10px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
 </style>

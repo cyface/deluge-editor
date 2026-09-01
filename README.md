@@ -50,6 +50,10 @@ model. Controls are shown for the firmware in the top-right pill (defaulting
 to the loaded file's) and a control that firmware can't honour is simply not
 there. **Changes** lists every value that differs from the file you opened.
 
+A sample oscillator with more than one sample opens a **range editor** the
+width of the page: the key zones as bands across the keyboard, with the splits
+draggable, plus root note, tuning and zone for whichever range is selected.
+
 The test that matters is the round-trip: parse a Deluge-authored preset,
 generate it back, and compare *flattened path → value maps*. Zero values lost,
 changed, or added; second save byte-identical to the first. Fixtures live in

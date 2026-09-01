@@ -8,9 +8,11 @@
   import KitRows from './KitRows.svelte'
   import Oled from './Oled.svelte'
   import Overview from './Overview.svelte'
+  import RangeEditor from './RangeEditor.svelte'
   import TopBar from './TopBar.svelte'
   import { collectDroppedSamples } from './dropdir'
   import { editor } from './state/editor.svelte'
+  import { ranges as rangeEditor } from './state/ranges.svelte'
   import { kit as kitBuilder } from './state/kit.svelte'
 
   let dragging = $state(false)
@@ -90,6 +92,9 @@
     {#if kit}<KitBuilder /><KitRows />{/if}
     {#if editor.sound}
       <FlowStrip sound={editor.sound} />
+      <!-- The range editor is as wide as the page: 70 key bands don't fit a
+           masonry column, and the map is the point of it (issue #29). -->
+      {#if rangeEditor.osc}<RangeEditor />{/if}
       <Overview sound={editor.sound} {kit} />
     {/if}
   {:else}

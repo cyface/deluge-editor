@@ -257,6 +257,33 @@ Two consequences worth naming:
   from that fork build rather than copied off the card, because the card's
   velocity kits turn out to be computer-written; see `tests/fixtures/SOURCES.md`.
 
+## The range editor is as wide as the page
+
+Every other section is a masonry panel a few hundred pixels wide. The range
+editor is not: its point is the **key map**, and a violin patch with seventy
+key zones needs the whole page before the bands are anything but stripes. So
+the oscillator panel keeps a thumbnail map and a button, and the editor itself
+opens full width between the flow strip and the panels (`RangeEditor.svelte`).
+The map's arithmetic is pure and tested in Node (`src/ui/keymap.ts`), including
+what a band can say at a given width — span and sample, sample alone, span
+alone, or nothing.
+
+Three things follow from the model rather than from taste:
+
+- **Root note is a field; `transpose`/`cents` are not.** The file already
+  carries the root losslessly (`root = 60 - transpose - cents / 100`), so the
+  editor shows and writes the root and stores nothing extra — no sidecar, no
+  editor-only attribute the device's next save would drop. The stored pair is
+  still shown, in the list, because a preset can carry deliberate detuning.
+- **A range given a new sample gets a fresh zone.** The old `endSamplePos`
+  belongs to the old file's length. Browsing the card reads the new WAV's
+  header over SysEx for its frame count; a path typed by hand writes
+  `endSamplePos="0"`, which the firmware reads as the whole file
+  (`SampleHolder::setAudioFile`).
+- **Dragging a split reports the note under the pointer and nothing more.**
+  Every clamp is the instrument's, in `setRangeTopNote`, so no gesture on the
+  map can ask for a file the Deluge would refuse to load.
+
 ## New starts from a Deluge-authored template, not a built preset
 
 There is no code that "builds" a default preset. The New Synth button loads

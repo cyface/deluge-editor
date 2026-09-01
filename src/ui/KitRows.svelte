@@ -6,6 +6,7 @@
    */
   import { moveRow, removeRow, renameRow } from '../core/kit/build'
   import { LOOP_MODE_NAMES, OSC_ATTR_ORDER, type DrumRow, type KitElement, type OscElement } from '../core/preset'
+  import { sampleRanges, soundingOrder } from '../core/preset/ranges'
   import { osc, paramMenu, setParamMenu } from '../core/preset/sound'
   import { child } from '../core/xml'
   import { MIDI_OUTPUT_ATTR_ORDER } from '../core/preset'
@@ -36,8 +37,11 @@
     const o = osc(r, 1)
     const t = o?.attrs.type ?? 'square' // Source ctor default survives load (source.cpp:41)
     if (t === 'sample') {
-      const file = o?.attrs.fileName ?? child(o!, 'sampleRanges')?.children[0]?.attrs.fileName ?? ''
-      return file || '(no file)'
+      // A multi-sample row says so: the first file alone reads as if the row
+      // held one sample (issue #29). The key map is in the oscillator panel.
+      const files = o ? sampleRanges(o).map((s) => s.fileName ?? '(no file)') : []
+      if (files.length === 0) return '(no file)'
+      return files.length === 1 ? files[0] : `${files.length} samples · ${files[0]}`
     }
     return `${r.attrs.mode ?? 'subtractive'} · ${t}`
   }
@@ -53,7 +57,8 @@
     if (!isSoundRow(r)) return undefined
     const o = osc(r, 1)
     if (o?.attrs.type !== 'sample') return undefined
-    return o.attrs.fileName || child(o, 'sampleRanges')?.children[0]?.attrs.fileName || undefined
+    // The lowest range's sample stands for the row: the pad plays it first.
+    return soundingOrder(sampleRanges(o))[0]?.fileName || undefined
   }
 
   const vol = (r: DrumRow) => (isSoundRow(r) ? (paramMenu(r, 'volume') ?? '') : '')
