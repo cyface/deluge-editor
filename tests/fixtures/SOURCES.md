@@ -81,6 +81,46 @@ the firmware still reads. Three files, Synthstrom's content.
 | `Nested FM No Version.XML` | `049 Basic FM.XML` | old-format FM with `<modulator1/2>`; March 2017 file with **no** `firmwareVersion` anywhere |
 | `Nested Sample Ranges.XML` | `170 Sitar.XML` | old-format multisample (`<sampleRanges>`), written by 2.1.0 |
 
+## `fork-c1.3.0-local-fixes-fbba6b4f/` — DelugEmu, Tim's fork build
+
+**Not stock firmware.** Written by `build/Release/deluge.bin` from
+`~/WebstormProjects/DelugeFirmwareTW`, branch `local-fixes` at commit
+`fbba6b4f` (2026-08-31), which reports `firmwareVersion="c1.3.0"` like the
+community build it tracks. It exists for one feature the community firmware
+does not have: **Drum Velocity Layers**
+(`SETTINGS/CommunityFeatures.XML`, `drumVelocityLayers="1"`). With it on, a
+drum row's ranges are keyed by velocity and the serializer writes
+`rangeTopVelocity` where it otherwise writes `rangeTopNote`
+(`Sound::writeSourceToFile`, sound.cpp:3618; the reader accepts either name,
+sound.cpp:3523).
+
+The editor does not model the feature and never will on this evidence — it is
+one fork's, not the format's. The fixture is here so that *passing such a file
+through untouched* is tested against a file the firmware really wrote instead
+of against our idea of one (`src/core/preset/ranges.test.ts`,
+`tests/e2e/ranges.spec.ts`).
+
+| File | Input the firmware loaded | Covers |
+|---|---|---|
+| `Kit Velocity Layers.XML` | the first two rows of Tim's `KITS/Tim/Virtuosity Drums.XML`, with the sample paths pointed at `SAMPLES/Fixtures/vel-{kick,snare}-N.wav` (12 generated WAVs of distinct lengths, so every zone end differs) | a `<kit>` whose drum rows key their ranges by velocity — 4 layers and 8 layers, `rangeTopVelocity` on all but the last of each |
+
+The input was assembled on the emulator's card as `KITS/Velocity Layers.XML`
+and captured with the usual command:
+
+```sh
+python3 .claude/skills/deluge-fixtures/emu_fixtures.py \
+  --fw ~/WebstormProjects/DelugeFirmwareTW/build/Release/deluge.bin \
+  --out tests/fixtures/fork-c1.3.0-local-fixes-fbba6b4f 'kit:KITS/Velocity Layers.XML'
+```
+
+Worth knowing about the *input*: the card kits that use velocity layers
+(`KITS/Tim/Crocell Kit.XML`, `KITS/Tim/Virtuosity Drums.XML`) were written by
+a computer, not by a Deluge — 2026 file dates, single-line `<zone>` elements,
+and pre-3.0 nested `<defaultParams>` mixed with attribute-style `<sound>`,
+which the firmware's serializer never emits. Only songs the device re-saved
+(`SONGS/Tim/Kaunaz 2.XML` and friends, 1969 stamps) carry firmware-written
+velocity ranges. Hence the capture: the fixture had to be made, not copied.
+
 ## Not covered
 
 - **Official 4.1.x** — no 4.1.x-written file exists on this machine and there
