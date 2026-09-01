@@ -72,6 +72,35 @@ export const OSC_ATTR_ORDER = [
   'dx7randomdetune',
 ] as const
 
+/**
+ * A sample oscillator carrying the one range the firmware flattens onto it
+ * writes `fileName` *before* `transpose` and `cents` (sound.cpp:3595-3631),
+ * the opposite way round from every other oscillator type, which writes
+ * transpose and cents and has no `fileName` at all (or, for wavetable, writes
+ * it after `retrigPhase`). Hence a second table rather than one order for
+ * `<osc1>`/`<osc2>`.
+ */
+export const SAMPLE_OSC_ATTR_ORDER = [
+  'type',
+  'loopMode',
+  'reversed',
+  'timeStretchEnable',
+  'timeStretchAmount',
+  'linearInterpolation',
+  'fileName',
+  'transpose',
+  'cents',
+] as const
+
+export const OSC_CHILD_ORDER = ['zone', 'sampleRanges', 'wavetableRanges'] as const
+
+/**
+ * A `<sampleRange>`'s attributes, then its `<zone>` child
+ * (`Sound::writeSourceToFile`, sound.cpp:3612-3648). `rangeTopNote` is written
+ * for every range but the last, `transpose` and `cents` only when non-zero.
+ */
+export const SAMPLE_RANGE_ATTR_ORDER = ['rangeTopNote', 'fileName', 'transpose', 'cents'] as const
+
 export const LFO_ATTR_ORDER = ['type', 'syncLevel', 'syncType'] as const
 /** `Sound::writeSourceToFile` writes the zone's loop points only when set (sound.cpp:3670-3677). */
 export const ZONE_ATTR_ORDER = ['startSamplePos', 'endSamplePos', 'startLoopPos', 'endLoopPos'] as const

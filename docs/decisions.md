@@ -219,6 +219,44 @@ a dependency — and all metadata (author, licensing, source) goes in the
 README, never into the kit XML, so the packaged kit stays byte-identical to
 the saved one.
 
+## A range edit writes the file the instrument would have written
+
+The multisample range list (`src/core/preset/ranges.ts`) is one list whichever
+of the two shapes a file uses: the `<sampleRanges>` array, or the single range
+the firmware flattens onto the `<osc>` itself. Which shape gets written follows
+the count, the way the serializer's own `numRanges > 1` does, so adding a
+second sample or deleting back down to one moves `fileName`/`transpose`/`cents`
+and the `<zone>` across on its own.
+
+Every write then holds the invariants the firmware's reader and writer require
+together: top notes strictly ascending and unique (a duplicate is
+`Error::FILE_CORRUPTED` and the whole preset fails to load), exactly one range
+without a `rangeTopNote` and it is the last, never the literal 32767 the
+absent attribute means, and every range at least one note wide. The bounds an
+edit clamps to are the instrument's own (`MultiRange::selectEncoderAction`),
+as are the splits an insert makes and the space a delete hands back.
+
+Two consequences worth naming:
+
+- Ranges are **reordered on the first edit, never on load**. The firmware's
+  reader inserts them sorted whatever order the file listed them in, so
+  document order carries no information — but leaving a file out of order
+  would make it differ from the one the instrument writes. A well-formed
+  preset is untouched: on the 769 presets of a real card backup, normalising
+  changes only 11, all written by some other tool, all of them carrying a
+  redundant `rangeTopNote` on the topmost range that the instrument itself
+  drops when it re-saves.
+- **Velocity-keyed ranges are passed through, not edited.** Stock firmware
+  keys ranges by note and writes `rangeTopNote` only; a fork that adds
+  velocity layers to drum rows writes `rangeTopVelocity` in its place, and
+  those files are on real cards. Such a range has no top *note*, so ordering
+  or repairing it would invent bounds the file never had. `isVelocityKeyed`
+  makes every write refuse and the ranges come back out untouched — the same
+  answer pass-through gives everything else the editor does not model. The
+  fixture that proves it (`fork-c1.3.0-local-fixes-fbba6b4f/`) was captured
+  from that fork build rather than copied off the card, because the card's
+  velocity kits turn out to be computer-written; see `tests/fixtures/SOURCES.md`.
+
 ## New starts from a Deluge-authored template, not a built preset
 
 There is no code that "builds" a default preset. The New Synth button loads
