@@ -85,13 +85,17 @@
   >
     {#if card.status === 'connected'}<span class="dot" class:pulse={!!card.busy}></span>{/if}Save to Deluge
   </button>
+  <span class="sep" aria-hidden="true" data-testid="bar-sep"></span>
   <button type="button" class="btn" title="Start a new synth from the Deluge's own init preset" data-testid="new-synth" onclick={() => editor.newSynth()}>New Synth</button>
   <button type="button" class="btn" title="Start a kit from the Deluge's own blank kit — then drop a folder of WAVs on the page" data-testid="new-kit" onclick={() => editor.newKit()}>New Kit</button>
+  <span class="sep" aria-hidden="true" data-testid="bar-sep"></span>
   <button type="button" class="btn" title="Open a preset XML from this computer" onclick={() => fileInput?.click()}>Open File</button>
+  <span class="sep" aria-hidden="true" data-testid="bar-sep"></span>
   <button type="button" class="btn" disabled={!editor.preset} title="Just the preset file being edited" onclick={download}>Download XML</button>
   {#if showZip}
     <button type="button" class="btn" data-testid="download-zip-top" title="Preset + samples + README, ready to share{editor.preset?.tag === 'kit' ? ' — credits are set in the Share section below' : ''}" onclick={() => kit.downloadZip()}>Download Zip</button>
   {/if}
+  <span class="sep" aria-hidden="true" data-testid="bar-sep"></span>
   <button type="button" class="btn" class:on={editor.showChanges} disabled={!editor.preset} data-testid="changes-button" onclick={() => (editor.showChanges = !editor.showChanges)}>
     Changes {#if editor.preset}<span class="badge" data-testid="change-count">{editor.changeCount}</span>{/if}
   </button>
@@ -112,6 +116,19 @@
   .pill { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 6px 0 10px; border-radius: 12px; border: 1px solid #2f4a2c; background: #0e1410; flex: none; }
   /* Locked to the connected device: same face as the select, but it is just text. */
   .pill .fw { color: #a9d9a1; font-family: var(--cond); font-size: 12px; letter-spacing: .09em; text-transform: uppercase; }
+  /*
+   * The kinds of action in the bar — the Deluge over MIDI, starting from a
+   * template, opening from this computer, downloads, changes — read as one
+   * undifferentiated row at a single uniform gap (issue #34). Presentational
+   * only: aria-hidden, no `<hr>`, nothing to tab to. `--edge-hi` rather than
+   * `--edge` so the line is at least as bright as the button borders either
+   * side of it; at `--edge` it sits below them and reads as grime.
+   *
+   * The negative margin pulls back most of the second gap a flex child costs,
+   * so a divider spends about 6px of the bar rather than 14 — the name is the
+   * flex child that pays for it.
+   */
+  .sep { flex: none; width: 1px; height: 19px; margin: 0 -4px; background: var(--edge-hi); }
   .btn .dot { display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: 50%; background: #67c45c; box-shadow: 0 0 6px #67c45c; vertical-align: 1px; }
   /* A transfer is running (even with the panel closed): amber, pulsing. */
   .btn .dot.pulse { background: #e8b06a; box-shadow: 0 0 6px #e8b06a; animation: cardbusy 1s ease-in-out infinite; }

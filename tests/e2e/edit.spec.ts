@@ -218,3 +218,36 @@ test('a dropped file over a loaded preset asks before replacing it', async ({ pa
   await expect(page.getByTestId('file-name')).toHaveText('Other.XML')
   await expect(page.getByTestId('change-count')).toHaveText('0')
 })
+
+test('the top bar’s buttons are grouped by dividers that stay put (issue #34)', async ({ page }) => {
+  await page.goto('/')
+  await page.getByTestId('file-input').setInputFiles(FIXTURE)
+
+  // Four dividers cut the eight buttons into five groups: the Deluge over MIDI,
+  // starting from a template, opening from this computer, downloads, changes.
+  const seps = page.getByTestId('bar-sep')
+  await expect(seps).toHaveCount(4)
+  const groups = async () =>
+    page.locator('.bar').evaluate((bar) =>
+      [...bar.children]
+        .filter((el) => el.tagName === 'BUTTON' || el.dataset.testid === 'bar-sep')
+        .map((el) => (el.dataset.testid === 'bar-sep' ? '|' : (el.textContent ?? '').trim()))
+        .join(' '),
+    )
+  expect(await groups()).toBe(
+    'Open from Deluge Save to Deluge | New Synth New Kit | Open File | Download XML | Changes 0',
+  )
+
+  // Download Zip is conditional, so the last divider has to live outside it:
+  // a kit grows a button in that group and the divider does not move.
+  await page.getByTestId('new-kit').click()
+  await expect(page.getByTestId('download-zip-top')).toBeVisible()
+  await expect(seps).toHaveCount(4)
+  expect(await groups()).toBe(
+    'Open from Deluge Save to Deluge | New Synth New Kit | Open File | Download XML Download Zip | Changes 0',
+  )
+
+  // A divider is a drawn line, nothing more: not announced, not reachable.
+  for (const sep of await seps.all()) await expect(sep).toHaveAttribute('aria-hidden', 'true')
+  await expect(page.locator('.bar [data-testid="bar-sep"][tabindex]')).toHaveCount(0)
+})
