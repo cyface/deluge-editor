@@ -10,12 +10,14 @@
   import Oled from './Oled.svelte'
   import Overview from './Overview.svelte'
   import RangeEditor from './RangeEditor.svelte'
+  import SamplePicker from './SamplePicker.svelte'
   import TopBar from './TopBar.svelte'
   import { collectDroppedSamples } from './dropdir'
   import { editor } from './state/editor.svelte'
   import { ranges as rangeEditor } from './state/ranges.svelte'
   import { kit as kitBuilder } from './state/kit.svelte'
   import { multisample } from './state/multisample.svelte'
+  import { samplePick } from './state/samplepick.svelte'
   import { samples as stash } from './state/samples.svelte'
 
   let dragging = $state(false)
@@ -71,10 +73,11 @@
   ondragover={(e) => { e.preventDefault(); dragging = true }}
   ondragleave={() => (dragging = false)}
   ondrop={drop}
-  onkeydown={(e) => { if (e.key === 'Escape') { confirmDrop = null; if (multisample.open) multisample.cancel() } }}
+  onkeydown={(e) => { if (e.key === 'Escape') { confirmDrop = null; if (multisample.open) multisample.cancel(); if (samplePick.open) samplePick.cancel() } }}
 />
 
 {#if multisample.open}<FolderImport />{/if}
+{#if samplePick.open}<SamplePicker />{/if}
 
 {#if confirmDrop}
   <div class="veil" role="alertdialog" aria-label="Replace the loaded preset?" data-testid="drop-confirm">

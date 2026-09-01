@@ -85,9 +85,11 @@ test('read, move, remove and split a multi-sample oscillator (issue #29)', async
   await page.getByTestId('changes-button').click()
 
   // Splitting it puts a new sample below, dividing the keyboard at the midpoint.
+  // The file is chosen in the shared dialog — here by the path it will store,
+  // which is the way in with no Deluge plugged in.
   await editor.getByTestId('range-split-below').click()
-  await editor.getByTestId('range-pick-path-input').fill('SAMPLES/Fixtures/range-low.wav')
-  await editor.getByTestId('range-pick-use').click()
+  await page.getByTestId('sample-path-input').fill('SAMPLES/Fixtures/range-low.wav')
+  await page.getByTestId('sample-path-use').click()
   const after = editor.locator('[data-range]')
   await expect(after).toHaveCount(2)
   await expect(after.nth(0)).toContainText('up to D#3') // note 63, the midpoint of 0..127
@@ -150,9 +152,11 @@ test('assign a range a sample browsed on the card, zone and all', async ({ page 
 
   const editor = page.getByTestId('range-editor')
   await editor.getByTestId('range-change').click()
-  await expect(editor.getByTestId('range-pick-path')).toHaveText('/SAMPLES')
-  await editor.locator('.entry', { hasText: 'Fixtures' }).click()
-  await editor.locator('.entry', { hasText: 'kick.wav' }).click()
+  // Connected already, so the dialog opens on the card rather than asking twice.
+  const picker = page.getByTestId('sample-picker')
+  await expect(picker.getByTestId('sample-card-browser')).toContainText('/SAMPLES')
+  await picker.locator('.entry', { hasText: 'Fixtures' }).click()
+  await picker.locator('.entry', { hasText: 'kick.wav' }).click()
 
   // The new sample's own length becomes the zone: 32 frames, read from the
   // header over SysEx. The old file's end would have overrun it.
@@ -162,7 +166,7 @@ test('assign a range a sample browsed on the card, zone and all', async ({ page 
   await expect(editor.locator('[data-attr="range.endSamplePos"]')).toHaveValue('32')
 })
 
-test('in a kit the editor follows the selected row', async ({ page }) => {
+test('a one-sample kit row is offered its file, not a key map', async ({ page }) => {
   await page.goto('/')
   await page.getByTestId('file-input').setInputFiles(
     path.resolve('tests/fixtures/community-c1.3.0-beta-3f898e9/Kit Sample Rows.XML'),
@@ -172,14 +176,26 @@ test('in a kit the editor follows the selected row', async ({ page }) => {
   await expect(oscPanel).toContainText('Sample')
   await expect(oscPanel).toContainText('kick.wav')
 
+  // Every hit on a drum sounds the same note, so there are no key bands to
+  // show and no folder to import: the oscillator offers the one file.
+  await expect(page.getByTestId('edit-ranges-1')).toHaveCount(0)
+  await expect(page.getByTestId('build-multisample-1')).toHaveCount(0)
+  await expect(page.getByTestId('pick-sample-1')).toHaveText('Change sample…')
+})
+
+test('in a kit the layer editor follows the selected row', async ({ page }) => {
+  await page.goto('/')
+  await page.getByTestId('file-input').setInputFiles(
+    path.resolve('tests/fixtures/fork-c1.3.0-local-fixes-fbba6b4f/Kit Velocity Layers.XML'),
+  )
+  // Layered rows are the one kit case with more than one range to look at.
   await page.getByTestId('edit-ranges-1').click()
   const editor = page.getByTestId('range-editor')
-  await expect(editor.locator('[data-range]')).toHaveCount(1)
-  await expect(editor.locator('[data-range="0"]')).toContainText('kick.wav')
+  await expect(editor.locator('[data-range="0"]')).toContainText('vel-kick-1.wav')
 
-  // Selecting another pad edits that row's oscillator, in place.
+  // Selecting another pad shows that row's layers, in place.
   await page.locator('[data-testid="kit-rows"] tbody tr').nth(1).click()
-  await expect(editor.locator('[data-range="0"]')).toContainText('snare.wav')
+  await expect(editor.locator('[data-range="0"]')).toContainText('vel-snare-1.wav')
 })
 
 test('velocity-keyed drum rows are shown, and shown as read-only', async ({ page }) => {

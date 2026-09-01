@@ -1,7 +1,7 @@
 <script lang="ts">
   import {
     OSC_ATTR_ORDER, MODULATOR_ATTR_ORDER, SOUND_ATTR_ORDER, SOUND_CHILD_ORDER, SOUND_PARAM_ATTRS,
-    type OscElement, type SoundElement,
+    isKit, type OscElement, type SoundElement,
   } from '../../core/preset'
   import { sampleRanges, soundingOrder } from '../../core/preset/ranges'
   import { ensureParams, osc, params } from '../../core/preset/sound'
@@ -16,6 +16,7 @@
   import { editor } from '../state/editor.svelte'
   import { multisample } from '../state/multisample.svelte'
   import { ranges as rangeEditor } from '../state/ranges.svelte'
+  import { samplePick } from '../state/samplepick.svelte'
 
   interface Props { sound: SoundElement }
   let { sound }: Props = $props()
@@ -24,6 +25,16 @@
   const ensureMod = (n: 1 | 2) => () => ensureChild(sound, `modulator${n}`, SOUND_CHILD_ORDER)
   const P = () => ensureParams(sound)
   const retrigFmt = (n: number) => (n < 0 ? 'off' : `${n}°`)
+
+  /**
+   * Whether this sound is a kit row. A drum is one sound and one sample —
+   * every hit sounds `kNoteForDrum` (`processing/sound/sound_drum.cpp:65`,
+   * upstream/community bef6d9df) — so there is no key map to show and no
+   * folder to import: the panel offers the one file instead. Ranges already in
+   * such a file are a fork's velocity layers, which are shown but never
+   * written, so a row that has them keeps its way in to look at them.
+   */
+  const drum = $derived(editor.preset !== null && isKit(editor.preset))
 
   /**
    * A wavetable oscillator's ranges, which this editor reads but does not
@@ -35,6 +46,8 @@
   }
   const shortName = (f: string | undefined): string => (f ?? '').split('/').pop() ?? ''
   const label = ['', 'A', 'B'] as const
+  /** What the sample dialog says it is choosing for: the drum by name, else the oscillator. */
+  const sampleFor = (n: 1 | 2): string => (drum ? sound.attrs.name || 'this row' : `Osc ${label[n]}`)
   const attr = (n: 1 | 2, s: string) => `osc${label[n]}${s}` as (typeof SOUND_PARAM_ATTRS)[number]
 </script>
 
@@ -113,7 +126,10 @@
       <p class="caution" data-testid="osc-no-sample-{n}">
         This oscillator is set to Sample but has no sample — it will be silent on the Deluge.
       </p>
-    {:else}
+    {:else if list.length > 1}
+      <!-- Only where there are boundaries to read. One sample spans the whole
+           keyboard, so its map is a single band saying nothing the line above
+           doesn't. -->
       <KeyMap
         ranges={list}
         compact
@@ -121,22 +137,41 @@
         onselect={(i) => { rangeEditor.open(n); rangeEditor.select(i) }}
       />
     {/if}
+    <!-- One sample or a whole folder, side by side: the two ways a sample
+         oscillator is filled in. The single one is the only one a drum has —
+         every hit sounds the same note, so the key map would be a map of
+         nothing — and it stands down once there is more than one sample,
+         where "which of them" is the range editor's question. -->
     <div class="rangeact">
-      <button type="button" class="btn small" data-testid="edit-ranges-{n}" onclick={() => rangeEditor.toggle(n)}>
-        {rangeEditor.openOn === n ? 'Close ranges' : list.length > 1 ? 'Edit ranges' : 'Ranges…'}
-      </button>
-      <!-- A whole folder at once (issue #33): the panel reads the samples and
-           writes the ranges as it works them out. -->
-      <button type="button" class="btn small" data-testid="build-multisample-{n}" title="Rebuild this oscillator's ranges from a folder of samples" onclick={() => multisample.start(n)}>
-        From folder…
-      </button>
+      {#if list.length <= 1}
+        <button type="button" class="btn small" data-testid="pick-sample-{n}" title="Choose one sample for this oscillator" onclick={() => o && samplePick.start(o, { label: sampleFor(n) })}>
+          {list[0]?.fileName ? 'Change sample…' : 'Sample…'}
+        </button>
+      {/if}
+      {#if !drum || list.length > 1}
+        <button type="button" class="btn small" data-testid="edit-ranges-{n}" onclick={() => rangeEditor.toggle(n)}>
+          {rangeEditor.openOn === n ? 'Close ranges' : list.length > 1 ? 'Edit ranges' : 'Ranges…'}
+        </button>
+      {/if}
+      {#if !drum}
+        <!-- A whole folder at once (issue #33): the panel reads the samples and
+             writes the ranges as it works them out. A drum has nowhere to put
+             them, so it is not offered one. -->
+        <button type="button" class="btn small" data-testid="build-multisample-{n}" title="Rebuild this oscillator's ranges from a folder of samples" onclick={() => multisample.start(n)}>
+          From folder…
+        </button>
+      {/if}
     </div>
-  {:else if !fm}
-    <!-- The way into a multi-sampled instrument from a synth that isn't one
-         yet. Clicking it switches this oscillator to Sample so the panel and
-         the waveform agree; closing the panel having read no folder puts the
-         waveform back. -->
+  {:else if !fm && !drum}
+    <!-- The two ways into a sampled instrument from a synth that isn't one
+         yet. The single sample makes the oscillator a sample oscillator only
+         once a file is actually chosen; the folder switches it now — so the
+         panel and the waveform agree while the question is up — and puts the
+         waveform back if it is dismissed. -->
     <div class="rangeact">
+      <button type="button" class="btn small" data-testid="pick-sample-{n}" title="Play one sample on this oscillator" onclick={() => samplePick.start(ensureOsc(n), { label: sampleFor(n) })}>
+        Sample…
+      </button>
       <button type="button" class="btn small" data-testid="build-multisample-{n}" title="Build a multi-sampled instrument on this oscillator from a folder of samples" onclick={() => multisample.start(n)}>
         Build from folder…
       </button>

@@ -9,6 +9,10 @@
    * here reads on the instrument exactly as one built on it. Every edit goes
    * through `src/core/preset/ranges.ts` — the clamps, the ordering and the
    * one-range flattening are the firmware's, not this component's.
+   *
+   * Picking the file itself is the shared dialog (`SamplePicker.svelte`): this
+   * panel says which range the answer is for, and one sample or a whole folder
+   * are the two ways in, side by side.
    */
   import { noteName } from '../core/preset/notes'
   import type { RootFrom } from '../core/samples/roots'
@@ -85,11 +89,6 @@
     ed.select(Math.min(index, list.length - 1))
   }
 
-  /** With no card to browse, the path field is the whole picker: put the caret in it. */
-  const focusIfIdle = (node: HTMLInputElement) => {
-    if (!card.connected) node.focus()
-  }
-
   /**
    * What the folder import left beside these ranges (issue #33): where each
    * root came from, the offset it fitted, and the files it could not place.
@@ -132,12 +131,16 @@
     </p>
   {/if}
 
-  <KeyMap
-    ranges={list}
-    selected={sel}
-    onselect={(i) => ed.select(i)}
-    onmove={ed.editable ? (i, note) => osc && setRangeTopNote(osc, i, note) : undefined}
-  />
+  {#if list.length > 1}
+    <!-- The map is the boundaries; with one sample there are none, and the
+         band would span the keyboard whatever the sample is. -->
+    <KeyMap
+      ranges={list}
+      selected={sel}
+      onselect={(i) => ed.select(i)}
+      onmove={ed.editable ? (i, note) => osc && setRangeTopNote(osc, i, note) : undefined}
+    />
+  {/if}
 
   {#if session}
     <div class="import" data-testid="range-import">
@@ -283,44 +286,6 @@
     </div>
   {/if}
 
-  {#if ed.pick}
-    <div class="picker" data-testid="range-picker">
-      {#if card.connected}
-        <div class="pathbar">
-          <button type="button" class="btn small" onclick={() => ed.up()} disabled={ed.path === '/' || !!ed.busy} aria-label="Up one folder">↑</button>
-          <span class="path" data-testid="range-pick-path">{ed.path}</span>
-        </div>
-        <ul class="list">
-          {#each ed.entries as e (e.name)}
-            <li>
-              <button type="button" class="entry" disabled={!!ed.busy} onclick={() => void ed.choose(e)}>
-                {e.dir ? '▸ ' : ''}{e.name}
-              </button>
-            </li>
-          {:else}
-            <li class="empty">empty</li>
-          {/each}
-        </ul>
-      {:else}
-        <p class="hint">Connect a Deluge to browse the card, or type the path the preset should store.</p>
-      {/if}
-      <div class="typed">
-        <input
-          type="text"
-          data-testid="range-pick-path-input"
-          placeholder="SAMPLES/Folder/sample.wav"
-          bind:value={ed.typed}
-          use:focusIfIdle
-          onkeydown={(e) => { if (e.key === 'Enter') ed.useTyped() }}
-        />
-        <button type="button" class="btn small" data-testid="range-pick-use" disabled={!ed.typed.trim()} onclick={() => ed.useTyped()}>Use</button>
-        <button type="button" class="btn small" onclick={() => ed.cancelPick()}>Cancel</button>
-      </div>
-      {#if ed.busy}<p class="busy">{ed.busy}…</p>{/if}
-    </div>
-  {/if}
-
-  {#if ed.error}<p class="err" role="alert" data-testid="range-error">{ed.error}</p>{/if}
 </section>
 
 <style>
@@ -347,17 +312,6 @@
   .mini:hover { color: var(--brass-hi); border-color: var(--edge-hi); }
   .acts.row { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 0 4px; }
   .h3 .sub { font-family: var(--mono); text-transform: none; letter-spacing: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .picker { margin: 10px 0 0 4px; border: 1px solid var(--edge-hi); border-radius: 3px; padding: 8px; background: #100e0c; }
-  .pathbar { display: flex; align-items: center; gap: 8px; }
-  .pathbar .path { font-family: var(--mono); font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .list { list-style: none; margin: 8px 0 0; padding: 0; max-height: 190px; overflow-y: auto; border: 1px solid var(--edge); border-radius: 3px; }
-  .list li + li { border-top: 1px solid #191612; }
-  .entry { display: block; width: 100%; text-align: left; background: none; border: 0; color: var(--text); font-family: var(--mono); font-size: 11px; padding: 4px 7px; cursor: pointer; }
-  .entry:hover { background: #1a1713; color: var(--brass-hi); }
-  .list .empty { padding: 4px 7px; }
-  .typed { display: flex; gap: 6px; margin-top: 8px; }
-  .typed input { flex: 1; background: #0c0b0a; border: 1px solid var(--edge-hi); border-radius: 3px; color: #ddd4c4; font-family: var(--mono); font-size: 11px; height: 26px; padding: 0 7px; }
-  .busy { margin: 6px 0 0; font-family: var(--mono); font-size: 10px; color: var(--faint); }
   .import { margin: 10px 0 0 4px; border: 1px solid var(--edge-hi); border-radius: 3px; padding: 8px 9px; background: #100e0c; }
   .import .line { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
   .import .who { color: #e2d9ca; }
@@ -374,6 +328,5 @@
   .legend { display: flex; flex-wrap: wrap; align-items: baseline; gap: 3px 14px; margin: 9px 0 0 4px; font-family: var(--cond); font-size: 11px; line-height: 1.4; color: var(--faint); }
   .legend b { color: #cfc6b6; font-weight: 600; }
   .caution { margin: 8px 0 0 4px; padding: 6px 8px; border: 1px solid #4a3a1a; background: #171208; border-radius: 3px; font-size: 11px; color: var(--warn); }
-  .err { margin: 8px 0 0 4px; padding: 6px 8px; border: 1px solid #5a2a22; background: #1d1210; color: #e8a08f; font-family: var(--mono); font-size: 11px; border-radius: 3px; }
   .lbl { font-family: var(--cond); font-size: 10px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
 </style>

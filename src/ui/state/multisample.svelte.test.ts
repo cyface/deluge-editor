@@ -95,6 +95,14 @@ describe('reading a folder', () => {
     expect(ms.open).toBe(false) // the question is answered and gone
   })
 
+  it('stops showing the import row once another preset is loaded', async () => {
+    // Provenance and left-out files describe particular ranges; over someone
+    // else's ranges the same row would be a caption for the wrong instrument.
+    await ms.addLocalFolder('Piano', drop('C3.wav', 'C5.wav'))
+    editor.load(synthTemplate, 'Another Synth.XML')
+    expect(ms.session).toBe(null)
+  })
+
   it('stores the path the preset will carry, under the folder that was read', async () => {
     await ms.addLocalFolder('My Piano', drop('C3.wav', 'D3.wav'))
     expect(sampleRanges(osc1())[0].fileName).toBe('SAMPLES/My Piano/C3.wav')
@@ -142,6 +150,15 @@ describe('what the import could not place', () => {
     expect(roots().at(-1)).toBe(96)
     expect(ms.session?.leftOut).toEqual([])
     expect(ms.session?.from['SAMPLES/Piano/zzz noise.wav']).toBe('user')
+  })
+
+  it('still holds the bytes of one placed by hand, so saving copies it too', async () => {
+    // The import keeps every file it read, not just the ones it could place:
+    // a left-out row given a root is a range like any other, and a range whose
+    // sample never reaches the card is silent on the instrument.
+    await ms.addLocalFolder('Piano', drop('C3.wav', 'C5.wav', 'zzz noise.wav'))
+    ms.assign('SAMPLES/Piano/zzz noise.wav', 96)
+    expect(samples.pushable).toContain('SAMPLES/Piano/zzz noise.wav')
   })
 
   it('drops one from the list when it was never meant to be a key range', async () => {

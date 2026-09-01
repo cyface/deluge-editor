@@ -9,7 +9,7 @@
  */
 
 import initKitTemplate from '../../assets/templates/Default Kit.XML?raw'
-import { addSampleRows, rowNameFor, rowTemplateFrom, type SampleRowSpec } from '../../core/kit/build'
+import { addBlankRow, addSampleRows, rowNameFor, rowTemplateFrom, type SampleRowSpec } from '../../core/kit/build'
 import { orderSamples } from '../../core/kit/classify'
 import { shareZip, type ShareSample } from '../../core/kit/share'
 import { isKit, drumRows, type KitElement, type SoundElement } from '../../core/preset'
@@ -196,6 +196,21 @@ class KitBuilder {
     a.download = presetFileName.replace(/\.XML$/, '.zip')
     a.click()
     URL.revokeObjectURL(url)
+  }
+
+  /**
+   * Add one empty row and select it — the instrument's own gesture, which
+   * makes a silent sample drum named U1, U2, … and leaves choosing the sample
+   * to the next step (`addBlankRow`).
+   */
+  addRow(): void {
+    const kit = editor.preset
+    if (!kit || !isKit(kit)) return
+    this.template ??= rowTemplateFrom(initKitTemplate)
+    addBlankRow(kit, this.template)
+    // The new row is the last one. Its identity can't be used to find it: the
+    // element goes into the `$state` tree and comes back out as a proxy.
+    editor.row = drumRows(kit).length - 1
   }
 
   /** Order the specs and add the rows, creating a kit first if needed. */

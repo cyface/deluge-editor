@@ -127,3 +127,46 @@ test('the preview button keeps its width when it becomes a stop button (issue #3
   await play.evaluate((el) => (el.textContent = '■'))
   expect(await widths()).toEqual(playing)
 })
+
+test('a synth takes one sample, without a folder', async ({ page }) => {
+  // Named as a sample library names things: the note is in the name, and the
+  // instrument tunes to it when the file is chosen.
+  const wav = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'deluge-one-')), 'Piano F3.wav')
+  fs.writeFileSync(wav, wavBytes(1000))
+
+  await page.goto('/')
+  await page.getByTestId('new-synth').click()
+  const waveform = page.locator('[data-attr="osc1.type"]')
+  await expect(waveform).toHaveValue('square')
+
+  // One sample and a whole folder are offered side by side.
+  await expect(page.getByTestId('build-multisample-1')).toBeVisible()
+  await page.getByTestId('pick-sample-1').click()
+  const picker = page.getByTestId('sample-picker')
+  await expect(picker).toContainText('Sample for Osc A')
+
+  // Dismissed, it leaves nothing behind — not even a sample oscillator with
+  // no sample, which is silent on the instrument.
+  await picker.getByTestId('sample-cancel').click()
+  await expect(waveform).toHaveValue('square')
+  await expect(page.getByTestId('change-count')).toHaveText('0')
+
+  await page.getByTestId('pick-sample-1').click()
+  await picker.getByTestId('sample-file-input').setInputFiles(wav)
+  await expect(picker).toHaveCount(0)
+
+  // The oscillator plays the file, at the pitch the file says it was recorded
+  // at, in the repeat mode the browser would set for something this short.
+  await expect(waveform).toHaveValue('sample')
+  await expect(page.locator('[data-group="osc"]')).toContainText('Piano F3.wav')
+  await expect(page.locator('[data-attr="osc1.loopMode"]')).toHaveValue('1')
+  await page.getByTestId('edit-ranges-1').click()
+  const row = page.getByTestId('range-editor').locator('[data-range="0"]')
+  await expect(row).toContainText('F3')
+  await expect(row).toContainText('-5 st')
+
+  // And it is one sample, not the start of a key map: the same button now
+  // changes it, and the folder import is still the other way in.
+  await expect(page.getByTestId('pick-sample-1')).toHaveText('Change sample…')
+  await expect(page.getByTestId('build-multisample-1')).toBeVisible()
+})

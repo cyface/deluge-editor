@@ -6,7 +6,7 @@
    */
   import { moveRow, removeRow, renameRow } from '../core/kit/build'
   import { LOOP_MODE_NAMES, OSC_ATTR_ORDER, type DrumRow, type KitElement, type OscElement } from '../core/preset'
-  import { sampleRanges, soundingOrder } from '../core/preset/ranges'
+  import { isVelocityKeyed, sampleRanges, soundingOrder } from '../core/preset/ranges'
   import { osc, paramMenu, setParamMenu } from '../core/preset/sound'
   import { child } from '../core/xml'
   import { MIDI_OUTPUT_ATTR_ORDER } from '../core/preset'
@@ -16,6 +16,9 @@
   import { audio } from './state/audio.svelte'
   import { card } from './state/card.svelte'
   import { editor, isSoundRow } from './state/editor.svelte'
+  import { kit as kitBuilder } from './state/kit.svelte'
+  import { ranges as rangeEditor } from './state/ranges.svelte'
+  import { samplePick } from './state/samplepick.svelte'
   import { samples as stash } from './state/samples.svelte'
 
   // Keep the missing-on-card check current: re-runs when the connection,
@@ -39,7 +42,9 @@
     if (t === 'sample') {
       // A multi-sample row says so: the first file alone reads as if the row
       // held one sample (issue #29). The key map is in the oscillator panel.
-      const files = o ? sampleRanges(o).map((s) => s.fileName ?? '(no file)') : []
+      // An empty `fileName=""` is how a blank row leaves the device (the
+      // template kit's U1), so it reads as no file rather than as nothing.
+      const files = o ? sampleRanges(o).map((s) => s.fileName || '(no file)') : []
       if (files.length === 0) return '(no file)'
       return files.length === 1 ? files[0] : `${files.length} samples · ${files[0]}`
     }
@@ -59,6 +64,37 @@
     if (o?.attrs.type !== 'sample') return undefined
     // The lowest range's sample stands for the row: the pad plays it first.
     return soundingOrder(sampleRanges(o))[0]?.fileName || undefined
+  }
+
+  /**
+   * What the row's Source button offers. A drum with one sample — nearly every
+   * drum — offers to change it. More than one is the odd case, and what those
+   * ranges mean depends on the file: a kit row always sounds `kNoteForDrum`
+   * (`SoundDrum::noteOn`, `processing/sound/sound_drum.cpp:65`,
+   * upstream/community bef6d9df), so a note key does nothing inside a kit, and
+   * the only firmware that reads more than one range per drum reads the key as
+   * a velocity instead. So say "Layers" when the file is keyed that way.
+   */
+  function sourceAction(r: DrumRow): 'sample' | 'layers' | 'ranges' {
+    const o = sampleOsc(r)
+    if (!o || sampleRanges(o).length < 2) return 'sample'
+    return isVelocityKeyed(o) ? 'layers' : 'ranges'
+  }
+
+  /**
+   * Point a row at a sample from here, rather than making the user find the
+   * oscillator panel: the same question the folder import asks, for one file.
+   *
+   * A row holding more than one range is a file this editor doesn't write —
+   * velocity layers from a fork — so that opens the range editor to show them
+   * read-only instead.
+   */
+  function pickSample(i: number, r: DrumRow) {
+    editor.row = i
+    const o = sampleOsc(r)
+    if (!o) return
+    if (sampleRanges(o).length > 1) rangeEditor.open(1)
+    else samplePick.start(o, { label: r.attrs.name || `row ${i + 1}` })
   }
 
   const vol = (r: DrumRow) => (isSoundRow(r) ? (paramMenu(r, 'volume') ?? '') : '')
@@ -122,7 +158,13 @@
 </script>
 
 <section class="panel">
-  <div class="ph"><h2>Rows</h2><span class="sub">{#if stash.missing.size}<span class="misscount" data-testid="missing-count">⚠ {stash.missing.size} sample{stash.missing.size === 1 ? '' : 's'} not on the card</span> · {/if}{editor.rows.length} in pad order · bottom row first in the file · drag or ▲▼ to reorder</span></div>
+  <div class="ph">
+    <h2>Rows</h2>
+    <span class="sub">{#if stash.missing.size}<span class="misscount" data-testid="missing-count">⚠ {stash.missing.size} sample{stash.missing.size === 1 ? '' : 's'} not on the card</span> · {/if}{editor.rows.length} in pad order · bottom row first in the file · drag or ▲▼ to reorder</span>
+    <!-- The instrument's own gesture: a new drum arrives silent and named
+         U1, U2, … and gets its sample afterwards. -->
+    <button type="button" class="btn small" data-testid="add-row" title="Add an empty row, as the Deluge's drum creator does" onclick={() => kitBuilder.addRow()}>Add Row</button>
+  </div>
   <div class="scroll">
     <table class="rows" data-testid="kit-rows">
       <thead><tr><th></th><th></th><th></th><th></th><th class="num">#</th><th>Row</th><th>Source</th><th>Repeat</th><th>Direction</th><th class="num">Vol</th><th class="num">Pan</th><th></th></tr></thead>
@@ -193,6 +235,24 @@
                     ? 'Not on the card yet — saving the kit will copy it there'
                     : 'Not on the card — the Deluge loads the kit anyway, but this row will be silent'}
                 >⚠</span>
+              {/if}
+              {#if sampleOsc(r)}
+                {@const act = sourceAction(r)}
+                <!-- The row's own way to its sample: the oscillator panel is a
+                     long way down the page, and on a blank row there is
+                     nothing here to click at all. -->
+                <button
+                  type="button"
+                  class="pick"
+                  data-testid="row-sample"
+                  title={act === 'layers'
+                    ? "Show this row's velocity layers"
+                    : act === 'ranges'
+                      ? "Show this row's ranges"
+                      : 'Choose the sample this row plays'}
+                  aria-label="{act === 'sample' ? 'Sample' : 'Layers'} for row {i + 1}"
+                  onclick={(e) => { e.stopPropagation(); pickSample(i, r) }}
+                >{act === 'sample' ? 'Sample…' : act === 'layers' ? 'Layers…' : 'Ranges…'}</button>
               {/if}
               <span class="file" title={describe(r)}>{describe(r)}</span>
             </td>
@@ -325,6 +385,12 @@
      truly runs out (the .scroll wrapper still allows a horizontal scroll). */
   .src { width: 100%; }
   .src .file { display: inline; max-width: none; }
+  .pick {
+    background: none; border: 1px solid var(--edge); border-radius: 3px; color: var(--muted); cursor: pointer;
+    font-family: var(--cond); font-size: 10px; letter-spacing: .08em; text-transform: uppercase;
+    padding: 1px 5px; margin-right: 6px; vertical-align: 1px;
+  }
+  .pick:hover { color: var(--brass-hi); border-color: var(--brass-dim); }
   .warn { color: #e8a08f; margin-right: 4px; cursor: help; }
   .warn.pending { color: #e8b06a; }
   .misscount { color: #e8a08f; }

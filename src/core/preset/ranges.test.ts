@@ -27,6 +27,7 @@ import {
   rootName,
   rootParts,
   rootToTransposeCents,
+  tuningForSamplePitch,
   sampleRanges,
   shiftRanges,
   soundingOrder,
@@ -76,6 +77,23 @@ describe('root note', () => {
   it('breaks a half-semitone tie the way roundf does', () => {
     expect(rootToTransposeCents(rootCents(0, 50))).toEqual({ transpose: 1, cents: -50 })
     expect(rootToTransposeCents(rootCents(0, -50))).toEqual({ transpose: -1, cents: 50 })
+  })
+
+  // `while (semitonesInt <= -6) semitonesInt += 12; while (semitonesInt > 6)
+  // semitonesInt -= 12;` — sample_holder_for_voice.cpp:145-153.
+  it('folds a lone sample into the nearest octave, as the browser does', () => {
+    expect(tuningForSamplePitch(8400, true)).toEqual({ transpose: 0, cents: 0 }) // C5, two octaves up
+    expect(tuningForSamplePitch(6500, true)).toEqual({ transpose: -5, cents: 0 }) // F3, close enough to stay
+    // The fold leaves transpose in (-6, +6]: half an octave down folds up.
+    expect(tuningForSamplePitch(6600, true)).toEqual({ transpose: 6, cents: 0 }) // F#3
+    expect(tuningForSamplePitch(6700, true)).toEqual({ transpose: 5, cents: 0 }) // G3 stays
+    expect(tuningForSamplePitch(5292, true)).toEqual({ transpose: -5, cents: 8 }) // cents ride along
+  })
+
+  // The fold is only for a source with one range; every other range keeps the
+  // octave the sample was recorded in (`shouldMinimizeOctaves`, :1034).
+  it('leaves the octave alone for a range among others', () => {
+    expect(tuningForSamplePitch(8400)).toEqual({ transpose: -24, cents: 0 })
   })
 
   it('shows a whole note plainly and a detuned one with its offset', () => {

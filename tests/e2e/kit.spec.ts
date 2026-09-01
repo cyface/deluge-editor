@@ -127,3 +127,45 @@ test('build a kit from a sample folder: guessed order, reorder, rename, share zi
   expect(text).toContain('SAMPLES/My Kit/Snare.wav')
   expect(text).not.toContain('SAMPLES/My Kit/Perc Loop.wav') // removed row's sample is not packaged
 })
+
+test("a row's sample is chosen from the rows table itself", async ({ page }) => {
+  const wav = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'deluge-one-')), 'Kick.wav')
+  fs.writeFileSync(wav, wavBytes(1000))
+
+  await page.goto('/')
+  await page.getByTestId('new-kit').click()
+  const rows = page.locator('[data-testid="kit-rows"] tbody tr')
+  await expect(rows).toHaveCount(1)
+  // The blank row the device writes carries `fileName=""`, which used to leave
+  // the Source column empty with nothing in it to click.
+  await expect(rows.nth(0)).toContainText('(no file)')
+
+  // The same question the folder import asks, for one file.
+  await rows.nth(0).getByTestId('row-sample').click()
+  const picker = page.getByTestId('sample-picker')
+  await expect(picker).toBeVisible()
+  await picker.getByTestId('sample-file-input').setInputFiles(wav)
+
+  await expect(picker).toHaveCount(0)
+  await expect(rows.nth(0)).toContainText('Kick.wav')
+  // A drum has no key map, so choosing its sample does not open one.
+  await expect(page.getByTestId('range-editor')).toHaveCount(0)
+  // 1000 frames at 44.1 kHz is well under two seconds, so the instrument's own
+  // rule makes it Once rather than leaving the template's Cut.
+  await expect(rows.nth(0).getByTestId('row-mode')).toHaveValue('1')
+
+  // Written where the firmware writes it, on the row's own oscillator.
+  await page.getByTestId('changes-button').click()
+  await expect(
+    page.locator('[data-testid="changes"] [data-change="kit/soundSources/sound/osc1@fileName"]'),
+  ).toHaveCount(1)
+  await page.getByTestId('changes-button').click()
+
+  // A second, empty row: named the way the instrument's drum creator names
+  // one, selected, and ready for its own sample.
+  await page.getByTestId('add-row').click()
+  await expect(rows).toHaveCount(2)
+  await expect(rows.nth(1)).toHaveClass(/on/)
+  await expect(rows.nth(1).getByTestId('row-name')).toHaveValue('U2')
+  await expect(rows.nth(1)).toContainText('(no file)')
+})

@@ -3,7 +3,7 @@ import blankKit from '../../assets/templates/Default Kit.XML?raw'
 import { drumRows, type KitElement, type SoundElement } from '../preset'
 import { diffFlat, flattenXML, generateXML, isClean, parseXML } from '../xml'
 import { child } from '../xml/element'
-import { addSampleRows, isBlankRow, moveRow, removeRow, renameRow, rowNameFor, rowTemplateFrom } from './build'
+import { addBlankRow, addSampleRows, isBlankRow, moveRow, removeRow, renameRow, rowNameFor, rowTemplateFrom } from './build'
 
 const freshKit = (): KitElement => parseXML(blankKit) as KitElement
 const template = (): SoundElement => rowTemplateFrom(blankKit)
@@ -88,5 +88,31 @@ describe('rowNameFor', () => {
   it('is the base name without the extension', () => {
     expect(rowNameFor('SAMPLES/My Kit/808 Kick.wav')).toBe('808 Kick')
     expect(rowNameFor('Snare.WAV')).toBe('Snare')
+  })
+})
+
+describe('addBlankRow', () => {
+  it('names rows the way the drum creator does, counting up past the ones taken', () => {
+    const kit = freshKit() // the template kit's own row is already U1
+    addBlankRow(kit, template())
+    addBlankRow(kit, template())
+    expect(drumRows(kit).map((r) => r.attrs.name)).toEqual(['U1', 'U2', 'U3'])
+  })
+
+  it('adds a silent sample drum the folder builder still treats as blank', () => {
+    const kit = freshKit()
+    const row = addBlankRow(kit, template())
+    expect(isBlankRow(row)).toBe(true)
+    expect(child(row, 'osc1')?.attrs.type).toBe('sample')
+    expect(child(row, 'osc1')?.attrs.fileName).toBe('')
+  })
+
+  it('writes a row the file round-trips: nothing invented beyond the name', () => {
+    const kit = freshKit()
+    const added = addBlankRow(kit, template())
+    renameRow(added, 'U1') // same name as the template row, so the two must match
+    const rows = generateXML(kit).match(/<sound\s[\s\S]*?<\/sound>/g) ?? []
+    expect(rows.length).toBe(2)
+    expect(rows[1]).toBe(rows[0])
   })
 })

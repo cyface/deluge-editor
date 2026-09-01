@@ -93,7 +93,19 @@ class MultisampleImport {
   /** The oscillator the source prompt is open for, or null when it is closed. */
   asking = $state<1 | 2 | null>(null)
   /** What the last import left beside the ranges; the range editor shows it. */
-  session = $state<ImportSession | null>(null)
+  private held = $state<ImportSession | null>(null)
+  /** The preset those ranges are in: another one loaded, and the row is not about it. */
+  private heldFor: Preset | null = null
+
+  /**
+   * The import's row, while the preset it wrote to is still the loaded one.
+   * Provenance and left-out files are about particular ranges in a particular
+   * preset; loading another one puts the row away rather than captioning
+   * someone else's ranges with it.
+   */
+  get session(): ImportSession | null {
+    return this.heldFor === editor.preset ? this.held : null
+  }
 
   busy = $state<string | null>(null)
   progress = $state(0)
@@ -154,7 +166,8 @@ class MultisampleImport {
 
   /** Put the import's own row away; the ranges it wrote stay, as any edit does. */
   dismissSession(): void {
-    this.session = null
+    this.held = null
+    this.heldFor = null
   }
 
   // ---- sources ------------------------------------------------------------
@@ -293,14 +306,19 @@ class MultisampleImport {
       leftOut.push({ file: byName.get(fileName) as ImportFile, base: base(fileName), reason: 'no room' })
       delete from[fileName]
     }
-    const held = [...bytes].filter(([name]) => from[name] !== undefined)
-    if (held.length) {
-      samples.hold(held)
+    // Every file the folder gave up, not only the ones that landed on the
+    // keyboard: a left-out row can still be given a root by hand, and without
+    // its bytes that range would save as a path the card never receives. The
+    // stash only ever pushes what the preset actually references, so holding
+    // the rest costs nothing but the memory the read already spent.
+    if (bytes.size) {
+      samples.hold(bytes)
       samples.folder ??= folder
     }
 
     this.waveformWas = null // the waveform is earned now, not on loan
-    this.session = {
+    this.heldFor = editor.preset
+    this.held = {
       which,
       folder,
       from,
@@ -362,8 +380,9 @@ class MultisampleImport {
     this.session.leftOut = this.session.leftOut.filter((l) => l.file.fileName !== fileName)
     this.session.from[fileName] = 'user'
     this.session.placed = sampleRanges(osc).length
-    const bytes = samples.bytes.has(fileName)
-    if (!bytes) void samples.checkMissing()
+    // A range the preset didn't reference a moment ago: whether the card has
+    // that file is a fresh question, held bytes or not.
+    void samples.checkMissing()
     ranges.select(at)
     this.error = null
   }

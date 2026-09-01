@@ -88,6 +88,28 @@ export function addSampleRows(kit: KitElement, template: SoundElement, specs: re
   return added
 }
 
+/**
+ * Append one empty row, the way the instrument adds one: the drum creator
+ * names it `U` and counts up until the name is free (`prefix = "U"` in
+ * `InstrumentClipView::enterDrumCreator`, `gui/views/instrument_clip_view.cpp:5466`,
+ * with `Kit::makeDrumNameUnique`, `model/instrument/kit.cpp:927`,
+ * upstream/community bef6d9df), and the drum is set up as a sample. The row
+ * itself is the blank kit's own, so it carries exactly what the device writes
+ * for a fresh drum — including the empty `fileName`, which is what makes it a
+ * blank row (`isBlankRow`) for the folder builder to replace.
+ */
+export function addBlankRow(kit: KitElement, template: SoundElement): SoundElement {
+  const sources = ensureChild(kit, 'soundSources', KIT_CHILD_ORDER)
+  const taken = new Set(drumRows(kit).map((r) => (r.attrs.name ?? '').toLowerCase()))
+  let n = 1
+  let name = 'U1'
+  while (taken.has(name.toLowerCase())) name = `U${++n}`
+  const row = cloneElement(template) as SoundElement
+  setAttr(row, 'name', name, SOUND_ATTR_ORDER)
+  sources.children.push(row)
+  return row
+}
+
 /** Move a row within the kit (indexes in pad order, bottom row 0). */
 export function moveRow(kit: KitElement, from: number, to: number): void {
   const sources = child(kit, 'soundSources')
