@@ -100,7 +100,10 @@
     onkeydown={key}
   >
     <circle cx="24" cy="24" r="17.5" fill="none" stroke="#282219" stroke-width="4" />
-    {#each rings as r (r.d)}
+    <!-- Keyed by position, not by path: two cables can draw the same arc — a
+         kit row with velocity and aftertouch both pushing volume to full does —
+         and a duplicate key takes the whole page down. -->
+    {#each rings as r, i (i)}
       <path d={r.d} fill="none" stroke={r.color} stroke-width="2.2" stroke-linecap="round" opacity=".95"><title>{r.title}</title></path>
     {/each}
     <path d={arc(17.5, A_MIN, angle)} fill="none" stroke="#d4a34d" stroke-width="4" stroke-linecap="round" />
