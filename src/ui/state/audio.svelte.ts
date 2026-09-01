@@ -1,13 +1,13 @@
 /**
- * Audio preview of kit-row samples. Bytes come from the kit builder's local
- * stash when the row was built from files on this computer, and over SysEx
+ * Audio preview of a preset's samples. Bytes come from the session's local
+ * stash when the sample was built from files on this computer, and over SysEx
  * from the card when a Deluge is connected — decoded once and cached. The
  * AudioContext is created on the first click (browsers require a gesture).
  */
 
 import { computePeaks, type Peaks } from '../../core/samples/peaks'
 import { card } from './card.svelte'
-import { kit } from './kit.svelte'
+import { samples } from './samples.svelte'
 
 class AudioPreview {
   /** fileName of the row playing right now, loading, or the last failure. */
@@ -26,7 +26,7 @@ class AudioPreview {
 
   /** Preview needs bytes: local, already decoded, or fetchable from the card. */
   canPreview(fileName: string): boolean {
-    return this.cache.has(fileName) || kit.bytes.has(fileName) || card.connected
+    return this.cache.has(fileName) || samples.bytes.has(fileName) || card.connected
   }
 
   stop(): void {
@@ -92,7 +92,7 @@ class AudioPreview {
       this.peaks.set(key, computed)
       return computed
     }
-    const bytes = kit.bytes.get(fileName)
+    const bytes = samples.bytes.get(fileName)
     if (bytes && !this.decoding.has(fileName)) {
       this.decoding.add(fileName)
       void this.decodeLocal(fileName, bytes)
@@ -131,7 +131,7 @@ class AudioPreview {
     const hit = this.cache.get(fileName)
     if (hit) return hit
     this.ctx ??= new AudioContext()
-    let bytes = kit.bytes.get(fileName)
+    let bytes = samples.bytes.get(fileName)
     if (!bytes) {
       if (!card.connected) {
         throw new Error('sample is not on this computer — connect the Deluge to preview it from the card')

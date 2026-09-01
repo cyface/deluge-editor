@@ -9,6 +9,7 @@
   import { card } from './state/card.svelte'
   import { editor } from './state/editor.svelte'
   import { kit } from './state/kit.svelte'
+  import { samples } from './state/samples.svelte'
 
   let folderInput: HTMLInputElement | undefined = $state()
 
@@ -25,7 +26,7 @@
     )
   }
 
-  const pushCount = $derived(kit.pushable.length)
+  const pushCount = $derived(samples.pushable.length)
 </script>
 
 <section class="panel" data-testid="kit-builder">
@@ -42,8 +43,10 @@
       type="button"
       class="btn"
       data-testid="browse-card-samples"
-      disabled={!card.connected}
-      title={card.connected ? 'Browse SAMPLES/ on the connected Deluge' : 'Connect to the Deluge first'}
+      disabled={!card.supported || !!kit.busy}
+      title={card.supported
+        ? 'Browse SAMPLES/ on the Deluge (connects first if needed)'
+        : 'Web MIDI needs Chrome or Edge'}
       onclick={() => kit.browseCard()}
     >From Card…</button>
     {#if pushCount > 0}
@@ -51,10 +54,10 @@
         type="button"
         class="btn"
         data-testid="push-samples"
-        disabled={!card.connected || !!kit.busy}
-        title={card.connected
-          ? `Write ${pushCount} sample file${pushCount === 1 ? '' : 's'} to SAMPLES/${kit.folder ?? ''} on the card`
-          : 'Connect to the Deluge first'}
+        disabled={!card.supported || !!kit.busy}
+        title={card.supported
+          ? `Write ${pushCount} sample file${pushCount === 1 ? '' : 's'} to SAMPLES/${samples.folder ?? ''} on the card (connects first if needed)`
+          : 'Web MIDI needs Chrome or Edge'}
         onclick={() => kit.pushToCard()}
       >Send {pushCount} Sample{pushCount === 1 ? '' : 's'} to Card</button>
     {/if}

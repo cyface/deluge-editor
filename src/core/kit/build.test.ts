@@ -3,7 +3,7 @@ import blankKit from '../../assets/templates/Default Kit.XML?raw'
 import { drumRows, type KitElement, type SoundElement } from '../preset'
 import { diffFlat, flattenXML, generateXML, isClean, parseXML } from '../xml'
 import { child } from '../xml/element'
-import { addSampleRows, isBlankRow, moveRow, removeRow, renameRow, retargetSampleFiles, rowNameFor, rowTemplateFrom } from './build'
+import { addSampleRows, isBlankRow, moveRow, removeRow, renameRow, rowNameFor, rowTemplateFrom } from './build'
 
 const freshKit = (): KitElement => parseXML(blankKit) as KitElement
 const template = (): SoundElement => rowTemplateFrom(blankKit)
@@ -81,30 +81,6 @@ describe('row edits', () => {
     removeRow(kit, drumRows(kit)[1])
     renameRow(drumRows(kit)[0], 'BD')
     expect(drumRows(kit).map((r) => r.attrs.name)).toEqual(['BD', 'Closed Hat'])
-  })
-})
-
-describe('retargetSampleFiles', () => {
-  it('rewrites mapped fileNames in place and reports the moves', () => {
-    const kit = freshKit()
-    addSampleRows(kit, template(), SPECS)
-    const moved = retargetSampleFiles(kit, (f) =>
-      f.startsWith('SAMPLES/Test Kit/') ? f.replace('SAMPLES/Test Kit/', 'SAMPLES/AudioPilz/Rumbles/') : null,
-    )
-    expect(moved.length).toBe(3)
-    expect(moved[0]).toEqual({ from: 'SAMPLES/Test Kit/Kick.wav', to: 'SAMPLES/AudioPilz/Rumbles/Kick.wav' })
-    const xml = generateXML(kit)
-    expect(xml).toContain('SAMPLES/AudioPilz/Rumbles/Kick.wav')
-    expect(xml).not.toContain('SAMPLES/Test Kit/')
-    // a second save is still byte-identical after the rewrite
-    expect(generateXML(parseXML(xml))).toBe(xml)
-  })
-
-  it('a null mapping leaves a reference untouched', () => {
-    const kit = freshKit()
-    addSampleRows(kit, template(), [SPECS[0]])
-    expect(retargetSampleFiles(kit, () => null)).toEqual([])
-    expect(generateXML(kit)).toContain('SAMPLES/Test Kit/Kick.wav')
   })
 })
 

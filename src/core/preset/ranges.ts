@@ -476,6 +476,38 @@ export function setRangeRoot(osc: OscElement, index: number, root: number): bool
   return setRangeTuning(osc, index, transpose, cents)
 }
 
+/**
+ * Move every range by whole semitones — roots and the boundaries between them
+ * together, so the instrument transposes as one piece and a boundary someone
+ * placed by hand keeps its position relative to the samples either side.
+ *
+ * This is the repair for a sample library named against a different middle C
+ * (`src/core/samples/roots.ts` fits that offset at import; this applies it
+ * afterwards, to ranges that are already on the oscillator). Returns the
+ * semitones actually applied — less than asked when a root would otherwise
+ * leave the keyboard, and zero when there is nothing to move.
+ */
+export function shiftRanges(osc: OscElement, semitones: number): number {
+  const hosts = orderedHosts(osc)
+  if (hosts.length === 0 || semitones === 0) return 0
+  const roots = hosts.map((h) => rootCents(int(h.attrs.transpose, 0), int(h.attrs.cents, 0)) / 100)
+  const room = { down: -Math.floor(Math.min(...roots)), up: HIGHEST_NOTE - Math.ceil(Math.max(...roots)) }
+  const by = Math.max(room.down, Math.min(semitones, room.up))
+  if (by === 0) return 0
+  hosts.forEach((host, i) => {
+    const { transpose, cents } = rootToTransposeCents(roots[i] * 100 + by * 100)
+    writeTuning(host, osc, transpose, cents)
+    const top = topNoteOf(host.attrs)
+    // The topmost range has no top note, and the rest stay on the keyboard;
+    // `normalizeRanges` still holds the ordering afterwards.
+    if (top !== undefined) {
+      setAttr(host, 'rangeTopNote', String(Math.max(1, Math.min(126, top + by))), attrOrder(host, osc))
+    }
+  })
+  normalizeRanges(osc)
+  return by
+}
+
 function newRangeElement(spec: NewRange, osc: OscElement): SampleRangeElement {
   const host = element('sampleRange') as SampleRangeElement
   host.attrs.fileName = spec.fileName
@@ -521,6 +553,39 @@ export function insertRange(
     setAttr(created, 'rangeTopNote', String(midPoint), SAMPLE_RANGE_ATTR_ORDER)
     set.children.splice(at, 0, created)
   }
+  normalizeRanges(osc)
+  return true
+}
+
+/**
+ * Replace an oscillator's ranges outright, each with the top note it is given.
+ *
+ * The per-range editors above move one boundary at a time and use the
+ * instrument's own split arithmetic to do it. An import doesn't: it arrives
+ * with a whole instrument's worth of samples and boundaries already worked out
+ * from their root notes, and applying a split rule to them one at a time would
+ * fight the answer. So this writes the list and lets `normalizeRanges` hold
+ * the invariants — ascending order, unique tops, the last one unbounded, and
+ * the flat single-sample shape when only one survives.
+ *
+ * `topNote` is what the range is bounded at; leave it off for the topmost.
+ * Returns false for an oscillator that isn't a sample, or whose ranges are
+ * keyed by velocity and so are not ours to rewrite.
+ */
+export function replaceRanges(osc: OscElement, specs: readonly (NewRange & { topNote?: number })[]): boolean {
+  if (osc.attrs.type !== 'sample' || isVelocityKeyed(osc)) return false
+  const existing = child(osc, 'sampleRanges')
+  if (existing) removeChild(osc, existing)
+  clearFlatRange(osc)
+  if (specs.length === 0) return true
+
+  const set = element('sampleRanges') as SampleRangesElement
+  for (const spec of specs) {
+    const host = newRangeElement(spec, osc)
+    if (spec.topNote !== undefined) setAttr(host, 'rangeTopNote', String(spec.topNote), SAMPLE_RANGE_ATTR_ORDER)
+    set.children.push(host)
+  }
+  insertChild(osc, set, OSC_CHILD_ORDER)
   normalizeRanges(osc)
   return true
 }

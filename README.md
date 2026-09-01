@@ -54,6 +54,17 @@ A sample oscillator with more than one sample opens a **range editor** the
 width of the page: the key zones as bands across the keyboard, with the splits
 draggable, plus root note, tuning and zone for whichever range is selected.
 
+*From folder…* on an oscillator (or dropping a folder of pitched samples on a
+synth) asks one question — are the samples on this computer or on the Deluge —
+and builds the instrument: it works out what note each file was recorded at
+from the note embedded in the WAV, then from its file name through one offset
+fitted for the whole folder, and lands you in the range editor with the ranges
+written. Each one says where its root came from, the key boundaries are the
+instrument's own midpoints, anything it couldn't place is listed with a field
+to give it a note rather than quietly dropped, and one control shifts every
+root and boundary together when a library is named against a different middle
+C. As everywhere else in the editor, the only commit is saving.
+
 The test that matters is the round-trip: parse a Deluge-authored preset,
 generate it back, and compare *flattened path → value maps*. Zero values lost,
 changed, or added; second save byte-identical to the first. Fixtures live in

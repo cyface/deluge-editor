@@ -3,20 +3,21 @@
  * a folder of WAVs builds rows through `src/core/kit/build.ts` — each a clone
  * of the blank kit's Deluge-authored row — ordered by the file-name heuristic
  * (kick on the bottom pad, then snare, closed hat, open hat, …). The bytes of
- * locally sourced samples are kept so they can be pushed to the card
- * (`SAMPLES/<folder>/`) and packaged into the share zip; samples browsed on
- * the card contribute rows and frame counts but no bytes.
+ * locally sourced samples go to the shared stash (`samples.svelte.ts`), which
+ * pushes them to the card and packages them into the share zip; samples
+ * browsed on the card contribute rows and frame counts but no bytes.
  */
 
 import initKitTemplate from '../../assets/templates/Default Kit.XML?raw'
-import { addSampleRows, retargetSampleFiles, rowNameFor, rowTemplateFrom, type SampleRowSpec } from '../../core/kit/build'
+import { addSampleRows, rowNameFor, rowTemplateFrom, type SampleRowSpec } from '../../core/kit/build'
 import { orderSamples } from '../../core/kit/classify'
 import { shareZip, type ShareSample } from '../../core/kit/share'
-import { isKit, drumRows, referencedSampleFiles, type KitElement, type SoundElement } from '../../core/preset'
+import { isKit, drumRows, type KitElement, type SoundElement } from '../../core/preset'
 import { bufferReader, readWavInfo } from '../../core/samples/wav'
 import { isDirectory } from '../../core/sysex'
 import { card } from './card.svelte'
 import { editor } from './editor.svelte'
+import { samples } from './samples.svelte'
 
 export interface LocalSample {
   /** Path under the dropped/picked folder, e.g. `Kick.wav` or `sub/Kick.wav`. */
@@ -30,10 +31,6 @@ const isWav = (name: string): boolean => /\.wav$/i.test(name)
 const cleanFolder = (name: string): string => name.replace(/[\\/:*?"<>|]/g, '').trim() || 'Kit'
 
 class KitBuilder {
-  /** The sample folder the kit's new rows point at: `SAMPLES/<folder>`. */
-  folder = $state<string | null>(null)
-  /** XML fileName → local bytes, for card push and the share zip. */
-  bytes = $state<Map<string, Uint8Array>>(new Map())
   busy = $state<string | null>(null)
   progress = $state(0)
   error = $state<string | null>(null)
@@ -44,27 +41,8 @@ class KitBuilder {
   /** On-device browse: current path, null when the browser is closed. */
   cardPath = $state<string | null>(null)
   cardEntries = $state<{ name: string; dir: boolean }[]>([])
-  /**
-   * Sample files the kit references that are NOT on the connected card — the
-   * Deluge loads such a kit anyway and those rows stay silent (issue #10).
-   * Empty when no card is connected: absence of evidence is not a warning.
-   */
-  missing = $state<Set<string>>(new Set())
-  /** dir → lowercase file names, cached so edits don't re-list over SysEx. */
-  private cardListings = new Map<string, Set<string>>()
 
   private template: SoundElement | null = null
-
-  /** Rows in the current kit whose sample bytes this session holds. */
-  readonly pushable = $derived.by<string[]>(() => {
-    if (!editor.preset || !isKit(editor.preset)) return []
-    return this.kitSampleFiles().filter((f) => this.bytes.has(f))
-  })
-
-  /** Every sample file the current preset references (deduplicated, in row order). */
-  kitSampleFiles(): string[] {
-    return editor.preset ? referencedSampleFiles(editor.preset) : []
-  }
 
   /**
    * Build (or extend) the kit from local WAV files. Creates a new kit first
@@ -98,14 +76,28 @@ class KitBuilder {
       }
       if (specs.length === 0) throw new Error('none of the WAV files could be read')
       this.buildRows(specs, folder)
-      for (const [name, data] of loaded) this.bytes.set(name, data)
-      this.bytes = new Map(this.bytes)
+      samples.hold(loaded)
       this.notice = `${specs.length} row${specs.length === 1 ? '' : 's'} added from ${folder}`
     })
   }
 
-  /** Open (or navigate) the on-device folder browser. */
+  /**
+   * Open (or navigate) the on-device folder browser, connecting first if the
+   * editor isn't talking to a Deluge yet — the button is the gesture, and
+   * making the user find the preset panel to enable it is a puzzle, not a
+   * safeguard.
+   */
   async browseCard(path = '/SAMPLES'): Promise<void> {
+    if (!card.connected) {
+      this.busy = 'Connecting to the Deluge'
+      this.error = null
+      const ok = await card.ensureConnected()
+      this.busy = null
+      if (!ok) {
+        this.error = card.error ?? 'could not reach the Deluge'
+        return
+      }
+    }
     await this.run(`Reading ${path}`, async () => {
       const entries = await card.listPath(path)
       this.cardPath = path
@@ -156,113 +148,14 @@ class KitBuilder {
     })
   }
 
-  /**
-   * Re-derive `missing` for the current kit against the connected card,
-   * listing only directories not seen since the last invalidation. FAT names
-   * compare case-insensitively.
-   */
-  async checkMissing(): Promise<void> {
-    const preset = editor.preset
-    if (!card.connected || !preset || !isKit(preset)) {
-      if (this.missing.size) this.missing = new Set()
-      return
-    }
-    const files = this.kitSampleFiles()
-    for (const dir of new Set(files.map((f) => `/${f.slice(0, f.lastIndexOf('/'))}`))) {
-      if (this.cardListings.has(dir)) continue
-      try {
-        this.cardListings.set(dir, new Set((await card.listPath(dir)).map((e) => e.name.toLowerCase())))
-      } catch {
-        this.cardListings.set(dir, new Set()) // no such folder: everything in it is missing
-      }
-    }
-    const missing = new Set<string>()
-    for (const f of files) {
-      const cut = f.lastIndexOf('/')
-      if (!this.cardListings.get(`/${f.slice(0, cut)}`)?.has(f.slice(cut + 1).toLowerCase())) missing.add(f)
-    }
-    this.missing = missing
-  }
-
-  /** The card changed under us (connect, writes): listings are stale. */
-  invalidateCardListings(): void {
-    this.cardListings.clear()
-  }
-
-  /**
-   * Saving the kit to `savePath` moves its locally sourced samples to the
-   * matching folder: `/KITS/AudioPilz/Rumbles.XML` puts them under
-   * `SAMPLES/AudioPilz/Rumbles/`, and every row's `fileName` follows. Only
-   * byte-backed samples move — a row pointing at something already on the
-   * card (a factory sample, a browsed folder) keeps its path, because the
-   * referenced file can't be moved from here.
-   */
-  retargetToSavePath(savePath: string): void {
-    const preset = editor.preset
-    if (!preset || !isKit(preset)) return
-    const stem = savePath.replace(/^\//, '').replace(/^KITS\//i, '').replace(/\.xml$/i, '')
-    const base = `SAMPLES/${stem}`
-    const claimed = new Map<string, string>()
-    const moved = retargetSampleFiles(preset, (from) => {
-      if (!this.bytes.has(from)) return null
-      const parts = from.split('/')
-      const rel = parts.slice(2).join('/') || parts[parts.length - 1]
-      let to = `${base}/${rel}`
-      // two source folders can carry the same file name; keep both apart
-      const prior = claimed.get(to)
-      if (prior !== undefined && prior !== from) to = `${base}/${parts[1]}/${rel}`
-      claimed.set(to, from)
-      return to === from ? null : to
-    })
-    if (moved.length === 0) return
-    for (const { from, to } of moved) {
-      const data = this.bytes.get(from)!
-      this.bytes.delete(from)
-      this.bytes.set(to, data)
-    }
-    this.bytes = new Map(this.bytes)
-    this.folder = stem.split('/').pop() ?? null
-  }
-
-  /**
-   * Write every locally held sample the kit references that the card is
-   * missing (or holds at a different size — FAT names compare
-   * case-insensitively). Returns how many were written; runs inside either
-   * the card panel's save flow or this store's push flow, which own the
-   * busy/progress display via `onStatus`.
-   */
-  async syncMissingToCard(onStatus?: (label: string, progress: number) => void): Promise<number> {
-    const files = this.pushable
-    if (files.length === 0) return 0
-    const dirs = new Set(files.map((f) => `/${f.slice(0, f.lastIndexOf('/'))}`))
-    const existing = new Map<string, number>()
-    for (const dir of dirs) {
-      try {
-        for (const e of await card.listPath(dir)) existing.set(`${dir}/${e.name}`.toLowerCase(), e.size)
-      } catch {
-        // the folder does not exist yet; open-for-write creates it
-      }
-    }
-    const want = files.filter((f) => existing.get(`/${f}`.toLowerCase()) !== this.bytes.get(f)!.length)
-    let done = 0
-    for (const f of want) {
-      const data = this.bytes.get(f)!
-      onStatus?.(`Copying ${f}`, done / want.length)
-      await card.writeSampleFile(`/${f}`, data, (d, t) => onStatus?.(`Copying ${f}`, (done + (t ? d / t : 0)) / want.length))
-      done++
-    }
-    if (want.length > 0) {
-      this.invalidateCardListings()
-      void this.checkMissing()
-    }
-    return want.length
-  }
-
-  /** The builder panel's push button: same sync, with its own status display. */
+  /** The builder panel's push button: the shared sync, with its own status display. */
   async pushToCard(): Promise<void> {
-    if (this.pushable.length === 0) return
-    await this.run('Checking the card', async () => {
-      const n = await this.syncMissingToCard((label, p) => {
+    if (samples.pushable.length === 0) return
+    await this.run('Connecting to the Deluge', async () => {
+      // Same as the browse: the click is the gesture, so connect for it.
+      if (!(await card.ensureConnected())) throw new Error(card.error ?? 'could not reach the Deluge')
+      this.busy = 'Checking the card'
+      const n = await samples.syncMissingToCard((label, p) => {
         this.busy = label
         this.progress = p
       })
@@ -283,11 +176,11 @@ class KitBuilder {
     const preset = editor.preset
     if (!preset) return
     const kind = isKit(preset) ? ('kit' as const) : ('synth' as const)
-    const fallback = kind === 'kit' ? (this.folder ?? 'Kit') : 'Synth'
+    const fallback = kind === 'kit' ? (samples.folder ?? 'Kit') : 'Synth'
     const presetFileName = (editor.fileName || `${fallback}.XML`).replace(/\.xml$/i, '.XML')
-    const samples: ShareSample[] = this.kitSampleFiles().map((fileName) => ({
+    const files: ShareSample[] = samples.files().map((fileName) => ({
       fileName,
-      data: this.bytes.get(fileName),
+      data: samples.bytes.get(fileName),
     }))
     const zip = shareZip(editor.output, {
       presetFileName,
@@ -295,7 +188,7 @@ class KitBuilder {
       author: this.author.trim() || undefined,
       license: this.license.trim() || undefined,
       source: this.source.trim() || undefined,
-    }, samples)
+    }, files)
     const blob = new Blob([zip.buffer as ArrayBuffer], { type: 'application/zip' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -309,7 +202,7 @@ class KitBuilder {
   private buildRows(specs: SampleRowSpec[], folder: string | null): void {
     if (!editor.preset || !isKit(editor.preset)) {
       editor.newKit()
-      this.bytes = new Map()
+      samples.reset()
       this.author = this.license = this.source = ''
     }
     const kit = editor.preset as KitElement
@@ -317,7 +210,7 @@ class KitBuilder {
     this.template ??= rowTemplateFrom(initKitTemplate)
     const ordered = orderSamples(specs, (s) => s.fileName)
     addSampleRows(kit, this.template, ordered)
-    this.folder = folder
+    samples.folder = folder
     editor.row = Math.max(0, drumRows(kit).length - ordered.length)
   }
 
@@ -337,8 +230,3 @@ class KitBuilder {
 }
 
 export const kit = new KitBuilder()
-
-// Saving a kit from the card panel retargets its local samples to the saved
-// folder path and brings them along (card.save()).
-card.kitRetarget = (savePath) => kit.retargetToSavePath(savePath)
-card.kitSampleSync = (onStatus) => kit.syncMissingToCard(onStatus)

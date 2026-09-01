@@ -62,21 +62,23 @@ class Card {
   otherEditor = $state(false)
 
   /**
-   * Registered by the kit builder (src/ui/state/kit.svelte.ts): writes every
-   * locally held sample the current kit references that the card is missing,
-   * reporting progress; resolves to how many were written. Saving a kit
-   * without its samples would leave silent rows on the instrument.
+   * Registered by the sample stash (src/ui/state/samples.svelte.ts): writes every
+   * locally held sample the current preset references that the card is
+   * missing, reporting progress; resolves to how many were written. Saving a
+   * preset without its samples would leave silent rows on the instrument.
    */
-  kitSampleSync: ((onStatus: (label: string, progress: number) => void) => Promise<number>) | null = null
+  sampleSync: ((onStatus: (label: string, progress: number) => void) => Promise<number>) | null = null
 
   /**
-   * Registered by the kit builder: before a kit save, move its locally
-   * sourced samples (and the rows' fileName references) under the folder
-   * matching the save path, so the card's layout follows the kit.
+   * Registered by the sample stash: before a save, move the preset's locally
+   * sourced samples (and the references to them) under the folder matching
+   * the save path, so the card's layout follows the preset.
    */
-  kitRetarget: ((savePath: string) => void) | null = null
+  sampleRetarget: ((savePath: string) => void) | null = null
 
   private client: SmsClient | null = null
+  /** The in-flight `ensureConnected` attempt, so simultaneous askers share it. */
+  private connecting: Promise<void> | null = null
 
   readonly supported = typeof navigator !== 'undefined' && 'requestMIDIAccess' in navigator
   /** null until the device answered the inquiry; then whether its firmware has smSysex. */
@@ -113,6 +115,20 @@ class Card {
 
   close(): void {
     this.open = false
+  }
+
+  /**
+   * Connect for a gesture that needs the card but didn't come from the top
+   * bar — the sample browsers' "From Card…", which would otherwise sit
+   * disabled until the user knew to open the preset panel first. Returns
+   * whether the card is usable; the reason it isn't is in `error`. Two
+   * panels asking at once share the one attempt.
+   */
+  async ensureConnected(): Promise<boolean> {
+    if (this.connected) return true
+    this.connecting ??= this.connect().finally(() => (this.connecting = null))
+    await this.connecting
+    return this.connected
   }
 
   async connect(): Promise<void> {
@@ -241,19 +257,25 @@ class Card {
     }
     this.armed = null
     await this.run(`Writing ${name}`, async () => {
-      // A kit's samples travel with it: retarget them to the saved folder
-      // path first (the XML written below carries the new references), then
-      // copy any the card is missing. Every write is still verified by
-      // read-back; the message just doesn't dwell on it.
-      if (editor.preset?.tag === 'kit') this.kitRetarget?.(path)
-      await this.client!.writeFile(path, new TextEncoder().encode(editor.output), (d, t) => (this.progress = d / t))
+      // Locally sourced samples travel with the preset: retarget them to the
+      // saved folder path first, so the XML below carries the new references,
+      // then copy any the card is missing — samples first, preset second. The
+      // Deluge loads a preset whose samples are absent without complaining
+      // and plays it silently (`Source::loadAllSamples` ignores the per-range
+      // error, `processing/source.cpp:105`), so the preset must never be the
+      // thing that lands first. Every write is still verified by read-back;
+      // the message just doesn't dwell on it.
+      this.sampleRetarget?.(path)
       let copied = 0
-      if (editor.preset?.tag === 'kit' && this.kitSampleSync) {
-        copied = await this.kitSampleSync((label, p) => {
+      if (this.sampleSync) {
+        copied = await this.sampleSync((label, p) => {
           if (label) this.busy = label
           this.progress = p
         })
       }
+      this.busy = `Writing ${name}`
+      this.progress = 0
+      await this.client!.writeFile(path, new TextEncoder().encode(editor.output), (d, t) => (this.progress = d / t))
       const written = copied ? `${name} and ${copied} sample${copied === 1 ? '' : 's'} written` : `${name} written`
       // The read-back proves the card holds what we sent — but only as of
       // now. With another editor on the same Deluge, its next `open` for
@@ -273,8 +295,8 @@ class Card {
     return this.path === '/' ? `/${name}` : `${this.path}/${name}`
   }
 
-  // ---- sample access for the kit builder (src/ui/state/kit.svelte.ts) -----
-  // The kit builder browses SAMPLES/ and pushes sample files with the same
+  // ---- sample access for the builders (kit.svelte.ts, multisample.svelte.ts) ----
+  // The builders browse SAMPLES/ and push sample files with the same
   // client the preset panel uses; these wrappers keep the client private and
   // the connection checks in one place.
 
@@ -294,11 +316,16 @@ class Card {
       .toSorted((a, b) => Number(isDirectory(b)) - Number(isDirectory(a)) || a.name.localeCompare(b.name))
   }
 
-  /** A WAV's frame count etc. read from just its header bytes on the card. */
-  async wavInfo(path: string): Promise<WavInfo> {
+  /**
+   * A WAV's frame count etc. read from just its header bytes on the card.
+   * `tags` walks on past the audio for the root note and loop points, which
+   * costs a few more ranged reads — the multi-sample import wants them, the
+   * kit builder doesn't.
+   */
+  async wavInfo(path: string, opts?: { tags?: boolean }): Promise<WavInfo> {
     const handle = await this.need().openRead(path)
     try {
-      return await readWavInfo((offset, length) => handle.read(offset, length))
+      return await readWavInfo((offset, length) => handle.read(offset, length), opts)
     } finally {
       await handle.close()
     }

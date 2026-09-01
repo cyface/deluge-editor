@@ -11,13 +11,26 @@
    * one-range flattening are the firmware's, not this component's.
    */
   import { noteName } from '../core/preset/notes'
+  import type { RootFrom } from '../core/samples/roots'
   import { removeRange, rootName, rootParts, setRangeRoot, setRangeTopNote, setRangeZone, type SampleRange } from '../core/preset/ranges'
   import KeyMap from './controls/KeyMap.svelte'
   import NumberField from './controls/NumberField.svelte'
   import { audio } from './state/audio.svelte'
   import { card } from './state/card.svelte'
   import { editor } from './state/editor.svelte'
+  import { multisample } from './state/multisample.svelte'
   import { ranges as ed } from './state/ranges.svelte'
+  import { samples as stash } from './state/samples.svelte'
+
+  // Keep the missing-on-card check current, the way the kit rows do: a range
+  // pointing at a file the card doesn't have loads silently on the Deluge.
+  let wasConnected = false
+  $effect(() => {
+    const connected = card.status === 'connected'
+    if (connected && !wasConnected) stash.invalidateCardListings()
+    wasConnected = connected
+    void stash.checkMissing()
+  })
 
   const osc = $derived(ed.osc)
   const list = $derived(ed.ranges)
@@ -65,6 +78,26 @@
     if (!card.connected) node.focus()
   }
 
+  /**
+   * What the folder import left beside these ranges (issue #33): where each
+   * root came from, the offset it fitted, and the files it could not place.
+   * It belongs here rather than in a panel of its own — this is the editor for
+   * what the import wrote, and an import is a way of filling it in.
+   */
+  const session = $derived(multisample.session?.which === ed.which ? multisample.session : null)
+  const SOURCE: Record<RootFrom, { short: string; why: string }> = {
+    user: { short: 'you', why: 'you set this root by hand' },
+    file: { short: 'WAV tag', why: 'the note the file itself declares, in its smpl/inst chunk' },
+    name: { short: 'file name', why: 'read from the name, through the folder offset' },
+    between: { short: 'spaced', why: 'evenly between the neighbours that did resolve' },
+    unknown: { short: '—', why: 'nothing placed this one' },
+  }
+  const LEGEND = ['file', 'name', 'between', 'user'] as const
+  /** The note field beside each left-out file, keyed by its path. */
+  let assignNote = $state<Record<string, number>>({})
+  const noteFor = (fileName: string, named: number | undefined): number =>
+    assignNote[fileName] ?? (named === undefined ? 60 : Math.round(named / 100))
+
   const summary = $derived(
     list.length === 0
       ? 'no sample yet'
@@ -94,17 +127,90 @@
     onmove={ed.editable ? (i, note) => osc && setRangeTopNote(osc, i, note) : undefined}
   />
 
+  {#if session}
+    <div class="import" data-testid="range-import">
+      <div class="line">
+        <span class="lead">From folder</span>
+        <span class="mono who">{session.folder ?? 'samples'}</span>
+        <span class="why">
+          {session.placed} sample{session.placed === 1 ? '' : 's'} placed{session.leftOut.length ? `, ${session.leftOut.length} left out` : ''}
+          · roots {session.offsetFrom === 'anchors' ? 'calibrated against the files that declare one' : 'read from the file names'}
+        </span>
+        <span class="shift">
+          <span class="lead">Shift all</span>
+          <button type="button" class="btn small" data-testid="range-shift-down-oct" aria-label="Down an octave" onclick={() => multisample.shift(-12)}>−12</button>
+          <button type="button" class="btn small" aria-label="Down a semitone" onclick={() => multisample.shift(-1)}>−1</button>
+          <button type="button" class="btn small" aria-label="Up a semitone" onclick={() => multisample.shift(1)}>+1</button>
+          <button type="button" class="btn small" aria-label="Up an octave" onclick={() => multisample.shift(12)}>+12</button>
+        </span>
+        <button type="button" class="btn small" data-testid="range-import-dismiss" onclick={() => multisample.dismissSession()}>Done</button>
+      </div>
+
+      {#if session.discardedFileRoots}
+        <!-- The firmware's own rule (sample_browser.cpp:1360): every file in
+             the folder declaring the same note means a lazy exporter tagged
+             them all, so the tags are worth nothing. -->
+        <p class="caution" data-testid="range-import-discarded">
+          Every WAV in that folder declared the same root note, so the tags were thrown away — as the Deluge throws them away. The file names carried the import instead.
+        </p>
+      {/if}
+
+      {#if session.leftOut.length}
+        <div class="leftout" data-testid="range-left-out">
+          <span class="lead">Left out</span>
+          <ul>
+            {#each session.leftOut as l (l.file.fileName)}
+              <li>
+                <span class="fname" title={l.file.fileName}>{l.base}</span>
+                <span class="why">{l.reason === 'no root' ? 'no note in its name or its header' : 'no key band left beside its neighbours'}</span>
+                <input
+                  class="note"
+                  type="number"
+                  min="0"
+                  max="127"
+                  aria-label="Root note for {l.base}"
+                  value={noteFor(l.file.fileName, l.named)}
+                  onchange={(e) => (assignNote[l.file.fileName] = Number((e.currentTarget as HTMLInputElement).value))}
+                />
+                <span class="mono rn">{noteName(noteFor(l.file.fileName, l.named))}</span>
+                <button type="button" class="btn small" data-testid="range-assign" onclick={() => multisample.assign(l.file.fileName, noteFor(l.file.fileName, l.named))}>Add</button>
+                <button type="button" class="mini" title="Leave this file out" aria-label="Discard {l.base}" onclick={() => multisample.discard(l.file.fileName)}>×</button>
+              </li>
+            {/each}
+          </ul>
+        </div>
+      {/if}
+    </div>
+  {/if}
+
   {#if list.length}
     <div class="scroll">
       <table class="rows" data-testid="range-rows">
-        <thead><tr><th class="num">#</th><th>Keys</th><th>Root</th><th>Sample</th><th>Tuning</th><th>Zone</th><th></th></tr></thead>
+        <thead><tr><th class="num">#</th><th>Keys</th><th>Root</th>{#if session}<th>Root from</th>{/if}<th>Sample</th><th>Tuning</th><th>Zone</th><th></th></tr></thead>
         <tbody>
           {#each list as r, i (r.el)}
             <tr class:on={i === sel} data-range={i} onclick={() => ed.select(i)}>
               <td class="num">{i + 1}</td>
               <td class="mono">{r.topNote === undefined ? `above ${noteName((list[i - 1]?.topNote ?? -1) + 1)}` : `up to ${noteName(r.topNote)}`}</td>
               <td class="mono">{rootName(r.rootCents)}</td>
-              <td><span class="fname" title={r.fileName}>{base(r.fileName) || '(no file)'}</span></td>
+              {#if session}
+                {@const src = SOURCE[session.from[r.fileName ?? ''] ?? 'unknown']}
+                <td class="mono src" title={src.why}>{src.short}</td>
+              {/if}
+              <td>
+                {#if r.fileName && stash.missing.has(r.fileName)}
+                  {@const held = stash.bytes.has(r.fileName)}
+                  <span
+                    class="miss"
+                    class:pending={held}
+                    data-testid="range-missing"
+                    title={held
+                      ? 'Not on the card yet — saving the preset will copy it there'
+                      : 'Not on the card — the Deluge loads the preset anyway, but this range will be silent'}
+                  >⚠</span>
+                {/if}
+                <span class="fname" title={r.fileName}>{base(r.fileName) || '(no file)'}</span>
+              </td>
               <td class="mono">{tuning(r)}</td>
               <td class="mono zone">{zoneText(r)}</td>
               <td class="acts">
@@ -120,6 +226,14 @@
         </tbody>
       </table>
     </div>
+    {#if session}
+      <p class="legend" data-testid="range-legend">
+        <span class="lead">Root from</span>
+        {#each LEGEND as key (key)}
+          <span class="item"><b>{SOURCE[key].short}</b> — {SOURCE[key].why}</span>
+        {/each}
+      </p>
+    {/if}
   {:else}
     <p class="empty">This oscillator has no sample. Add one to start a multi-sample instrument.</p>
   {/if}
@@ -147,6 +261,8 @@
   {#if ed.editable}
     <div class="acts row">
       <button type="button" class="btn small" data-testid="range-add" onclick={() => ed.startPick({ mode: 'add' })}>Add sample…</button>
+      <!-- A whole folder at once, roots and boundaries worked out (issue #33). -->
+      <button type="button" class="btn small" data-testid="range-from-folder" onclick={() => ed.which && multisample.start(ed.which)}>From folder…</button>
       {#if current}
         <button type="button" class="btn small" data-testid="range-change" onclick={() => ed.startPick({ mode: 'set', index: sel })}>Change sample…</button>
         <button type="button" class="btn small" data-testid="range-split-below" onclick={() => ed.startPick({ mode: 'below', index: sel })}>Split, new below…</button>
@@ -207,8 +323,15 @@
   .mono { font-family: var(--mono); font-size: 10.5px; color: #cfc6b6; white-space: nowrap; }
   .zone { color: var(--faint); }
   .fname { font-family: var(--mono); font-size: 10.5px; }
+  .miss { color: var(--warn); cursor: help; margin-right: 4px; }
+  .miss.pending { color: var(--faint); }
   td.acts { text-align: right; white-space: nowrap; }
-  .mini { background: none; border: 1px solid transparent; color: var(--faint); cursor: pointer; font-size: 11px; line-height: 1; padding: 2px 5px; border-radius: 2px; }
+  /* Fixed width: the play glyph swaps ▶ for ■ and they measure differently,
+     which nudged the whole row sideways on every click. */
+  .mini {
+    background: none; border: 1px solid transparent; color: var(--faint); cursor: pointer; font-size: 11px;
+    line-height: 1; padding: 2px 0; border-radius: 2px; width: 24px; text-align: center;
+  }
   .mini:hover { color: var(--brass-hi); border-color: var(--edge-hi); }
   .acts.row { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 0 4px; }
   .h3 .sub { font-family: var(--mono); text-transform: none; letter-spacing: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -223,6 +346,21 @@
   .typed { display: flex; gap: 6px; margin-top: 8px; }
   .typed input { flex: 1; background: #0c0b0a; border: 1px solid var(--edge-hi); border-radius: 3px; color: #ddd4c4; font-family: var(--mono); font-size: 11px; height: 26px; padding: 0 7px; }
   .busy { margin: 6px 0 0; font-family: var(--mono); font-size: 10px; color: var(--faint); }
+  .import { margin: 10px 0 0 4px; border: 1px solid var(--edge-hi); border-radius: 3px; padding: 8px 9px; background: #100e0c; }
+  .import .line { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+  .import .who { color: #e2d9ca; }
+  .import .why { font-family: var(--cond); font-size: 11px; color: var(--faint); }
+  .import .shift { display: flex; align-items: center; gap: 5px; margin-left: auto; }
+  .lead { font-family: var(--cond); font-size: 10px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+  .leftout { margin-top: 9px; }
+  .leftout ul { list-style: none; margin: 5px 0 0; padding: 0; }
+  .leftout li { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
+  .leftout .why { flex: 1; min-width: 120px; }
+  .note { width: 46px; background: #0c0b0a; border: 1px solid var(--edge-hi); border-radius: 3px; color: #ddd4c4; font-family: var(--mono); font-size: 10.5px; height: 21px; padding: 0 4px; }
+  .rn { color: var(--faint); min-width: 30px; }
+  .src { color: var(--muted); }
+  .legend { display: flex; flex-wrap: wrap; align-items: baseline; gap: 3px 14px; margin: 9px 0 0 4px; font-family: var(--cond); font-size: 11px; line-height: 1.4; color: var(--faint); }
+  .legend b { color: #cfc6b6; font-weight: 600; }
   .caution { margin: 8px 0 0 4px; padding: 6px 8px; border: 1px solid #4a3a1a; background: #171208; border-radius: 3px; font-size: 11px; color: var(--warn); }
   .err { margin: 8px 0 0 4px; padding: 6px 8px; border: 1px solid #5a2a22; background: #1d1210; color: #e8a08f; font-family: var(--mono); font-size: 11px; border-radius: 3px; }
   .lbl { font-family: var(--cond); font-size: 10px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }

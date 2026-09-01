@@ -16,7 +16,7 @@
   import { audio } from './state/audio.svelte'
   import { card } from './state/card.svelte'
   import { editor, isSoundRow } from './state/editor.svelte'
-  import { kit as builder } from './state/kit.svelte'
+  import { samples as stash } from './state/samples.svelte'
 
   // Keep the missing-on-card check current: re-runs when the connection,
   // the kit, or any row's sample reference changes (checkMissing reads them
@@ -25,9 +25,9 @@
   let wasConnected = false
   $effect(() => {
     const connected = card.status === 'connected'
-    if (connected && !wasConnected) builder.invalidateCardListings()
+    if (connected && !wasConnected) stash.invalidateCardListings()
     wasConnected = connected
-    void builder.checkMissing()
+    void stash.checkMissing()
   })
 
   const PADS = ['--osc', '--at', '--flt', '--env1', '--lfo1', '--lfo2', '--fx', '--vel']
@@ -122,7 +122,7 @@
 </script>
 
 <section class="panel">
-  <div class="ph"><h2>Rows</h2><span class="sub">{#if builder.missing.size}<span class="misscount" data-testid="missing-count">⚠ {builder.missing.size} sample{builder.missing.size === 1 ? '' : 's'} not on the card</span> · {/if}{editor.rows.length} in pad order · bottom row first in the file · drag or ▲▼ to reorder</span></div>
+  <div class="ph"><h2>Rows</h2><span class="sub">{#if stash.missing.size}<span class="misscount" data-testid="missing-count">⚠ {stash.missing.size} sample{stash.missing.size === 1 ? '' : 's'} not on the card</span> · {/if}{editor.rows.length} in pad order · bottom row first in the file · drag or ▲▼ to reorder</span></div>
   <div class="scroll">
     <table class="rows" data-testid="kit-rows">
       <thead><tr><th></th><th></th><th></th><th></th><th class="num">#</th><th>Row</th><th>Source</th><th>Repeat</th><th>Direction</th><th class="num">Vol</th><th class="num">Pan</th><th></th></tr></thead>
@@ -183,8 +183,8 @@
               {/if}
             </td>
             <td class="src">
-              {#if sampleFile(r) && builder.missing.has(sampleFile(r)!)}
-                {@const held = builder.bytes.has(sampleFile(r)!)}
+              {#if sampleFile(r) && stash.missing.has(sampleFile(r)!)}
+                {@const held = stash.bytes.has(sampleFile(r)!)}
                 <span
                   class="warn"
                   class:pending={held}

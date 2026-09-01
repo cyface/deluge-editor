@@ -10,6 +10,7 @@ import nestedFixture from '../../../tests/fixtures/official-2.x-old-format/Neste
 import velocityFixture from '../../../tests/fixtures/fork-c1.3.0-local-fixes-fbba6b4f/Kit Velocity Layers.XML?raw'
 import synthTemplate from '../../assets/templates/Default Synth.XML?raw'
 import { generateXML, parseXML } from '../xml'
+import { element } from '../xml/element'
 import { drumRows, isKit, isSound } from './index'
 import { osc } from './sound'
 import {
@@ -21,11 +22,13 @@ import {
   normalizeRanges,
   rangeIndexAt,
   removeRange,
+  replaceRanges,
   rootCents,
   rootName,
   rootParts,
   rootToTransposeCents,
   sampleRanges,
+  shiftRanges,
   soundingOrder,
   setRangeFileName,
   setRangeRoot,
@@ -522,5 +525,62 @@ describe('ranges keyed by velocity', () => {
       }
     }
     expect(generateXML(kit)).toBe(velocityFixture)
+  })
+})
+
+describe('shiftRanges', () => {
+  const built = (osc: OscElement) =>
+    sampleRanges(osc).map((r) => [r.fileName, r.rootCents / 100, r.topNote])
+
+  const threeRanges = (): OscElement => {
+    const osc = element('osc1', { type: 'sample' }) as OscElement
+    replaceRanges(osc, [
+      { fileName: 'a.wav', topNote: 66, ...rootToTransposeCents(6000) },
+      { fileName: 'b.wav', topNote: 78, ...rootToTransposeCents(7200) },
+      { fileName: 'c.wav', ...rootToTransposeCents(8400) },
+    ])
+    return osc
+  }
+
+  it('moves the roots and the boundaries by the same semitones', () => {
+    const osc = threeRanges()
+    expect(shiftRanges(osc, -12)).toBe(-12)
+    expect(built(osc)).toEqual([
+      ['a.wav', 48, 54],
+      ['b.wav', 60, 66],
+      ['c.wav', 72, undefined],
+    ])
+  })
+
+  it('keeps a boundary that was moved by hand where it sits between its samples', () => {
+    const osc = threeRanges()
+    setRangeTopNote(osc, 0, 62) // a person dragged this split down
+    shiftRanges(osc, 12)
+    expect(built(osc)).toEqual([
+      ['a.wav', 72, 74],
+      ['b.wav', 84, 90],
+      ['c.wav', 96, undefined],
+    ])
+  })
+
+  it('carries the cents of a detuned range', () => {
+    const osc = element('osc1', { type: 'sample' }) as OscElement
+    replaceRanges(osc, [
+      { fileName: 'a.wav', topNote: 66, ...rootToTransposeCents(6025) },
+      { fileName: 'b.wav', ...rootToTransposeCents(7200) },
+    ])
+    shiftRanges(osc, 1)
+    expect(sampleRanges(osc)[0].rootCents).toBe(6125)
+  })
+
+  it('stops at the end of the keyboard rather than pushing a root off it', () => {
+    const osc = threeRanges()
+    expect(shiftRanges(osc, 96)).toBe(127 - 84)
+    expect(sampleRanges(osc).at(-1)?.rootCents).toBe(12700)
+    expect(shiftRanges(osc, 96)).toBe(0)
+  })
+
+  it('is nothing to do on an oscillator with no ranges', () => {
+    expect(shiftRanges(element('osc1', { type: 'sample' }) as OscElement, 12)).toBe(0)
   })
 })

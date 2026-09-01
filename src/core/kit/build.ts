@@ -88,39 +88,6 @@ export function addSampleRows(kit: KitElement, template: SoundElement, specs: re
   return added
 }
 
-/**
- * Rewrite the kit's sample references through `map` — every `fileName` on a
- * row's oscillators and their `sampleRanges`. `map` returns the new path, or
- * null to leave one untouched. Returns the changed pairs, in row order.
- */
-export function retargetSampleFiles(
-  kit: KitElement,
-  map: (fileName: string) => string | null,
-): { from: string; to: string }[] {
-  const moved: { from: string; to: string }[] = []
-  const visit = (el: { attrs: { fileName?: string } } | undefined) => {
-    if (!el) return
-    const from = el.attrs.fileName
-    if (from) {
-      const to = map(from)
-      if (to !== null && to !== from) {
-        el.attrs.fileName = to // the attribute exists, so assignment keeps its place
-        moved.push({ from, to })
-      }
-    }
-  }
-  for (const row of drumRows(kit)) {
-    if (row.tag !== 'sound') continue
-    for (const tag of ['osc1', 'osc2'] as const) {
-      const o = child(row as SoundElement, tag)
-      visit(o)
-      const ranges = o && child(o, 'sampleRanges')
-      for (const range of ranges?.children ?? []) visit(range)
-    }
-  }
-  return moved
-}
-
 /** Move a row within the kit (indexes in pad order, bottom row 0). */
 export function moveRow(kit: KitElement, from: number, to: number): void {
   const sources = child(kit, 'soundSources')

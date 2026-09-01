@@ -6,6 +6,7 @@
   import FlowStrip from './FlowStrip.svelte'
   import KitBuilder from './KitBuilder.svelte'
   import KitRows from './KitRows.svelte'
+  import FolderImport from './FolderImport.svelte'
   import Oled from './Oled.svelte'
   import Overview from './Overview.svelte'
   import RangeEditor from './RangeEditor.svelte'
@@ -14,6 +15,8 @@
   import { editor } from './state/editor.svelte'
   import { ranges as rangeEditor } from './state/ranges.svelte'
   import { kit as kitBuilder } from './state/kit.svelte'
+  import { multisample } from './state/multisample.svelte'
+  import { samples as stash } from './state/samples.svelte'
 
   let dragging = $state(false)
   /** A drop over a loaded preset, held for the user's yes. */
@@ -28,21 +31,24 @@
     dragging = false
     confirmDrop = null
     if (!e.dataTransfer) return
-    // A folder (or loose WAVs) is a kit-building drop; a file is a preset.
-    // Any drop over a loaded preset asks first: samples ADD rows to a kit
-    // but replace anything else with a new kit, and a preset file replaces
-    // whatever is loaded — the dialog says which is about to happen.
-    const samples = await collectDroppedSamples(e.dataTransfer)
-    if (samples) {
-      const folder = samples.folder ?? kitBuilder.folder ?? (editor.fileName.replace(/\.xml$/i, '') || 'Kit')
-      const run = () => kitBuilder.addLocalSamples(folder, samples.files)
-      const n = samples.files.length
-      if (editor.preset?.tag === 'kit') {
-        confirmDrop = { question: `Add ${n} WAV${n === 1 ? '' : 's'} from “${folder}” to ${editor.fileName || 'the current kit'}?`, verb: 'Add', run }
+    // A folder (or loose WAVs) builds an instrument from samples; a file is a
+    // preset. Over a synth the folder is a multi-sample import: it opens the
+    // review and builds the ranges there and then, on an oscillator that was
+    // not already a sampled one, so there is nothing to confirm. Over a kit
+    // the samples ADD rows, over nothing they start a kit, and a preset file
+    // replaces whatever is loaded: those ask first.
+    const dropped = await collectDroppedSamples(e.dataTransfer)
+    if (dropped) {
+      const folder = dropped.folder ?? stash.folder ?? (editor.fileName.replace(/\.xml$/i, '') || 'Kit')
+      if (editor.preset && editor.preset.tag !== 'kit') {
+        // Straight in: the drop already answered "where are the samples?".
+        await multisample.addLocalFolder(folder, dropped.files)
         return
       }
-      if (editor.preset) {
-        confirmDrop = { question: `Build a new kit from “${folder}”? It replaces ${loadedName()}${changesNote()}.`, verb: 'Replace', run }
+      const run = () => kitBuilder.addLocalSamples(folder, dropped.files)
+      const n = dropped.files.length
+      if (editor.preset?.tag === 'kit') {
+        confirmDrop = { question: `Add ${n} WAV${n === 1 ? '' : 's'} from “${folder}” to ${editor.fileName || 'the current kit'}?`, verb: 'Add', run }
         return
       }
       await run()
@@ -65,8 +71,10 @@
   ondragover={(e) => { e.preventDefault(); dragging = true }}
   ondragleave={() => (dragging = false)}
   ondrop={drop}
-  onkeydown={(e) => { if (e.key === 'Escape') confirmDrop = null }}
+  onkeydown={(e) => { if (e.key === 'Escape') { confirmDrop = null; if (multisample.open) multisample.cancel() } }}
 />
+
+{#if multisample.open}<FolderImport />{/if}
 
 {#if confirmDrop}
   <div class="veil" role="alertdialog" aria-label="Replace the loaded preset?" data-testid="drop-confirm">

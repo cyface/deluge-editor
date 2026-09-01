@@ -238,3 +238,42 @@ test('card: a second editor on the same Deluge is detected and warned about (iss
   )
   expect(onCard).toBe(true)
 })
+
+test('multi-sample import: the Deluge option connects by itself and builds from headers read over SysEx (issue #33)', async ({ page }) => {
+  await page.addInitScript((seed) => {
+    ;(globalThis as unknown as { __cardSeed: unknown }).__cardSeed = seed
+  }, {
+    '/SAMPLES/Piano/Piano C3.wav': asciiWav(300),
+    '/SAMPLES/Piano/Piano D3.wav': asciiWav(400),
+    '/SAMPLES/Piano/Piano E3.wav': asciiWav(500),
+  })
+  await page.addInitScript({ path: path.resolve('tests/e2e/fake-deluge.js') })
+  await page.goto('/')
+  await page.getByTestId('new-synth').click()
+  await page.getByTestId('build-multisample-1').click()
+
+  // Nothing has connected yet: choosing the Deluge does it, the way Open from
+  // Deluge does.
+  await expect(page.getByTestId('card-open-button')).not.toContainText('●')
+  await page.getByTestId('ms-source-card').click()
+  const browser = page.getByTestId('ms-card-browser')
+  await expect(browser).toContainText('/SAMPLES')
+  await browser.locator('button', { hasText: 'Piano' }).click()
+  await page.getByTestId('ms-take-card-folder').click()
+
+  // Roots come from the file names; the frame counts came from the headers.
+  const rows = page.locator('[data-testid="range-editor"] [data-range]')
+  await expect(rows).toHaveCount(3)
+  await expect(rows.nth(0)).toContainText('Piano C3.wav')
+  await expect(rows.nth(0)).toContainText('up to C#3')
+
+  const downloadPromise = page.waitForEvent('download')
+  await page.getByRole('button', { name: 'Download XML', exact: true }).click()
+  const xml = fs.readFileSync((await (await downloadPromise).path())!, 'utf8')
+  expect(xml).toContain('fileName="SAMPLES/Piano/Piano C3.wav"')
+  expect(xml).toContain('endSamplePos="300"')
+  expect(xml).toContain('rangeTopNote="61"')
+
+  // The samples are already on the card, so nothing is queued to copy.
+  await expect(page.getByTestId('range-missing')).toHaveCount(0)
+})

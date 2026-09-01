@@ -14,6 +14,7 @@
   import Toggle from '../controls/Toggle.svelte'
   import { loopModeOptions, oscTypeOptions, synthModeOptions } from '../options'
   import { editor } from '../state/editor.svelte'
+  import { multisample } from '../state/multisample.svelte'
   import { ranges as rangeEditor } from '../state/ranges.svelte'
 
   interface Props { sound: SoundElement }
@@ -104,7 +105,15 @@
         </div>
       </div>
     </div>
-    {#if list.length}
+    {#if list.length === 0}
+      <!-- The firmware loads this happily and plays nothing: a SAMPLE source
+           with no file has nothing to render (`Source::loadAllSamples`,
+           processing/source.cpp:105). Silence is the hardest fault to find on
+           the instrument, so it is called out here. -->
+      <p class="caution" data-testid="osc-no-sample-{n}">
+        This oscillator is set to Sample but has no sample — it will be silent on the Deluge.
+      </p>
+    {:else}
       <KeyMap
         ranges={list}
         compact
@@ -115,6 +124,21 @@
     <div class="rangeact">
       <button type="button" class="btn small" data-testid="edit-ranges-{n}" onclick={() => rangeEditor.toggle(n)}>
         {rangeEditor.openOn === n ? 'Close ranges' : list.length > 1 ? 'Edit ranges' : 'Ranges…'}
+      </button>
+      <!-- A whole folder at once (issue #33): the panel reads the samples and
+           writes the ranges as it works them out. -->
+      <button type="button" class="btn small" data-testid="build-multisample-{n}" title="Rebuild this oscillator's ranges from a folder of samples" onclick={() => multisample.start(n)}>
+        From folder…
+      </button>
+    </div>
+  {:else if !fm}
+    <!-- The way into a multi-sampled instrument from a synth that isn't one
+         yet. Clicking it switches this oscillator to Sample so the panel and
+         the waveform agree; closing the panel having read no folder puts the
+         waveform back. -->
+    <div class="rangeact">
+      <button type="button" class="btn small" data-testid="build-multisample-{n}" title="Build a multi-sampled instrument on this oscillator from a folder of samples" onclick={() => multisample.start(n)}>
+        Build from folder…
       </button>
     </div>
   {/if}
@@ -156,5 +180,9 @@
 
 <style>
   .rangeact { display: flex; gap: 6px; margin: 8px 0 0 4px; }
+  .caution {
+    margin: 8px 0 0 4px; padding: 5px 7px; border: 1px solid #6b4a1c; background: #1d1710; border-radius: 3px;
+    font-family: var(--cond); font-size: 11px; line-height: 1.3; color: #e8b06a;
+  }
   .lbl { font-family: var(--cond); font-size: 10px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
 </style>

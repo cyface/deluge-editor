@@ -300,3 +300,73 @@ templates folder so they are held to the fixtures' bar. The name starts
 empty (shown as UNNAMED) so the card panel's save flow forces a real one.
 New Kit waits for the kit editor (#10); its template, the blank kit the
 new-kit gesture creates, is already captured alongside.
+
+## A multi-sample import that reads names and asks, instead of guessing
+
+The instrument builds a multi-sampled synth from a folder with an FFT
+(`Sample::determinePitch`, `model/sample/sample.cpp:1269`) because it cannot
+read a filename as text and cannot ask anyone. We can do both, so the import
+(issue #33) ships **no pitch detector**. What it takes from the firmware is
+the knowledge rather than the necessity: the embedded root note from the WAV's
+`smpl`/`inst` chunks, read the device's way (`storage/audio/audio_file.cpp`),
+and the device's own discard rule — every file in a folder declaring the *same*
+note means a lazy exporter tagged them all, so the whole set is thrown away
+(`SampleBrowser::loadAllSamplesInFolder`, `sample_browser.cpp:1360`). On Tim's
+card that rule fires on about a third of the library; it is load-bearing.
+
+Below the tags, file names carry the import — never at face value. One integer
+offset is fitted for the whole folder against whatever files do declare a
+root, and the folder offset stays visible and adjustable, because Salamander
+names middle C as C4 and would otherwise land a whole piano an octave out.
+Rows nothing places are **flagged, never dropped**, which is the firmware's
+worst behaviour here, and every row says where its answer came from. Measured
+against the card backup, the cascade puts 728 of 832 ranges on the root the
+device stored (`tests/corpus-roots.test.ts`, which skips when the backup isn't
+there); the shortfall is folders with neither a tag nor a note name, and the
+test pins them by name.
+
+**One panel, no Build button.** The import had both at first — a review table
+of its own and a button to commit it — and the first preset built that way was
+saved silent, because the panel had been opened, the folder read and the file
+downloaded without the confirming click. Nothing else in this editor works
+like that: a knob writes when you turn it, and the only commit is saving. So
+the import is one question — where are the samples, this computer or the
+Deluge — and the answer lands as ranges in the range editor. There is no
+second panel to reconcile with the first, because the range editor already is
+the review: it lists every range with its file, root, keys and zone.
+
+What the import knows that the range editor cannot work out for itself sits in
+a row above the table for as long as it is useful: the folder it came from,
+where each root came from (a column, spelled out in a legend — provenance is
+the point, so it cannot depend on a tooltip), and **the files it could not
+place**, which the firmware drops silently and this lists with a note field
+and an Add button. The folder offset became `shiftRanges`: it moves every root
+and every boundary by whole semitones, so it repairs a library named against a
+different middle C — and, being an ordinary range edit, works on any
+multi-sampled oscillator, imported or loaded from a card.
+
+Asking the question turns the target into a sample oscillator straight away,
+so the panel and the waveform never disagree, and dismissing it without
+choosing a folder puts the waveform back: a sample oscillator with no sample
+is silent on the instrument, and that silence is now called out in amber in
+the oscillator panel wherever it occurs.
+
+Everything downstream of the roots is the firmware's arithmetic, in
+`src/core/preset/multisample.ts`: midpoint boundaries, the zone a freshly
+chosen sample gets (a loop with a shorter tail than the loop itself becomes
+the zone end, `sample_holder_for_voice.cpp:170-203`), and the repeat mode a
+set implies. The review table shows the same `fitSamples` result the writer
+consumes, so what the user is shown and what the oscillator gets cannot drift
+apart. Boundaries are computed **only** at import — across the same 36 presets
+the midpoint rule holds for 716 of 783 adjacent pairs, and every clear miss is
+a preset a human touched, so a boundary that isn't the midpoint is a decision,
+not a defect.
+
+Two consequences elsewhere. The bytes of locally sourced samples moved out of
+the kit builder into a shared stash (`src/ui/state/samples.svelte.ts`): a
+sample-based synth needs the same preview, card push, retarget-on-save and
+missing-file warning a kit does, and none of that was ever about kits. And a
+save now writes **samples first, preset second** — the Deluge loads a preset
+whose samples are absent without complaining and plays it silently
+(`Source::loadAllSamples` ignores the per-range error, `processing/source.cpp:105`),
+so the preset must never be the thing that lands first.
