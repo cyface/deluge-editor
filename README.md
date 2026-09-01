@@ -50,6 +50,20 @@ model. Controls are shown for the firmware in the top-right pill (defaulting
 to the loaded file's) and a control that firmware can't honour is simply not
 there. **Changes** lists every value that differs from the file you opened.
 
+**Follow Mode** mirrors the instrument: with MIDI Follow feedback enabled on
+the Deluge (`SETTINGS > MIDI > MIDI-Follow > Feedback`), turning a gold encoder
+moves the matching control here. While it is on, the page shows only the
+parameters MIDI Follow can reach — the firmware's own default CC map for the
+selected firmware — so what is on screen is exactly what the instrument can
+move; envelopes and LFOs are tabbed, and the tab follows whichever one the
+instrument just touched. The values it writes are the instrument's own, and
+nothing is committed until you save.
+
+**Send** — the other direction, off until you switch it on — plays your moves
+back at the Deluge on a MIDI-Follow channel, so the sound changes as you edit.
+It sends only what you move, on one port, and it says which; values land
+exactly when the instrument's MIDI-Follow takeover mode is JUMP, its default.
+
 A sample oscillator with more than one sample opens a **range editor** the
 width of the page: the key zones as bands across the keyboard, with the splits
 draggable, plus root note, tuning and zone for whichever range is selected.

@@ -306,6 +306,19 @@ export const FEATURES = {
       "'vuefinder' web application\" (2024-11-11), src/deluge/storage/smsysex.cpp; after release_1_2_1, " +
       'so community 1.3.0 only. Inbound SysEx spanning USB transfers also only works from the 1.3.0 fixes (#4633).',
   },
+  /**
+   * MIDI Follow Mode with feedback: a designated channel whose CCs address the
+   * active context's sound, and CCs sent back out when values change there.
+   * Not preset content — this gates the Follow button, not a control.
+   */
+  midiFollow: {
+    community: 'c1.1.0',
+    source:
+      'src/deluge/io/midi/midi_follow.cpp first exists at release_1_1_0 (release_1_0_1 has no such file ' +
+      'and no midiFollow reference anywhere in src/), already with ' +
+      'sendCCForMidiFollowFeedback; website/src/content/docs/features/midi_follow_mode.mdx is badged ' +
+      '"c1.1 Feature". No official build has the file at all (branch synthstrom-official).',
+  },
   /** `<arpeggiator kitArp>`: include this row in the kit-level arpeggiator. */
   kitArp: {
     community: 'c1.3.0',

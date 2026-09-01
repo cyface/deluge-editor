@@ -161,3 +161,7 @@ export const KIT_CHILD_ORDER = [
   'selectedDrumIndex',
 ] as const
 export const KIT_PARAMS_CHILD_ORDER = ['delay', 'lpf', 'hpf', 'equalizer'] as const
+/** `<defaultParams><lpf>`/`<hpf>` on a kit (`GlobalEffectable::writeParamTagsToFile`). */
+export const KIT_FILTER_ATTR_ORDER = ['frequency', 'resonance'] as const
+/** `<defaultParams><delay>` on a kit (same writer). */
+export const KIT_DELAY_ATTR_ORDER = ['rate', 'feedback'] as const

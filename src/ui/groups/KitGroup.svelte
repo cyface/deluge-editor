@@ -5,7 +5,7 @@
    * (Mod FX, Distortion, Delay, Reverb) so the same control reads the same
    * everywhere — only the values live in the kit's XML, not the row's.
    */
-  import { DELAY_ATTR_ORDER, KIT_ATTR_ORDER, KIT_CHILD_ORDER, KIT_PARAMS_CHILD_ORDER, KIT_PARAM_ATTRS, SIDECHAIN_ATTR_ORDER, type KitElement } from '../../core/preset'
+  import { DELAY_ATTR_ORDER, KIT_ATTR_ORDER, KIT_CHILD_ORDER, KIT_DELAY_ATTR_ORDER, KIT_FILTER_ATTR_ORDER, KIT_PARAMS_CHILD_ORDER, KIT_PARAM_ATTRS, SIDECHAIN_ATTR_ORDER, type KitElement } from '../../core/preset'
   import { menuToSidechainAttack, menuToSidechainRelease, sidechainAttackToMenu, sidechainReleaseToMenu } from '../../core/params/scale'
   import { hexToMenu, menuToHex } from '../../core/preset/sound'
   import { child, ensureChild, setAttr } from '../../core/xml'
@@ -29,7 +29,6 @@
   const D = () => ensureChild(kit, 'delay', KIT_CHILD_ORDER)
   const sc = $derived(child(kit, 'sidechain') ?? child(kit, 'compressor'))
   const set = (name: string) => (v: string) => setAttr(kit, name, v, KIT_ATTR_ORDER)
-  const FREQ = ['frequency', 'resonance'] as const
   /**
    * The same control's description as on a sound, plus what the kit bus makes
    * of it (issue #20). The knobs here hang off `<lpf>`/`<delay>` children
@@ -37,7 +36,6 @@
    * own description the way a sound's knobs do — the parameter is named here.
    */
   const bus = (p: string) => `${paramHelp(p) ?? HELP[p] ?? ''} ${KIT_BUS_NOTE}`.trim()
-  const RATE = ['rate', 'feedback'] as const
 
   // The kit bus keeps its filter values in <defaultParams><lpf>/<hpf>
   // children, same 0–50 scaling as a sound's flat attributes.
@@ -50,7 +48,7 @@
     },
     write: (p, menu) => {
       const el = ensureChild(P(), p.startsWith('lpf') ? 'lpf' : 'hpf', KIT_PARAMS_CHILD_ORDER)
-      setAttr(el, half(p), menuToHex(menu, 'standard'), FREQ)
+      setAttr(el, half(p), menuToHex(menu, 'standard'), KIT_FILTER_ATTR_ORDER)
     },
   }
 </script>
@@ -66,10 +64,10 @@
   {/if}
 </div>
 <div class="knobrow">
-  <HexKnob el={lpf} ensure={() => ensureChild(P(), 'lpf', KIT_PARAMS_CHILD_ORDER)} attr="frequency" label="LPF Freq" order={FREQ} title={bus('lpfFrequency')} />
-  <HexKnob el={lpf} ensure={() => ensureChild(P(), 'lpf', KIT_PARAMS_CHILD_ORDER)} attr="resonance" label="LPF Res" order={FREQ} title={bus('lpfResonance')} />
-  <HexKnob el={hpf} ensure={() => ensureChild(P(), 'hpf', KIT_PARAMS_CHILD_ORDER)} attr="frequency" label="HPF Freq" order={FREQ} title={bus('hpfFrequency')} />
-  <HexKnob el={hpf} ensure={() => ensureChild(P(), 'hpf', KIT_PARAMS_CHILD_ORDER)} attr="resonance" label="HPF Res" order={FREQ} title={bus('hpfResonance')} />
+  <HexKnob el={lpf} ensure={() => ensureChild(P(), 'lpf', KIT_PARAMS_CHILD_ORDER)} attr="frequency" label="LPF Freq" order={KIT_FILTER_ATTR_ORDER} title={bus('lpfFrequency')} />
+  <HexKnob el={lpf} ensure={() => ensureChild(P(), 'lpf', KIT_PARAMS_CHILD_ORDER)} attr="resonance" label="LPF Res" order={KIT_FILTER_ATTR_ORDER} title={bus('lpfResonance')} />
+  <HexKnob el={hpf} ensure={() => ensureChild(P(), 'hpf', KIT_PARAMS_CHILD_ORDER)} attr="frequency" label="HPF Freq" order={KIT_FILTER_ATTR_ORDER} title={bus('hpfFrequency')} />
+  <HexKnob el={hpf} ensure={() => ensureChild(P(), 'hpf', KIT_PARAMS_CHILD_ORDER)} attr="resonance" label="HPF Res" order={KIT_FILTER_ATTR_ORDER} title={bus('hpfResonance')} />
 </div>
 
 <div class="h3">Output</div>
@@ -97,8 +95,8 @@
 
 <div class="h3">Delay</div>
 <div class="knobrow">
-  <HexKnob el={dly} ensure={() => ensureChild(P(), 'delay', KIT_PARAMS_CHILD_ORDER)} attr="rate" label="Time" order={RATE} title={bus('delayRate')} />
-  <HexKnob el={dly} ensure={() => ensureChild(P(), 'delay', KIT_PARAMS_CHILD_ORDER)} attr="feedback" label="Feedback" order={RATE} title={bus('delayFeedback')} />
+  <HexKnob el={dly} ensure={() => ensureChild(P(), 'delay', KIT_PARAMS_CHILD_ORDER)} attr="rate" label="Time" order={KIT_DELAY_ATTR_ORDER} title={bus('delayRate')} />
+  <HexKnob el={dly} ensure={() => ensureChild(P(), 'delay', KIT_PARAMS_CHILD_ORDER)} attr="feedback" label="Feedback" order={KIT_DELAY_ATTR_ORDER} title={bus('delayFeedback')} />
 </div>
 <div class="fields">
   <Select label="Sync" name="kit.delay.syncLevel" value={delay?.attrs.syncLevel} options={syncLevelOptions()} title={bus('delay.syncLevel')} onchange={(v) => setAttr(D(), 'syncLevel', v, DELAY_ATTR_ORDER)} />

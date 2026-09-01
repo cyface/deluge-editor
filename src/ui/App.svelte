@@ -4,6 +4,7 @@
   import ChangesDock from './ChangesDock.svelte'
   import EmptyState from './EmptyState.svelte'
   import FlowStrip from './FlowStrip.svelte'
+  import FollowView from './FollowView.svelte'
   import KitBuilder from './KitBuilder.svelte'
   import KitRows from './KitRows.svelte'
   import FolderImport from './FolderImport.svelte'
@@ -15,6 +16,7 @@
   import { collectDroppedSamples } from './dropdir'
   import { card } from './state/card.svelte'
   import { editor } from './state/editor.svelte'
+  import { follow } from './state/follow.svelte'
   import { ranges as rangeEditor } from './state/ranges.svelte'
   import { kit as kitBuilder } from './state/kit.svelte'
   import { multisample } from './state/multisample.svelte'
@@ -108,8 +110,15 @@
   {/if}
   {#if editor.preset}
     <Oled />
-    {#if kit}<KitBuilder /><KitRows />{/if}
-    {#if editor.sound}
+    <!-- Follow Mode keeps the row table (it picks the row the CCs land on)
+         but not the sample builder, which is a different job entirely. -->
+    {#if kit}{#if !follow.on}<KitBuilder />{/if}<KitRows />{/if}
+    {#if follow.on}
+      <!-- Follow Mode replaces the editor's own view with the subset MIDI
+           Follow can reach (issue #9). The flow strip's pins and the range
+           editor belong to the full page, so they stand down with it. -->
+      <FollowView sound={editor.sound} {kit} />
+    {:else if editor.sound}
       <FlowStrip sound={editor.sound} />
       <!-- The range editor is as wide as the page: 70 key bands don't fit a
            masonry column, and the map is the point of it (issue #29). -->

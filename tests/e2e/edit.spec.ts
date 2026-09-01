@@ -223,7 +223,7 @@ test('the top bar’s buttons are grouped by dividers that stay put (issue #34)'
   await page.goto('/')
   await page.getByTestId('file-input').setInputFiles(FIXTURE)
 
-  // Four dividers cut the eight buttons into five groups: the Deluge over MIDI,
+  // Four dividers cut the nine buttons into five groups: the Deluge over MIDI,
   // starting from a template, opening from this computer, downloads, changes.
   const seps = page.getByTestId('bar-sep')
   await expect(seps).toHaveCount(4)
@@ -235,7 +235,7 @@ test('the top bar’s buttons are grouped by dividers that stay put (issue #34)'
         .join(' '),
     )
   expect(await groups()).toBe(
-    'Open from Deluge Save to Deluge | New Synth New Kit | Open File | Download XML | Changes 0',
+    'Open from Deluge Save to Deluge Follow Mode | New Synth New Kit | Open File | Download XML | Changes 0',
   )
 
   // Download Zip is conditional, so the last divider has to live outside it:
@@ -244,7 +244,7 @@ test('the top bar’s buttons are grouped by dividers that stay put (issue #34)'
   await expect(page.getByTestId('download-zip-top')).toBeVisible()
   await expect(seps).toHaveCount(4)
   expect(await groups()).toBe(
-    'Open from Deluge Save to Deluge | New Synth New Kit | Open File | Download XML Download Zip | Changes 0',
+    'Open from Deluge Save to Deluge Follow Mode | New Synth New Kit | Open File | Download XML Download Zip | Changes 0',
   )
 
   // A divider is a drawn line, nothing more: not announced, not reachable.

@@ -2,6 +2,7 @@
   import { referencedSampleFiles } from '../core/preset'
   import { card } from './state/card.svelte'
   import { editor } from './state/editor.svelte'
+  import { follow } from './state/follow.svelte'
   import { kit } from './state/kit.svelte'
   import Mark from './Mark.svelte'
 
@@ -93,6 +94,22 @@
   >
     {#if card.status === 'connected'}<span class="dot" class:pulse={!!card.busy}></span>{/if}Save to Deluge
   </button>
+  {#if follow.available}
+    <!-- Firmware-gated like every other control: MIDI Follow does not exist
+         below community 1.1.0 and on no official build, so the button is
+         absent there rather than disabled (docs/decisions.md). -->
+    <button
+      type="button"
+      class="btn"
+      class:on={follow.on}
+      data-testid="follow-button"
+      disabled={!editor.preset}
+      title="Mirror the Deluge’s own knob moves: shows only the parameters MIDI Follow can reach, and moves them as the instrument reports them. Listens only — it never sends."
+      onclick={() => void follow.toggle()}
+    >
+      {#if follow.status === 'listening'}<span class="dot pulse"></span>{/if}Follow Mode
+    </button>
+  {/if}
   <span class="sep" aria-hidden="true" data-testid="bar-sep"></span>
   <button type="button" class="btn" title="Start a new synth from the Deluge's own init preset" data-testid="new-synth" onclick={() => editor.newSynth()}>New Synth</button>
   <button type="button" class="btn" title="Start a kit from the Deluge's own blank kit — then drop a folder of WAVs on the page" data-testid="new-kit" onclick={() => editor.newKit()}>New Kit</button>

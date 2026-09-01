@@ -458,6 +458,114 @@ whose samples are absent without complaining and plays it silently
 (`Source::loadAllSamples` ignores the per-range error, `processing/source.cpp:105`),
 so the preset must never be the thing that lands first.
 
+## Follow Mode is a mode, and sending is a second switch inside it
+
+Community firmware's MIDI Follow sends a CC out whenever a value changes in
+the *active context* (`MidiFollow::sendCCForMidiFollowFeedback`,
+`io/midi/midi_follow.cpp`). The editor can hear those and move the matching
+control — but a follow CC never says *which sound* it belongs to. If the
+loaded preset is not what the Deluge has open, mirroring silently writes the
+instrument's numbers into an unrelated file.
+
+So it is a mode you switch on, not a background behaviour, and while it is on
+the page shows only the parameters MIDI Follow can reach — the firmware's own
+default CC map, in the same blocks and the same knobs as the full editor. The
+subset is the honesty: what is on screen is exactly what the instrument can
+move, and a control follow cannot address is absent rather than inert. The
+header says in words whose file the edits are landing in, and nothing is
+committed until you save, as everywhere else here.
+
+**Sending is off until asked for.** Listening is broadcast-safe — any number
+of tabs can mirror at once and the instrument's state is never at risk, so
+it is simply what the mode does. The other direction writes into the sound the
+Deluge has live, so it is a separate switch, wearing the same warning colour
+the card panel uses for "this may not stay as you left it", and it says on
+screen which port and channel it is using.
+
+Two firmware facts shape it:
+
+- **A CC only reaches the follow handler on a follow channel.**
+  `MidiFollow::checkMidiFollowMatch` tests the incoming channel against
+  MIDI-Follow's own A/B/C. So the send channel is a number, not "any" — the
+  header's listening selector has an Any and this one cannot.
+- **Takeover mode decides what the instrument does with the value.**
+  `MidiTakeover::calculateKnobPos` (`io/midi/midi_takeover.cpp`): on JUMP —
+  the default (`midiTakeover = MIDITakeoverMode::JUMP`, `midi_engine.cpp:58`) —
+  the parameter takes the value outright. On PICKUP or SCALE it waits until
+  the incoming and current positions meet. On RELATIVE it reads the value as a
+  signed increment, so absolute sends run away. Nothing on the wire reports the
+  setting, so the note says what each mode will do rather than pretending.
+
+Consequences of sending:
+
+- **It sends on one port, never all of them.** The mirror listens on every
+  Deluge input because an absolute value applied twice is applied once; an
+  increment applied three times is not, so the same message on three cables
+  would triple a RELATIVE move.
+- **Changes go out, not the whole preset.** Turning Send on does not push the
+  loaded file at the instrument — that would be a load, from an editor that
+  cannot know what it is overwriting. Only values that move while it is on are
+  sent. Switching kit row, the bus, or the file replaces every value at once
+  and is adopted silently for the same reason.
+- **Our own echo is filtered.** The instrument sends an accepted value straight
+  back as feedback; applying that would count as a move nobody made. The last
+  value sent per CC is remembered for one second and ignored on the way back —
+  the same window the firmware's own `midiFollowFeedbackFilter` uses
+  (`kSampleRate` ticks, `MidiFollow::midiCCReceived`). A mirrored value is
+  likewise not re-sent.
+- **The send watcher reads values, it does not hook controls.** The view
+  derives the CC value of every mapped parameter and offers the lot on each
+  change; anything that moved goes out. So a value dragged on the filter curve
+  or an ADSR handle travels exactly like one turned on its knob, and there is
+  no control that can be added later and quietly forgotten.
+
+Consequences of the mode:
+
+- **The mirrored value is the instrument's own int32, not the nearest menu
+  step.** The wire carries a knob position (`knobPos + kKnobPosOffset`), which
+  reverses through `ParamCollection::knobPosToParamValue` — the same
+  conversion the Deluge applies to a follow CC it receives. A gold encoder has
+  128 positions and the menu 51, so a mirrored value usually lands between two
+  menu steps; the knob shows the nearer one and leaves the stored value alone,
+  which is the rule this editor already follows for every value a file
+  arrives with ("Numbers are shown as the Deluge shows them"). Quantising to
+  the menu instead would mean a file saved here could not hold what the
+  instrument holds.
+- **CC 127 is read as the top, because that is how the instrument reads it.**
+  `MidiEngine::sendCC` clamps to 127 while the offset makes a full knob 128, so
+  127 is ambiguous on the wire — and `MidiTakeover::calculateKnobPos` resolves
+  it upwards, starting at `midiKnobPos = 64` and only assigning `ccValue - 64`
+  when `ccValue < kMaxMIDIValue`. Reading it any other way would put the editor
+  a knob step below the instrument, and would break the round trip that lets a
+  value sent out come back as the same CC.
+- **The CC map is per firmware era, and transcribed warts and all.** c1.1.0
+  through c1.2.1 mapped CCs by shortcut pad (`defaultParamToCCMapping` against
+  the `*ParamShortcuts` grids); c1.3.0 replaced that with lookup tables
+  (0d79ad6f #3257), adding the Arpeggiator 3.0 probabilities, envelopes 3–4,
+  LFOs 3–4, stutter rate and the compressor threshold — and moving CC 30 from
+  osc B's wavetable position to osc A's, which leaves osc B's with no default
+  CC at all. The editor shows what the selected firmware actually does, so on
+  c1.3.0 osc B's wave position is absent from the follow view. Both tables
+  were generated from the firmware sources and cross-checked against a
+  `MIDIFollow.XML` the firmware itself wrote.
+- **A kit needs a switch the wire does not carry.**
+  `MidiFollow::getModelStackWithParamForKitClip` routes a kit clip's follow
+  CCs by AFFECT ENTIRE: on, they reach the kit bus's own parameters; off, the
+  selected row's sound, minus portamento, which it refuses for kits. Nothing
+  in the CC says which, so the follow view has the switch and the row list
+  stays on screen to pick the row.
+- **Envelopes and LFOs are tabbed, and the tabs follow the instrument.** Four
+  envelopes and four LFOs are twenty of the eighty mapped parameters; showing
+  them all at once buries everything else, so the view tabs them as the full
+  editor does. A mirrored move on a hidden tab would be a move nobody saw, so
+  a CC for envelope 3 selects envelope 3 — which is what the mode is for.
+- **It listens on every Deluge input port.** `MidiEngine::sendUsbMidi` sends
+  to all cables, so the same CC arrives two or three times; applying an
+  absolute value twice is the same as applying it once, which beats guessing
+  which port the user left enabled for output. A port whose name says nothing
+  about a Deluge is still listened to when no port names one, so a Deluge
+  reached over DIN through another interface still works.
+
 ## Tooltip copy is one cited table, keyed the way the file names parameters
 
 Every control says what it does on hover (issue #20), and all of that copy

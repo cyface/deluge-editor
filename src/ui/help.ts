@@ -322,6 +322,14 @@ export const HELP: Record<string, string> = {
   'gold.param': 'The parameter this encoder controls.',
   'gold.source': 'Set a source and the encoder moves that source’s cable strength rather than the parameter itself.',
   'gold.secondSource': 'A second source modulating the depth of the cable this encoder controls.',
+
+  // --- Follow Mode ---------------------------------------------------------
+  // io/midi/midi_follow.cpp; the channel is set under MIDI-Follow > Channel.
+  'follow.channel': 'The channel the Deluge sends its feedback on, set under MIDI-Follow. Any accepts every channel, which is the quickest way to find out which one it is using.',
+  'follow.target': 'Which half of a kit clip the CCs reach, mirroring AFFECT ENTIRE on the instrument: the kit bus, or the selected row’s own sound.',
+  // MidiTakeover::calculateKnobPos; midiTakeover defaults to JUMP.
+  'follow.send': 'Send moves made here back to the Deluge, changing its active sound. Values land exactly only with MIDI-Follow takeover on JUMP, its default.',
+  'follow.sendChannel': 'The channel to send on. It has to be one of MIDI-Follow’s own A, B or C channels, or the instrument ignores the CC.',
 }
 
 /** Help for a panel header, by group id. */
