@@ -14,14 +14,16 @@
     name?: string
     /** The firmware's default value, when its source has been cited. */
     fallback?: string
+    /** What the control does; sits on the field so the label carries it too (issue #20). */
+    title?: string
   }
-  let { label, value, options, onchange, name, fallback }: Props = $props()
+  let { label, value, options, onchange, name, fallback, title }: Props = $props()
   const id = `sel-${Math.random().toString(36).slice(2, 8)}`
   const known = $derived(value === undefined || options.some((o) => o.value === value))
   const fallbackLabel = $derived(fallback === undefined ? undefined : (options.find((o) => o.value === fallback)?.label ?? fallback))
 </script>
 
-<div class="f">
+<div class="f" {title}>
   <label for={id}>{label}</label>
   <select {id} data-attr={name} class:default={value === undefined} value={value ?? ''} onchange={(e) => onchange((e.currentTarget as HTMLSelectElement).value)}>
     {#if value === undefined}

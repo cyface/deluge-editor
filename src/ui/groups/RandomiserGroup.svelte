@@ -4,6 +4,7 @@
   import { child, ensureChild, setAttr } from '../../core/xml'
   import HexKnob from '../controls/HexKnob.svelte'
   import Toggle from '../controls/Toggle.svelte'
+  import { HELP } from '../help'
   import { editor } from '../state/editor.svelte'
 
   interface Props { sound: SoundElement }
@@ -24,7 +25,7 @@
   <!-- Lock saves a cycle of rolls and replays it, so the pattern repeats
        (arpeggiator.cpp ~922, the locked*ProbArray attributes). Default false
        (arpeggiator.h:96, tag beta). -->
-  <div class="f"><span class="lbl">Pattern</span><Toggle label="Lock" name="arpeggiator.randomizerLock" value={arp?.attrs.randomizerLock} fallback="0" onchange={(v) => setAttr(A(), 'randomizerLock', v, ARP_ATTR_ORDER)} /></div>
+  <div class="f"><span class="lbl">Pattern</span><Toggle label="Lock" name="arpeggiator.randomizerLock" value={arp?.attrs.randomizerLock} fallback="0" title={HELP['arp.randomizerLock']} onchange={(v) => setAttr(A(), 'randomizerLock', v, ARP_ATTR_ORDER)} /></div>
 </div>
 <div class="h3">Every Note</div>
 <div class="knobrow">

@@ -6,6 +6,7 @@
   import { paramLabel } from '../../core/preset'
   import Knob from '../controls/Knob.svelte'
   import Select from '../controls/Select.svelte'
+  import { HELP } from '../help'
   import { destinationOptions, sourceOptions } from '../options'
   import { sourceColor } from '../sources'
   import { editor } from '../state/editor.svelte'
@@ -40,21 +41,21 @@
         <path d="M9 79 L 17 84 L 9 89 Z" fill={sourceColor(c.attrs.source)} />
       </svg>
       <div class="sel">
-        <Select label="Source" name="cable{i}.source" value={c.attrs.source} options={sourceOptions(editor.supports)} onchange={(v) => setAttr(c, 'source', v, CABLE_ATTR_ORDER)} />
-        <Select label="Destination" name="cable{i}.destination" value={c.attrs.destination} options={destinationOptions(editor.supports)} onchange={(v) => setAttr(c, 'destination', v, CABLE_ATTR_ORDER)} />
+        <Select label="Source" name="cable{i}.source" value={c.attrs.source} options={sourceOptions(editor.supports)} title={HELP['cable.source']} onchange={(v) => setAttr(c, 'source', v, CABLE_ATTR_ORDER)} />
+        <Select label="Destination" name="cable{i}.destination" value={c.attrs.destination} options={destinationOptions(editor.supports)} title={HELP['cable.destination']} onchange={(v) => setAttr(c, 'destination', v, CABLE_ATTR_ORDER)} />
       </div>
       <div class="amt">
-        <Knob label="Amount" value={Math.round(cableMenu(c) / 100)} min={-50} max={50} onchange={(n) => setCableMenu(c, n * 100)} param="cable{i}.amount" title={formatCable(cableMenu(c))} />
+        <Knob label="Amount" value={Math.round(cableMenu(c) / 100)} min={-50} max={50} onchange={(n) => setCableMenu(c, n * 100)} param="cable{i}.amount" title={`${HELP['cable.amount']}\n\n${formatCable(cableMenu(c))}`} />
         {#if polarity}
           <!-- An absent polarity is bipolar, except an aftertouch source which
                defaults unipolar (readPatchCablesFromFile, patch_cable_set.cpp:827-833). -->
           <div class="pol" class:default={c.attrs.polarity === undefined}>
-            <button type="button" class:on={effPolarity === 'bipolar'} data-attr="cable{i}.polarity.bipolar" title={c.attrs.polarity === undefined && effPolarity === 'bipolar' ? 'default · bipolar' : 'Bipolar'} onclick={() => setAttr(c, 'polarity', 'bipolar', CABLE_ATTR_ORDER)}>± bi</button>
-            <button type="button" class:on={effPolarity === 'unipolar'} data-attr="cable{i}.polarity.unipolar" title={c.attrs.polarity === undefined && effPolarity === 'unipolar' ? 'default · unipolar' : 'Unipolar'} onclick={() => setAttr(c, 'polarity', 'unipolar', CABLE_ATTR_ORDER)}>+ uni</button>
+            <button type="button" class:on={effPolarity === 'bipolar'} data-attr="cable{i}.polarity.bipolar" title={`${HELP['cable.polarity']}${c.attrs.polarity === undefined && effPolarity === 'bipolar' ? '\n\ndefault · bipolar' : ''}`} onclick={() => setAttr(c, 'polarity', 'bipolar', CABLE_ATTR_ORDER)}>± bi</button>
+            <button type="button" class:on={effPolarity === 'unipolar'} data-attr="cable{i}.polarity.unipolar" title={`${HELP['cable.polarity']}${c.attrs.polarity === undefined && effPolarity === 'unipolar' ? '\n\ndefault · unipolar' : ''}`} onclick={() => setAttr(c, 'polarity', 'unipolar', CABLE_ATTR_ORDER)}>+ uni</button>
           </div>
         {/if}
       </div>
-      <button type="button" class="btn small x" title="Remove cable" onclick={() => removeCable(sound, c)}>✕</button>
+      <button type="button" class="btn small x" title={HELP['cable.remove']} onclick={() => removeCable(sound, c)}>✕</button>
       {#if c.children.length}
         <div class="nested">{c.children.length} cable{c.children.length === 1 ? '' : 's'} modulate this depth (kept as is)</div>
       {/if}
@@ -66,7 +67,7 @@
 <div class="add">
   <!-- Same picker as a control's right-click; the row lands on LPF Freq and
        both sides stay editable in place. -->
-  <button type="button" class="btn small" data-testid="add-cable" onclick={(e) => picker.show('lpfFrequency', paramLabel('lpfFrequency'), e.clientX, e.clientY)}>+ Cable</button>
+  <button type="button" class="btn small" data-testid="add-cable" title={HELP['cable.add']} onclick={(e) => picker.show('lpfFrequency', paramLabel('lpfFrequency'), e.clientX, e.clientY)}>+ Cable</button>
 </div>
 
 <style>

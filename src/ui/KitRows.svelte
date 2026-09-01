@@ -12,6 +12,7 @@
   import { MIDI_OUTPUT_ATTR_ORDER } from '../core/preset'
   import { setAttr } from '../core/xml'
   import NumberField from './controls/NumberField.svelte'
+  import { HELP } from './help'
   import Waveform from './controls/Waveform.svelte'
   import { audio } from './state/audio.svelte'
   import { card } from './state/card.svelte'
@@ -330,9 +331,9 @@
   {#if audio.error}<p class="err" role="alert">{audio.error}</p>{/if}
   {#if sel && !isSoundRow(sel)}
     <div class="fields">
-      <NumberField label="Channel" name="row.channel" value={sel.attrs.channel} min={0} max={15} format={(n) => `ch ${n + 1}`} onchange={(v) => setAttr(sel, 'channel', String(v), MIDI_OUTPUT_ATTR_ORDER)} />
+      <NumberField label="Channel" name="row.channel" value={sel.attrs.channel} min={0} max={15} format={(n) => `ch ${n + 1}`} title={HELP['row.channel']} onchange={(v) => setAttr(sel, 'channel', String(v), MIDI_OUTPUT_ATTR_ORDER)} />
       {#if sel.tag === 'midiOutput'}
-        <NumberField label="Note" name="row.note" value={sel.attrs.note} min={0} max={127} onchange={(v) => setAttr(sel, 'note', String(v), MIDI_OUTPUT_ATTR_ORDER)} />
+        <NumberField label="Note" name="row.note" value={sel.attrs.note} min={0} max={127} title={HELP['row.note']} onchange={(v) => setAttr(sel, 'note', String(v), MIDI_OUTPUT_ATTR_ORDER)} />
       {/if}
     </div>
     <p class="hint">A MIDI or gate row has no sound of its own; the panels below stay hidden.</p>

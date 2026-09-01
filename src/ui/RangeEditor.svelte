@@ -18,6 +18,7 @@
   import { removeRange, rootName, rootParts, setRangeRoot, setRangeTopNote, setRangeZone, type SampleRange } from '../core/preset/ranges'
   import KeyMap from './controls/KeyMap.svelte'
   import NumberField from './controls/NumberField.svelte'
+  import { HELP } from './help'
   import { audio } from './state/audio.svelte'
   import { card } from './state/card.svelte'
   import { editor } from './state/editor.svelte'
@@ -344,16 +345,16 @@
         <span class="lbl">Sample</span>
         <div class="ro" title={current.fileName}>{base(current.fileName) || '(none)'}</div>
       </div>
-      <NumberField label="Root Note" name="range.root" value={root.note} min={0} max={127} format={(n) => noteName(n)} onchange={(v) => setRoot(v, root.cents)} />
-      <NumberField label="Detune ¢" name="range.detune" value={root.cents} min={-99} max={99} onchange={(v) => setRoot(root.note, v)} />
+      <NumberField label="Root Note" name="range.root" value={root.note} min={0} max={127} format={(n) => noteName(n)} title={HELP['range.root']} onchange={(v) => setRoot(v, root.cents)} />
+      <NumberField label="Detune ¢" name="range.detune" value={root.cents} min={-99} max={99} title={HELP['range.detune']} onchange={(v) => setRoot(root.note, v)} />
       {#if sel < last}
-        <NumberField label="Top Note" name="range.topNote" value={current.topNote} min={1} max={126} format={(n) => noteName(n)} onchange={(v) => osc && setRangeTopNote(osc, sel, v)} />
+        <NumberField label="Top Note" name="range.topNote" value={current.topNote} min={1} max={126} format={(n) => noteName(n)} title={HELP['range.topNote']} onchange={(v) => osc && setRangeTopNote(osc, sel, v)} />
       {/if}
-      <NumberField label="Zone Start" name="range.startSamplePos" value={current.zone?.attrs.startSamplePos} min={0} max={2147483647} fallback={0} onchange={(v) => setZone('startSamplePos', v)} />
+      <NumberField label="Zone Start" name="range.startSamplePos" value={current.zone?.attrs.startSamplePos} min={0} max={2147483647} fallback={0} title={HELP['range.startSamplePos']} onchange={(v) => setZone('startSamplePos', v)} />
       <!-- The firmware reads a zero end as the whole file (`SampleHolder::setAudioFile`). -->
-      <NumberField label="Zone End" name="range.endSamplePos" value={current.zone?.attrs.endSamplePos} min={0} max={2147483647} fallback={0} format={(n) => (n === 0 ? 'whole file' : String(n))} onchange={(v) => setZone('endSamplePos', v)} />
-      <NumberField label="Loop Start" name="range.startLoopPos" value={current.zone?.attrs.startLoopPos} min={0} max={2147483647} fallback={0} format={loopFmt} onchange={(v) => setZone('startLoopPos', v)} />
-      <NumberField label="Loop End" name="range.endLoopPos" value={current.zone?.attrs.endLoopPos} min={0} max={2147483647} fallback={0} format={loopFmt} onchange={(v) => setZone('endLoopPos', v)} />
+      <NumberField label="Zone End" name="range.endSamplePos" value={current.zone?.attrs.endSamplePos} min={0} max={2147483647} fallback={0} format={(n) => (n === 0 ? 'whole file' : String(n))} title={HELP['range.endSamplePos']} onchange={(v) => setZone('endSamplePos', v)} />
+      <NumberField label="Loop Start" name="range.startLoopPos" value={current.zone?.attrs.startLoopPos} min={0} max={2147483647} fallback={0} format={loopFmt} title={HELP['range.startLoopPos']} onchange={(v) => setZone('startLoopPos', v)} />
+      <NumberField label="Loop End" name="range.endLoopPos" value={current.zone?.attrs.endLoopPos} min={0} max={2147483647} fallback={0} format={loopFmt} title={HELP['range.endLoopPos']} onchange={(v) => setZone('endLoopPos', v)} />
     </div>
   {/if}
 

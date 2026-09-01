@@ -9,6 +9,7 @@
   import { paramNameOfAttr, type SoundElement } from '../../core/preset'
   import { cableMenu, cablesTo, goldParams, hexToMenu, menuToHex, type ParamScale } from '../../core/preset/sound'
   import { setAttr, type XmlElement } from '../../core/xml'
+  import { paramHelp } from '../help'
   import { isPatchableDestination } from '../options'
   import { sourceColor, sourceName } from '../sources'
   import { editor } from '../state/editor.svelte'
@@ -30,6 +31,7 @@
     dest?: string
     /** A second destination whose cables also swing this knob (`volume`: LOCAL_VOLUME has no knob of its own). */
     extraDest?: string
+    /** Overrides the description `help.ts` holds for this parameter. */
     title?: string
   }
   let { el, ensure, attr, label, scale = 'standard', order, sound, dest, extraDest, title }: Props = $props()
@@ -48,6 +50,9 @@
       : [],
   )
   const gold = $derived(sound ? goldParams(sound).has(destination) : false)
+  // What the parameter does, looked up by the same name a cable or gold knob
+  // uses for it, so one entry serves every panel that shows it (issue #20).
+  const tip = $derived(title ?? paramHelp(destination))
   const format = $derived(scale === 'pan' ? (n: number) => (n === 0 ? 'CTR' : `${n < 0 ? 'L' : 'R'}${Math.abs(n)}`) : undefined)
 
   function set(n: number) {
@@ -68,5 +73,5 @@
 </script>
 
 <span style="display: contents" role="presentation" oncontextmenu={context}>
-  <Knob {label} {value} min={range.min} max={range.max} onchange={set} {format} {mod} {gold} param={attr} {title} />
+  <Knob {label} {value} min={range.min} max={range.max} onchange={set} {format} {mod} {gold} param={attr} title={tip} />
 </span>

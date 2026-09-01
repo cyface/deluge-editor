@@ -5,6 +5,7 @@
   import HexKnob from '../controls/HexKnob.svelte'
   import Select from '../controls/Select.svelte'
   import Toggle from '../controls/Toggle.svelte'
+  import { HELP } from '../help'
   import { syncLevelOptions, syncTypeOptions } from '../options'
   import { editor } from '../state/editor.svelte'
   interface Props { sound: SoundElement }
@@ -20,12 +21,12 @@
   <HexKnob el={params(sound)} ensure={P} attr="delayFeedback" label="Feedback" order={SOUND_PARAM_ATTRS} {sound} />
 </div>
 <div class="fields">
-  <Select label="Sync" name="delay.syncLevel" value={delay?.attrs.syncLevel} options={syncLevelOptions()} onchange={(v) => setAttr(D(), 'syncLevel', v, DELAY_ATTR_ORDER)} />
+  <Select label="Sync" name="delay.syncLevel" value={delay?.attrs.syncLevel} options={syncLevelOptions()} title={HELP['delay.syncLevel']} onchange={(v) => setAttr(D(), 'syncLevel', v, DELAY_ATTR_ORDER)} />
   {#if editor.supports('syncType')}
-    <Select label="Sync Type" name="delay.syncType" value={delay?.attrs.syncType} options={syncTypeOptions()} onchange={(v) => setAttr(D(), 'syncType', v, DELAY_ATTR_ORDER)} />
+    <Select label="Sync Type" name="delay.syncType" value={delay?.attrs.syncType} options={syncTypeOptions()} title={HELP['delay.syncType']} onchange={(v) => setAttr(D(), 'syncType', v, DELAY_ATTR_ORDER)} />
   {/if}
-  <div class="f"><span class="lbl">Stereo</span><Toggle label="Ping-pong" name="delay.pingPong" value={delay?.attrs.pingPong} onchange={(v) => setAttr(D(), 'pingPong', v, DELAY_ATTR_ORDER)} /></div>
-  <div class="f"><span class="lbl">Character</span><Toggle label="Analog" name="delay.analog" value={delay?.attrs.analog} onchange={(v) => setAttr(D(), 'analog', v, DELAY_ATTR_ORDER)} /></div>
+  <div class="f"><span class="lbl">Stereo</span><Toggle label="Ping-pong" name="delay.pingPong" value={delay?.attrs.pingPong} title={HELP['delay.pingPong']} onchange={(v) => setAttr(D(), 'pingPong', v, DELAY_ATTR_ORDER)} /></div>
+  <div class="f"><span class="lbl">Character</span><Toggle label="Analog" name="delay.analog" value={delay?.attrs.analog} title={HELP['delay.analog']} onchange={(v) => setAttr(D(), 'analog', v, DELAY_ATTR_ORDER)} /></div>
 </div>
 <div class="h3">Reverb</div>
 <div class="knobrow">

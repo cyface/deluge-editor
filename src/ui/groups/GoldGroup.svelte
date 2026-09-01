@@ -11,6 +11,7 @@
   import { modKnobs, setModKnob, type ModKnobAssign } from '../../core/preset/sound'
   import type { ModKnobElement } from '../../core/preset/types'
   import Select from '../controls/Select.svelte'
+  import { HELP } from '../help'
   import { knobParamOptions, sourceOptions } from '../options'
   import { editor } from '../state/editor.svelte'
 
@@ -69,7 +70,7 @@
         {@const k = knob(i)}
         {@const text = summary(k, i)}
         <div class="slot" class:dev={deviates(k, i)}>
-          <button type="button" class="row" data-knob={i} aria-expanded={open === i} title={text} onclick={() => (open = open === i ? null : i)}>
+          <button type="button" class="row" data-knob={i} aria-expanded={open === i} title={`${HELP['gold.slot']}\n\n${text}`} onclick={() => (open = open === i ? null : i)}>
             <span class="pos">{i % 2 ? 'Top' : 'Bottom'}</span>
             <span class="what" class:default={k === undefined}>{text}</span>
             <span class="chev">{open === i ? '▾' : '▸'}</span>
@@ -77,10 +78,10 @@
           {#if open === i}
             {@const src = k ? (k.attrs.patchAmountFromSource ?? '') : undefined}
             <div class="edit">
-              <Select label="Parameter" name="modKnob{i}.controlsParam" value={canon(k?.attrs.controlsParam)} options={paramOpts} fallback={k ? undefined : canon(stock(i).controlsParam)} onchange={(v) => assign(i, { controlsParam: v as ModKnobAssign['controlsParam'] })} />
-              <Select label="Via" name="modKnob{i}.patchAmountFromSource" value={src} options={sourceOpts} fallback={k ? undefined : (stock(i).patchAmountFromSource ?? '')} onchange={(v) => assign(i, { patchAmountFromSource: (v || undefined) as ModKnobAssign['patchAmountFromSource'] })} />
+              <Select label="Parameter" name="modKnob{i}.controlsParam" value={canon(k?.attrs.controlsParam)} options={paramOpts} fallback={k ? undefined : canon(stock(i).controlsParam)} title={HELP['gold.param']} onchange={(v) => assign(i, { controlsParam: v as ModKnobAssign['controlsParam'] })} />
+              <Select label="Via" name="modKnob{i}.patchAmountFromSource" value={src} options={sourceOpts} fallback={k ? undefined : (stock(i).patchAmountFromSource ?? '')} title={HELP['gold.source']} onchange={(v) => assign(i, { patchAmountFromSource: (v || undefined) as ModKnobAssign['patchAmountFromSource'] })} />
               {#if k?.attrs.patchAmountFromSecondSource}
-                <Select label="2nd Source" name="modKnob{i}.patchAmountFromSecondSource" value={k.attrs.patchAmountFromSecondSource} options={sourceOpts} onchange={(v) => assign(i, { patchAmountFromSecondSource: (v || undefined) as ModKnobAssign['patchAmountFromSecondSource'] })} />
+                <Select label="2nd Source" name="modKnob{i}.patchAmountFromSecondSource" value={k.attrs.patchAmountFromSecondSource} options={sourceOpts} title={HELP['gold.secondSource']} onchange={(v) => assign(i, { patchAmountFromSecondSource: (v || undefined) as ModKnobAssign['patchAmountFromSecondSource'] })} />
               {/if}
             </div>
           {/if}

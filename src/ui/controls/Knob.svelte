@@ -55,6 +55,14 @@
   )
   const shown = $derived(value === undefined ? '—' : format ? format(value) : String(value))
 
+  /*
+   * What the knob does and what its blank means are two different facts, and a
+   * knob the file omits has both (issue #20). They stack rather than replace:
+   * a `title` used to hide the absent-attribute hint entirely.
+   */
+  const UNSET = 'Not in the file: the firmware default applies. Adjust to set it.'
+  const tip = $derived([title, value === undefined ? UNSET : undefined].filter(Boolean).join('\n\n') || undefined)
+
   let y0 = 0
   let v0 = 0
   function down(e: PointerEvent) {
@@ -81,7 +89,7 @@
   }
 </script>
 
-<div class="k" class:gold class:unset={value === undefined} title={title ?? (value === undefined ? 'Not in the file: the firmware default applies. Adjust to set it.' : undefined)}>
+<div class="k" class:gold class:unset={value === undefined} title={tip}>
   <svg
     class="dial"
     viewBox="0 0 48 48"

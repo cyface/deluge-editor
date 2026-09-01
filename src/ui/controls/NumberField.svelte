@@ -11,11 +11,16 @@
     format?: (n: number) => string
     /** The firmware's default value, when its source has been cited. */
     fallback?: number
+    /** What the field does (issue #20); stacks with the default marker below. */
+    title?: string
   }
-  let { label, value, min, max, onchange, name, format, fallback }: Props = $props()
+  let { label, value, min, max, onchange, name, format, fallback, title }: Props = $props()
   const id = `num-${Math.random().toString(36).slice(2, 8)}`
   const shown = $derived(value === undefined ? '' : String(value))
   const ph = $derived(fallback === undefined ? 'default' : `default · ${format ? format(fallback) : fallback}`)
+  // The description and "what happens if you leave it blank" are separate
+  // facts, so they stack rather than one replacing the other.
+  const tip = $derived([title, value === undefined ? ph : undefined].filter(Boolean).join('\n\n') || undefined)
   function change(e: Event) {
     const el = e.currentTarget as HTMLInputElement
     if (el.value === '') return
@@ -25,9 +30,9 @@
   }
 </script>
 
-<div class="f">
+<div class="f" title={tip}>
   <label for={id}>{label}{#if format && value !== undefined}<span class="fmt"> · {format(Number(value))}</span>{/if}</label>
-  <input {id} type="number" data-attr={name} value={shown} placeholder={ph} title={value === undefined ? ph : undefined} {min} {max} step="1" onchange={change} />
+  <input {id} type="number" data-attr={name} value={shown} placeholder={ph} {min} {max} step="1" onchange={change} />
 </div>
 
 <style>

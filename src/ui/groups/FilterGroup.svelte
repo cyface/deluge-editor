@@ -5,6 +5,7 @@
   import FilterGraph, { type FilterBinding } from '../controls/FilterGraph.svelte'
   import HexKnob from '../controls/HexKnob.svelte'
   import Select from '../controls/Select.svelte'
+  import { HELP } from '../help'
   import { hpfModeOptions, lpfModeOptions, routeOptions } from '../options'
   import { editor } from '../state/editor.svelte'
 
@@ -21,12 +22,12 @@
 
 <FilterGraph {filters} />
 <div class="fields">
-  <Select label="LPF Mode" name="lpfMode" value={sound.attrs.lpfMode} options={lpfModeOptions(editor.supports)} onchange={set('lpfMode')} />
+  <Select label="LPF Mode" name="lpfMode" value={sound.attrs.lpfMode} options={lpfModeOptions(editor.supports)} title={HELP['sound.lpfMode']} onchange={set('lpfMode')} />
   {#if editor.supports('hpfMode')}
-    <Select label="HPF Mode" name="hpfMode" value={sound.attrs.hpfMode} options={hpfModeOptions()} onchange={set('hpfMode')} />
+    <Select label="HPF Mode" name="hpfMode" value={sound.attrs.hpfMode} options={hpfModeOptions()} title={HELP['sound.hpfMode']} onchange={set('hpfMode')} />
   {/if}
   {#if editor.supports('filterRoute')}
-    <Select label="Routing" name="filterRoute" value={sound.attrs.filterRoute} options={routeOptions()} onchange={set('filterRoute')} />
+    <Select label="Routing" name="filterRoute" value={sound.attrs.filterRoute} options={routeOptions()} title={HELP['sound.filterRoute']} onchange={set('filterRoute')} />
   {/if}
 </div>
 <div class="knobrow">
@@ -41,6 +42,6 @@
     <HexKnob el={params(sound)} ensure={P} attr="hpfMorph" label="HPF Morph" order={SOUND_PARAM_ATTRS} {sound} />
   {/if}
   {#if editor.supports('waveFold')}
-    <HexKnob el={params(sound)} ensure={P} attr="waveFold" label="Fold" order={SOUND_PARAM_ATTRS} {sound} title="Wavefolder on the oscillator mix, before the filters" />
+    <HexKnob el={params(sound)} ensure={P} attr="waveFold" label="Fold" order={SOUND_PARAM_ATTRS} {sound} />
   {/if}
 </div>

@@ -15,6 +15,7 @@
   import NumberField from '../controls/NumberField.svelte'
   import Select from '../controls/Select.svelte'
   import Toggle from '../controls/Toggle.svelte'
+  import { HELP } from '../help'
   import { syncLevelOptions, syncTypeOptions } from '../options'
   import { editor } from '../state/editor.svelte'
 
@@ -63,18 +64,18 @@
   <!-- The device's VOLUME DUCKING knob is really the strength of the
        sidechain → volumePostReverbSend patch cable (sidechain::VolumeShortcut,
        gui/ui/menus.cpp:561), so this knob edits that cable. -->
-  <Knob label="Ducking" value={duckCable ? Math.round(cableMenu(duckCable) / 100) : 0} min={-50} max={50} param="sidechain.ducking" title={duckCable ? formatCable(cableMenu(duckCable)) : 'no cable yet'} onchange={setDucking} />
-  <IntKnob el={sc} ensure={SC} attr="attack" label="Attack" read={sidechainAttackToMenu} write={menuToSidechainAttack} order={SIDECHAIN_ATTR_ORDER} />
-  <IntKnob el={sc} ensure={SC} attr="release" label="Release" read={sidechainReleaseToMenu} write={menuToSidechainRelease} order={SIDECHAIN_ATTR_ORDER} />
+  <Knob label="Ducking" value={duckCable ? Math.round(cableMenu(duckCable) / 100) : 0} min={-50} max={50} param="sidechain.ducking" title={`${HELP['sidechain.ducking']}\n\n${duckCable ? formatCable(cableMenu(duckCable)) : 'no cable yet'}`} onchange={setDucking} />
+  <IntKnob el={sc} ensure={SC} attr="attack" label="Attack" read={sidechainAttackToMenu} write={menuToSidechainAttack} order={SIDECHAIN_ATTR_ORDER} title={HELP['sidechain.attack']} />
+  <IntKnob el={sc} ensure={SC} attr="release" label="Release" read={sidechainReleaseToMenu} write={menuToSidechainRelease} order={SIDECHAIN_ATTR_ORDER} title={HELP['sidechain.release']} />
   <HexKnob el={params(sound)} ensure={P} attr="compressorShape" label="Shape" order={SOUND_PARAM_ATTRS} {sound} />
 </div>
 <!-- The <sidechain>/<compressor> reader presets SYNC_LEVEL_NONE /
      SYNC_TYPE_EVEN before reading (mod_controllable_audio.cpp, tag `beta`,
      "Set default values in case they are not configured"). -->
 <div class="fields">
-  <Select label="Sync" name="sidechain.syncLevel" value={sc?.attrs.syncLevel} fallback="0" options={syncLevelOptions()} onchange={(v) => setAttr(SC(), 'syncLevel', v, SIDECHAIN_ATTR_ORDER)} />
+  <Select label="Sync" name="sidechain.syncLevel" value={sc?.attrs.syncLevel} fallback="0" options={syncLevelOptions()} title={HELP['sidechain.syncLevel']} onchange={(v) => setAttr(SC(), 'syncLevel', v, SIDECHAIN_ATTR_ORDER)} />
   {#if editor.supports('syncType')}
-    <Select label="Sync Type" name="sidechain.syncType" value={sc?.attrs.syncType} fallback="0" options={syncTypeOptions()} onchange={(v) => setAttr(SC(), 'syncType', v, SIDECHAIN_ATTR_ORDER)} />
+    <Select label="Sync Type" name="sidechain.syncType" value={sc?.attrs.syncType} fallback="0" options={syncTypeOptions()} title={HELP['sidechain.syncType']} onchange={(v) => setAttr(SC(), 'syncType', v, SIDECHAIN_ATTR_ORDER)} />
   {/if}
 </div>
 
@@ -82,12 +83,12 @@
   <div class="h3">Compressor</div>
   <div class="knobrow">
     <HexKnob el={params(sound)} ensure={P} attr="compressorThreshold" label="Threshold" scale="half" order={SOUND_PARAM_ATTRS} {sound} />
-    <IntKnob el={comp} ensure={COMP} attr="attack" label="Attack" max={127} read={compressorToKnob} write={knobToCompressor} order={AUDIO_COMPRESSOR_ATTR_ORDER} />
-    <IntKnob el={comp} ensure={COMP} attr="release" label="Release" max={127} read={compressorToKnob} write={knobToCompressor} order={AUDIO_COMPRESSOR_ATTR_ORDER} />
-    <IntKnob el={comp} ensure={COMP} attr="ratio" label="Ratio" max={127} read={compressorToKnob} write={knobToCompressor} order={AUDIO_COMPRESSOR_ATTR_ORDER} />
-    <IntKnob el={comp} ensure={COMP} attr="compHPF" label="Side HPF" max={127} read={compressorToKnob} write={knobToCompressor} order={AUDIO_COMPRESSOR_ATTR_ORDER} />
+    <IntKnob el={comp} ensure={COMP} attr="attack" label="Attack" max={127} read={compressorToKnob} write={knobToCompressor} order={AUDIO_COMPRESSOR_ATTR_ORDER} title={HELP['compressor.attack']} />
+    <IntKnob el={comp} ensure={COMP} attr="release" label="Release" max={127} read={compressorToKnob} write={knobToCompressor} order={AUDIO_COMPRESSOR_ATTR_ORDER} title={HELP['compressor.release']} />
+    <IntKnob el={comp} ensure={COMP} attr="ratio" label="Ratio" max={127} read={compressorToKnob} write={knobToCompressor} order={AUDIO_COMPRESSOR_ATTR_ORDER} title={HELP['compressor.ratio']} />
+    <IntKnob el={comp} ensure={COMP} attr="compHPF" label="Side HPF" max={127} read={compressorToKnob} write={knobToCompressor} order={AUDIO_COMPRESSOR_ATTR_ORDER} title={HELP['compressor.compHPF']} />
     {#if editor.supports('compressorBlend')}
-      <IntKnob el={comp} ensure={COMP} attr="compBlend" label="Blend" max={128} read={blendToKnob} write={knobToBlend} order={AUDIO_COMPRESSOR_ATTR_ORDER} />
+      <IntKnob el={comp} ensure={COMP} attr="compBlend" label="Blend" max={128} read={blendToKnob} write={knobToBlend} order={AUDIO_COMPRESSOR_ATTR_ORDER} title={HELP['compressor.compBlend']} />
     {/if}
   </div>
 {/if}
@@ -102,9 +103,9 @@
        quantized = true, reversed = false, pingPong = false
        (model/fx/stutterer.h, tag `beta`). -->
   <div class="fields">
-    <div class="f"><span class="lbl">Quantise</span><Toggle label="Quantized" name="stutter.quantized" value={stutter?.attrs.quantized} fallback="1" onchange={(v) => setAttr(ST(), 'quantized', v, STUTTER_ATTR_ORDER)} /></div>
-    <div class="f"><span class="lbl">Direction</span><Toggle label="Reverse" name="stutter.reverse" value={stutter?.attrs.reverse} fallback="0" onchange={(v) => setAttr(ST(), 'reverse', v, STUTTER_ATTR_ORDER)} /></div>
-    <div class="f"><span class="lbl">Stereo</span><Toggle label="Ping-pong" name="stutter.pingPong" value={stutter?.attrs.pingPong} fallback="0" onchange={(v) => setAttr(ST(), 'pingPong', v, STUTTER_ATTR_ORDER)} /></div>
+    <div class="f"><span class="lbl">Quantise</span><Toggle label="Quantized" name="stutter.quantized" value={stutter?.attrs.quantized} fallback="1" title={HELP['stutter.quantized']} onchange={(v) => setAttr(ST(), 'quantized', v, STUTTER_ATTR_ORDER)} /></div>
+    <div class="f"><span class="lbl">Direction</span><Toggle label="Reverse" name="stutter.reverse" value={stutter?.attrs.reverse} fallback="0" title={HELP['stutter.reverse']} onchange={(v) => setAttr(ST(), 'reverse', v, STUTTER_ATTR_ORDER)} /></div>
+    <div class="f"><span class="lbl">Stereo</span><Toggle label="Ping-pong" name="stutter.pingPong" value={stutter?.attrs.pingPong} fallback="0" title={HELP['stutter.pingPong']} onchange={(v) => setAttr(ST(), 'pingPong', v, STUTTER_ATTR_ORDER)} /></div>
   </div>
 {/if}
 
@@ -114,8 +115,8 @@
        MIDI_CHANNEL_NONE, outputMidiNoteForDrum = MIDI_NOTE_NONE (sound.h and
        definitions_cxx.hpp, tag `beta`); the format functions name them. -->
   <div class="fields">
-    <NumberField label="Channel" name="midiOutput.channel" value={midi?.attrs.channel} min={0} max={255} fallback={255} format={chan} onchange={(v) => setAttr(MIDI(), 'channel', String(v), MIDI_OUTPUT_ATTR_ORDER)} />
-    <NumberField label="Note" name="midiOutput.noteForDrum" value={midi?.attrs.noteForDrum} min={0} max={255} fallback={255} format={(n) => (n === 255 ? 'as played' : String(n))} onchange={(v) => setAttr(MIDI(), 'noteForDrum', String(v), MIDI_OUTPUT_ATTR_ORDER)} />
+    <NumberField label="Channel" name="midiOutput.channel" value={midi?.attrs.channel} min={0} max={255} fallback={255} format={chan} title={HELP['midiOutput.channel']} onchange={(v) => setAttr(MIDI(), 'channel', String(v), MIDI_OUTPUT_ATTR_ORDER)} />
+    <NumberField label="Note" name="midiOutput.noteForDrum" value={midi?.attrs.noteForDrum} min={0} max={255} fallback={255} format={(n) => (n === 255 ? 'as played' : String(n))} title={HELP['midiOutput.noteForDrum']} onchange={(v) => setAttr(MIDI(), 'noteForDrum', String(v), MIDI_OUTPUT_ATTR_ORDER)} />
   </div>
 {/if}
 

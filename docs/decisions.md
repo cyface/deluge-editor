@@ -402,3 +402,42 @@ save now writes **samples first, preset second** — the Deluge loads a preset
 whose samples are absent without complaining and plays it silently
 (`Source::loadAllSamples` ignores the per-range error, `processing/source.cpp:105`),
 so the preset must never be the thing that lands first.
+
+## Tooltip copy is one cited table, keyed the way the file names parameters
+
+Every control says what it does on hover (issue #20), and all of that copy
+lives in `src/ui/help.ts` rather than beside the markup. Two reasons, both
+about keeping it true.
+
+The first is the citation bar. A tooltip is a claim about the instrument, so
+it is held to the same standard as `FEATURES` and `params/scale.ts`: it says
+what *this firmware* does, cited in the table's comments — the firmware's own
+menu documentation (`docs/menus/**`, upstream/community) where it exists, and
+firmware source where it doesn't. "Analog delay darkens the repeats" is a
+fact about `delay.analog`; "warm analogue character" is synth-shop copy and
+does not belong. Entries that would be guesses were left out rather than
+filled in, the same rule an uncited `FEATURES` entry gets.
+
+The second is the key. Knob copy is keyed by the **parameter name a file uses
+for that parameter** — a cable's `destination`, a gold knob's `controlsParam`
+(`core/preset/params.ts`) — and `HexKnob` looks up its own destination. So one
+entry covers LPF Freq wherever it is shown, the numbered envelopes and LFOs
+are matched rather than written out four times each (`paramHelp`), and a
+description can never drift between two panels showing the same parameter.
+Everything that isn't a patchable parameter — selects, toggles, number fields,
+the polarity buttons, the panels themselves — is keyed by a slug in the same
+file. The kit bus is the one place the same knob means something different, so
+`KitGroup` appends one sentence (`KIT_BUS_NOTE`) instead of keeping a second
+copy of the text.
+
+**Descriptions stack with the default markers, they don't replace them.** What
+a control does and what its blank means are different facts, and a control the
+file omits has both: the knob and the number field join the two with a blank
+line. Before this pass a `title` silently hid the "not in the file" hint, and
+the wavefolder knob — the one control that had a description — had no way to
+say both.
+
+The test is the sweep, not a sample: `help.test.ts` asserts every parameter
+name the UI can show has copy and that none of it grows past a hint, and the
+e2e walks every knob, select, toggle and number field in the rendered panels
+of a synth and a kit and fails on the first one with nothing to say.

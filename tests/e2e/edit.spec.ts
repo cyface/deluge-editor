@@ -251,3 +251,43 @@ test('the top bar’s buttons are grouped by dividers that stay put (issue #34)'
   for (const sep of await seps.all()) await expect(sep).toHaveAttribute('aria-hidden', 'true')
   await expect(page.locator('.bar [data-testid="bar-sep"][tabindex]')).toHaveCount(0)
 })
+
+test('every control in the panels says what it does (issue #20)', async ({ page }) => {
+  // The promise of the tooltip pass is that there is nothing left to hover in
+  // vain, so the test is the sweep rather than a sample of it. A knob and a
+  // toggle carry the title themselves; a select and a number field carry it on
+  // the field around them, so the label is covered too.
+  const sweep = async () =>
+    page.locator('body').evaluate((body) => {
+      const controls = [...body.querySelectorAll('[data-group] select, [data-group] input[type="number"], [data-group] .toggle, [data-group] .k')]
+      const untitled = controls
+        .filter((el) => {
+          // The title may sit on the control or on the field around it, but it
+          // has to be inside the same panel to be about this control.
+          const titled = el.closest('[title]')
+          const panel = el.closest('[data-group]')
+          return !(titled && panel?.contains(titled) && (titled.getAttribute('title') ?? '').trim() !== '')
+        })
+        .map((el) => `${el.closest('[data-group]')?.getAttribute('data-group')}: ${el.tagName.toLowerCase()}.${el.className || el.getAttribute('data-attr')}`)
+      return { total: controls.length, untitled }
+    })
+
+  await page.goto('/')
+  await page.getByTestId('file-input').setInputFiles(FIXTURE)
+  await expect(page.locator('[data-group]')).toHaveCount(12)
+  const synth = await sweep()
+  expect(synth.untitled).toEqual([])
+  // Not a sweep of nothing: the fixture's panels really are full of controls.
+  expect(synth.total).toBeGreaterThan(60)
+
+  // Every panel header carries the block's own line as well.
+  const headings = page.locator('[data-group] h2')
+  expect(await headings.evaluateAll((hs) => hs.filter((h) => !h.title).length)).toBe(0)
+
+  // And the same sweep over a kit, whose bus panel and rows are different code.
+  await page.getByTestId('new-kit').click()
+  await expect(page.locator('[data-group="kit"]')).toBeVisible()
+  const kit = await sweep()
+  expect(kit.untitled).toEqual([])
+  expect(kit.total).toBeGreaterThan(60)
+})

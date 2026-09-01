@@ -7,6 +7,7 @@
   import HexKnob from '../controls/HexKnob.svelte'
   import Seg from '../controls/Seg.svelte'
   import Select from '../controls/Select.svelte'
+  import { HELP } from '../help'
   import { lfoTypeOptions, syncLevelOptions, syncTypeOptions } from '../options'
   import { sourceColor } from '../sources'
   import { editor } from '../state/editor.svelte'
@@ -70,11 +71,11 @@
      SYNC_LEVEL_NONE / SYNC_TYPE_EVEN before reading (sound.cpp, tag `beta`,
      "Set default values in case they are not configured"). -->
 <div class="fields">
-  <Select label="Shape" name="lfo{lfoSel}.type" value={theLfo?.attrs.type} fallback="triangle" options={lfoTypeOptions(editor.supports)} onchange={(v) => setAttr(ensureLfo(), 'type', v, LFO_ATTR_ORDER)} />
+  <Select label="Shape" name="lfo{lfoSel}.type" value={theLfo?.attrs.type} fallback="triangle" options={lfoTypeOptions(editor.supports)} title={HELP['lfo.type']} onchange={(v) => setAttr(ensureLfo(), 'type', v, LFO_ATTR_ORDER)} />
   {#if lfoSyncs}
-    <Select label="Sync" name="lfo{lfoSel}.syncLevel" value={theLfo?.attrs.syncLevel} fallback="0" options={syncLevelOptions()} onchange={(v) => setAttr(ensureLfo(), 'syncLevel', v, LFO_ATTR_ORDER)} />
+    <Select label="Sync" name="lfo{lfoSel}.syncLevel" value={theLfo?.attrs.syncLevel} fallback="0" options={syncLevelOptions()} title={HELP['lfo.syncLevel']} onchange={(v) => setAttr(ensureLfo(), 'syncLevel', v, LFO_ATTR_ORDER)} />
     {#if editor.supports('syncType')}
-      <Select label="Sync Type" name="lfo{lfoSel}.syncType" value={theLfo?.attrs.syncType} fallback="0" options={syncTypeOptions()} onchange={(v) => setAttr(ensureLfo(), 'syncType', v, LFO_ATTR_ORDER)} />
+      <Select label="Sync Type" name="lfo{lfoSel}.syncType" value={theLfo?.attrs.syncType} fallback="0" options={syncTypeOptions()} title={HELP['lfo.syncType']} onchange={(v) => setAttr(ensureLfo(), 'syncType', v, LFO_ATTR_ORDER)} />
     {/if}
   {/if}
 </div>

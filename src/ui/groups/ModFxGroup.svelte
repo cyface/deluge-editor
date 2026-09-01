@@ -4,6 +4,7 @@
   import { setAttr } from '../../core/xml'
   import HexKnob from '../controls/HexKnob.svelte'
   import Select from '../controls/Select.svelte'
+  import { HELP } from '../help'
   import { modFxOptions } from '../options'
   import { editor } from '../state/editor.svelte'
   interface Props { sound: SoundElement }
@@ -12,7 +13,7 @@
 </script>
 
 <div class="fields">
-  <Select label="Type" name="modFXType" value={sound.attrs.modFXType} options={modFxOptions(editor.supports)} onchange={(v) => setAttr(sound, 'modFXType', v, SOUND_ATTR_ORDER)} />
+  <Select label="Type" name="modFXType" value={sound.attrs.modFXType} options={modFxOptions(editor.supports)} title={HELP['sound.modFXType']} onchange={(v) => setAttr(sound, 'modFXType', v, SOUND_ATTR_ORDER)} />
 </div>
 <div class="knobrow">
   <HexKnob el={params(sound)} ensure={P} attr="modFXRate" label="Rate" order={SOUND_PARAM_ATTRS} {sound} />

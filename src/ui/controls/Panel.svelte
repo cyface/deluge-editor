@@ -1,13 +1,17 @@
 <script lang="ts">
   import type { Snippet } from 'svelte'
   import type { Group } from '../groups'
+  import { panelHelp } from '../help'
   interface Props { group: Group; sub?: string; children: Snippet }
   let { group, sub, children }: Props = $props()
 </script>
 
 <section class="panel" id="panel-{group.id}" data-group={group.id} style="--c: var({group.color})">
   <div class="ph">
-    <h2>{group.name}</h2>
+    <!-- The block's own line, for someone who does not yet know what the
+         section is for (issue #20). On the heading, not the whole panel: a
+         tooltip over every control in the section would fight with theirs. -->
+    <h2 title={panelHelp(group.id)}>{group.name}</h2>
     {#if sub}<span class="sub">{sub}</span>{/if}
   </div>
   {@render children()}
