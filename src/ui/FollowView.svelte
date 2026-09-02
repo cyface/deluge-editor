@@ -188,6 +188,44 @@
     return type !== 'dx7' && pulseWidthOffered(type, { fm, fileLoaded: oscHasFile(osc(root as SoundElement, n)) })
   }
 
+  /*
+   * The oscillator block is five sources' worth of knobs — two carriers, two
+   * modulators and noise — and one seventeen-knob grid hides which is which.
+   * They are sub-grouped as the full editor's panel is (`OscGroup.svelte`),
+   * under the same headings, in the firmware's own parameter order within
+   * each, with each label shortened to what its heading does not already say.
+   * A sub-group the map has no CC for is absent, like everything else here.
+   * A parameter is one knob however many CCs reach it: a map that sends two
+   * CCs to one parameter (c1.3 betas before #4528 did, to osc A's wave index)
+   * would otherwise draw two knobs on one value.
+   */
+  const OSC_SUBS: { id: string; title: string; osc?: 1 | 2; names: string[] }[] = [
+    { id: 'a', title: 'Osc A', osc: 1, names: ['oscAPitch', 'oscAVolume', 'oscAPhaseWidth', 'oscAWavetablePosition', 'carrier1Feedback'] },
+    { id: 'b', title: 'Osc B', osc: 2, names: ['oscBPitch', 'oscBVolume', 'oscBPhaseWidth', 'oscBWavetablePosition', 'carrier2Feedback'] },
+    { id: 'mod1', title: 'Mod 1', names: ['modulator1Pitch', 'modulator1Volume', 'modulator1Feedback'] },
+    { id: 'mod2', title: 'Mod 2', names: ['modulator2Pitch', 'modulator2Volume', 'modulator2Feedback'] },
+    { id: 'noise', title: 'Noise', names: ['noiseVolume'] },
+  ]
+  function oscSubs(entries: Entry[]) {
+    const placed = new Set<Entry>()
+    const subs = OSC_SUBS.map((s) => {
+      const list: Entry[] = []
+      for (const n of s.names) {
+        const same = entries.filter((e) => e.name === n)
+        for (const e of same) placed.add(e)
+        if (same.length) list.push(same[0])
+      }
+      return { ...s, entries: list }
+    }).filter((s) => s.entries.length)
+    // A follow parameter this table does not know lands after the sub-groups
+    // rather than vanishing: the map is the firmware's, and it may grow.
+    return { subs, rest: entries.filter((e) => !placed.has(e)) }
+  }
+  const shortLabel = (title: string, name: string): string => {
+    const l = paramLabel(name)
+    return l.startsWith(`${title} `) ? l.slice(title.length + 1) : l
+  }
+
   /** The stages of the selected envelope, in the order the firmware writes them. */
   const STAGES = ['Attack', 'Decay', 'Sustain', 'Release']
   const envEntries = $derived(
@@ -399,15 +437,22 @@
                     {#each lfoEntries as e (e.cc)}{@render slotKnob(e, lfoSynced, SYNCED_NOTE)}{/each}
                   </div>
                 {/if}
-              {:else if b.group.id === 'osc' && (drawsPulse(1) || drawsPulse(2))}
-                {#each [1, 2] as const as on (on)}
-                  {#if drawsPulse(on)}
-                    <PulseGraph sound={root as SoundElement} n={on} type={oscType(on)} />
+              {:else if b.group.id === 'osc'}
+                {@const { subs, rest } = oscSubs(b.entries)}
+                {#each subs as s (s.id)}
+                  <div class="h3" data-testid="follow-osc-{s.id}">{s.title}</div>
+                  {#if s.osc !== undefined && drawsPulse(s.osc)}
+                    <PulseGraph sound={root as SoundElement} n={s.osc} type={oscType(s.osc)} />
                   {/if}
+                  <div class="knobrow" data-testid="follow-osc-{s.id}-knobs">
+                    {#each s.entries as e (e.cc)}{@render slotKnob(e, false, undefined, shortLabel(s.title, e.name))}{/each}
+                  </div>
                 {/each}
-                <div class="knobrow">
-                  {#each b.entries as e (e.cc)}{@render slotKnob(e)}{/each}
-                </div>
+                {#if rest.length}
+                  <div class="knobrow">
+                    {#each rest as e (e.cc)}{@render slotKnob(e)}{/each}
+                  </div>
+                {/if}
               {:else}
                 <div class="knobrow">
                   {#each b.entries as e (e.cc)}{@render slotKnob(e)}{/each}

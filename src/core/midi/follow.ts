@@ -36,17 +36,20 @@ export const KNOB_POS_OFFSET = 64
  * The CC → parameter map of community 1.3.0.
  *
  * Transcribed from `MidiFollow::initDefaultMappings()`
- * (`io/midi/midi_follow.cpp`, upstream/community bef6d9df) by resolving each
+ * (`io/midi/midi_follow.cpp`, `beta` e7bae539) by resolving each
  * `params::` id through `paramNameForFileConst` — the same conversion
  * `writeDefaultMappingsToFile` makes when the firmware writes
  * `SETTINGS/MIDIFollow.XML`.
  *
- * Two entries look wrong and are transcribed as they are:
+/*
+ * Two notes on entries that look wrong:
  *
- * - **CC 30 is osc A's wavetable position, not osc B's.** The lookup-table
+ * - **CC 30 is osc B's wavetable position, as in c1.1–c1.2.** The lookup-table
  *   refactor (0d79ad6f #3257) wrote `ccToSoundParam[30] = LOCAL_OSC_A_WAVE_INDEX`,
- *   so CC 25 and CC 30 both drive osc A and osc B's wave index has no default
- *   CC at all. In c1.1–c1.2 the grid had osc B at CC 30 (see `FOLLOW_SOUND_CC_C11`).
+ *   so on c1.3 betas before 2026-06-11 CC 25 and CC 30 both drove osc A and
+ *   osc B's wave index had no default CC. 9a74e162 (#4528) put osc B back at
+ *   30; the `community` branch (bef6d9df) predates the fix and still shows the
+ *   doubled entry, so it is not the reference for this table.
  * - **CC 61 addresses no sound parameter.** `GLOBAL_VOLUME_POST_REVERB_SEND`
  *   is commented out there ("replace this with the patch cable from sidechain
  *   to volume, once midi follow supports patch cables"); it is only the kit
@@ -74,7 +77,7 @@ export const FOLLOW_SOUND_CC_C13: Readonly<Record<number, string>> = {
   27: 'compressorThreshold',
   28: 'oscBPhaseWidth',
   29: 'carrier2Feedback',
-  30: 'oscAWavetablePosition',
+  30: 'oscBWavetablePosition',
   36: 'reverseProbability',
   37: 'spreadVelocity',
   39: 'spreadOctave',

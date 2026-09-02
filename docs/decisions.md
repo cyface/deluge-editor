@@ -559,12 +559,12 @@ Consequences of the mode:
   through c1.2.1 mapped CCs by shortcut pad (`defaultParamToCCMapping` against
   the `*ParamShortcuts` grids); c1.3.0 replaced that with lookup tables
   (0d79ad6f #3257), adding the Arpeggiator 3.0 probabilities, envelopes 3–4,
-  LFOs 3–4, stutter rate and the compressor threshold — and moving CC 30 from
-  osc B's wavetable position to osc A's, which leaves osc B's with no default
-  CC at all. The editor shows what the selected firmware actually does, so on
-  c1.3.0 osc B's wave position is absent from the follow view. Both tables
-  were generated from the firmware sources and cross-checked against a
-  `MIDIFollow.XML` the firmware itself wrote.
+  LFOs 3–4, stutter rate and the compressor threshold. That refactor also
+  pointed CC 30 at osc A's wavetable position, doubling CC 25 and leaving osc
+  B's with no CC; 9a74e162 (#4528, on `beta` since 2026-06-11) put osc B back
+  at 30, and the table follows `beta`, not the `community` branch that still
+  predates the fix. Both tables were generated from the firmware sources and
+  cross-checked against a `MIDIFollow.XML` the firmware itself wrote.
 - **A kit needs a switch the wire does not carry.**
   `MidiFollow::getModelStackWithParamForKitClip` routes a kit clip's follow
   CCs by AFFECT ENTIRE: on, they reach the kit bus's own parameters; off, the

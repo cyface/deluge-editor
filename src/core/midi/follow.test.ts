@@ -126,14 +126,16 @@ describe('the default CC map', () => {
     for (const name of Object.values(FOLLOW_GLOBAL_CC_C11)) expect(KIT_FOLLOW_SLOTS[name]).toBeDefined()
   })
 
-  it('grew from c1.2 to c1.3 without moving an existing CC — except osc B’s wave index', () => {
+  it('grew from c1.2 to c1.3 without moving an existing CC', () => {
     const moved = Object.entries(FOLLOW_SOUND_CC_C11).filter(
       ([cc, name]) => FOLLOW_SOUND_CC_C13[Number(cc)] !== name,
     )
-    expect(moved).toEqual([['30', 'oscBWavetablePosition']])
-    expect(FOLLOW_SOUND_CC_C13[30]).toBe('oscAWavetablePosition')
-    // The 1.3 refactor left osc B's wave index with no CC of its own.
-    expect(Object.values(FOLLOW_SOUND_CC_C13)).not.toContain('oscBWavetablePosition')
+    expect(moved).toEqual([])
+    // The 1.3 refactor briefly pointed CC 30 at osc A's wave index too
+    // (0d79ad6f); 9a74e162 (#4528) put osc B back. One CC per parameter.
+    expect(FOLLOW_SOUND_CC_C13[30]).toBe('oscBWavetablePosition')
+    const names = Object.values(FOLLOW_SOUND_CC_C13)
+    expect(new Set(names).size).toBe(names.length)
   })
 
   it('adds the parameters c1.3 introduced and nothing else', () => {

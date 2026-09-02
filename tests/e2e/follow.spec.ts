@@ -60,8 +60,7 @@ test('Follow Mode shows only what MIDI Follow reaches, and mirrors the instrumen
   await expect(page.getByTestId('overview')).toHaveCount(0)
   await expect(page.locator('[data-follow-cc]')).toHaveCount(80 - 20 + 5 - 4)
   await expect(page.locator('[data-follow-cc="74"] [data-param="lpfFrequency"]')).toBeVisible()
-  // Osc B's wave index lost its CC in the c1.3 map, so it is not here.
-  await expect(page.locator('[data-param="oscBWavetablePosition"]')).toHaveCount(0)
+  await expect(page.locator('[data-follow-cc="30"] [data-param="oscBWavetablePosition"]')).toBeVisible()
   /*
    * Mod FX: the knobs follow the firmware's own menu relevance, and the type
    * that gates them is not a follow parameter at all — no CC addresses it — so
@@ -88,6 +87,17 @@ test('Follow Mode shows only what MIDI Follow reaches, and mirrors the instrumen
   // Default Synth is saw + square, so both oscillators are offered pulse width.
   await expect(page.getByTestId('pulse-graph-1')).toBeVisible()
   await expect(page.getByTestId('pulse-graph-2')).toBeVisible()
+  // The oscillator block is sub-grouped by source, each knob labelled by what
+  // its heading does not already say: five knobs per oscillator, three per
+  // modulator, one for noise.
+  await expect(page.getByTestId('follow-osc-a')).toHaveText('Osc A')
+  await expect(page.getByTestId('follow-osc-a-knobs').locator('[data-follow-cc]')).toHaveCount(5)
+  await expect(page.getByTestId('follow-osc-a-knobs')).toContainText('Pulse Width')
+  await expect(page.getByTestId('follow-osc-a-knobs')).not.toContainText('Osc A')
+  await expect(page.getByTestId('follow-osc-b-knobs').locator('[data-follow-cc]')).toHaveCount(5)
+  await expect(page.getByTestId('follow-osc-mod1-knobs').locator('[data-follow-cc]')).toHaveCount(3)
+  await expect(page.getByTestId('follow-osc-mod2-knobs').locator('[data-follow-cc]')).toHaveCount(3)
+  await expect(page.getByTestId('follow-osc-noise-knobs').locator('[data-follow-cc]')).toHaveCount(1)
 
   // A CC on the follow channel moves the matching control. 0x80 = ch 1,
   // CC 74 (LPF frequency), value 127 — the top of the knob's travel.
