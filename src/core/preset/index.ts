@@ -1,6 +1,7 @@
 export * from './enums'
 export * from './files'
 export * from './params'
+export * from './patching'
 export * from './order'
 export * from './names'
 export * from './notes'

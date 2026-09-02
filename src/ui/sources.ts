@@ -1,7 +1,11 @@
 /** Colour and lane for each patch source, for wires, pips and mod rings. */
 
 import { LFO_SCOPE } from '../core/firmware/features'
-import { PATCH_SOURCES, PATCH_SOURCE_NAMES, type PatchSource } from '../core/preset'
+import { PATCH_SOURCE_NAMES, type PatchSource } from '../core/preset'
+
+// The value → feature maps live in core, where the randomizer reads them too
+// (`src/core/firmware/gates.ts`).
+export { ALL_SOURCES, SOURCE_FEATURE } from '../core/firmware/gates'
 
 export const SOURCE_COLOR: Record<PatchSource, string> = {
   lfo1: 'var(--lfo1)',
@@ -35,12 +39,3 @@ export function sourceHint(s: PatchSource): string {
   return hints[s] ?? ''
 }
 
-/** Which feature gates a patch source, if any. */
-export const SOURCE_FEATURE: Partial<Record<PatchSource, string>> = {
-  lfo3: 'lfo3',
-  lfo4: 'lfo4',
-  envelope3: 'env3',
-  envelope4: 'env4',
-}
-
-export const ALL_SOURCES: readonly PatchSource[] = PATCH_SOURCES

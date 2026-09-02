@@ -195,6 +195,16 @@ export const HELP: Record<string, string> = {
   'panel.arp': 'The arpeggiator: how held notes are spread into a sequence, and how fast it runs.',
   'panel.random': 'The device’s randomizer, beside the arpeggiator in its menu. Some of it rolls on every note; the rest needs the arp running.',
   'panel.gold': 'What the eight pages of gold encoders control on the device — two knobs a page, sixteen assignments.',
+
+  // --- The patch generator ---------------------------------------------------
+  // Not the device’s own randomizer: that is `panel.random`, the arpeggiator’s
+  // note randomiser. These describe the editor’s own generator.
+  'randomize.intensity': 'How far a roll strays. Mild nudges the sound; wild takes every knob to the edge of what still plays.',
+  'randomize.scope': 'Which blocks a roll may touch. The rest of the preset is left exactly as it is.',
+  'randomize.roll': 'Roll a new patch into the sections above. Values come from the firmware’s own menu ranges, and only the ones the selected firmware can honour.',
+  'randomize.again': 'Roll the last seed again — the same patch, so a re-roll you liked less can be taken back.',
+  'randomize.seed': 'The number behind a roll. Note one down to reproduce it exactly, or type one in before rolling.',
+  'randomize.name': 'Give a preset with no name yet a name drawn from what the roll produced. A file you have already named is never renamed.',
   'panel.kit': 'The kit’s own filters, effects and sidechain, over the summed output of every row.',
 
   // --- Oscillators ---------------------------------------------------------

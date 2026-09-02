@@ -11,6 +11,7 @@
   import Oled from './Oled.svelte'
   import Overview from './Overview.svelte'
   import RangeEditor from './RangeEditor.svelte'
+  import Randomize from './Randomize.svelte'
   import SamplePicker from './SamplePicker.svelte'
   import TopBar from './TopBar.svelte'
   import { collectDroppedSamples } from './dropdir'
@@ -18,6 +19,7 @@
   import { editor } from './state/editor.svelte'
   import { follow } from './state/follow.svelte'
   import { ranges as rangeEditor } from './state/ranges.svelte'
+  import { randomizer } from './state/randomize.svelte'
   import { kit as kitBuilder } from './state/kit.svelte'
   import { multisample } from './state/multisample.svelte'
   import { samplePick } from './state/samplepick.svelte'
@@ -76,7 +78,7 @@
   ondragover={(e) => { e.preventDefault(); dragging = true }}
   ondragleave={() => (dragging = false)}
   ondrop={drop}
-  onkeydown={(e) => { if (e.key === 'Escape') { confirmDrop = null; if (multisample.open) multisample.cancel(); if (samplePick.open) samplePick.cancel(); if (card.open) card.close() } }}
+  onkeydown={(e) => { if (e.key === 'Escape') { confirmDrop = null; if (multisample.open) multisample.cancel(); if (samplePick.open) samplePick.cancel(); if (card.open) card.close(); randomizer.open = false } }}
 />
 
 {#if multisample.open}<FolderImport />{/if}
@@ -108,6 +110,11 @@
   {#if card.saved}
     <p class="saved" class:qualified={card.otherEditor} role="status" data-testid="card-saved">{card.saved}</p>
   {/if}
+  <!-- The generator sits in the flow, under the bar that opens it: it stays
+       open across many rolls, so it pushes the editor down rather than
+       covering the OLED sentence and the first column of the patch it is
+       rolling. -->
+  <Randomize />
   {#if editor.preset}
     <Oled />
     <!-- Follow Mode keeps the row table (it picks the row the CCs land on)

@@ -64,6 +64,21 @@ back at the Deluge on a MIDI-Follow channel, so the sound changes as you edit.
 It sends only what you move, on one port, and it says which; values land
 exactly when the instrument's MIDI-Follow takeover mode is JUMP, its default.
 
+**Randomize** generates a patch. Pick an intensity (mild → wild) and which
+blocks a roll may touch — the same blocks the flow strip names — and roll. It
+starts from whatever is loaded, or from the Deluge's own init synth if nothing
+is, and in a kit it rolls the selected row. What it writes is the firmware's:
+enum strings come from the string tables character for character, knob values
+are drawn in the Deluge's own menu ranges, nothing the firmware in the pill
+can't honour is ever written, and a patch cable is only made where
+`Sound::maySourcePatchToParam` says the instrument would actually patch it —
+so no roll produces a cable that loads and silently does nothing. Curated
+bounds keep a roll playable rather than merely random: one oscillator always
+at full level, a cutoff floor, delay feedback well short of runaway, unison
+under the firmware's eight. Every roll carries a seed, shown beside the
+button, so a patch you liked can be rolled again exactly; and a roll is
+ordinary edits, so **Changes** lists all of them and any one can be put back.
+
 A sample oscillator with more than one sample opens a **range editor** the
 width of the page: the key zones as bands across the keyboard, with the splits
 draggable, plus root note, tuning and zone for whichever range is selected.

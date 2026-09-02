@@ -4,6 +4,7 @@
   import { editor } from './state/editor.svelte'
   import { follow } from './state/follow.svelte'
   import { kit } from './state/kit.svelte'
+  import { randomizer } from './state/randomize.svelte'
   import Mark from './Mark.svelte'
 
   let fileInput: HTMLInputElement | undefined = $state()
@@ -116,6 +117,19 @@
   <span class="sep" aria-hidden="true" data-testid="bar-sep"></span>
   <button type="button" class="btn" title="Start a new synth from the Deluge's own init preset" data-testid="new-synth" onclick={() => editor.newSynth()}>New Synth</button>
   <button type="button" class="btn" title="Start a kit from the Deluge's own blank kit — then drop a folder of WAVs on the page" data-testid="new-kit" onclick={() => editor.newKit()}>New Kit</button>
+  <!-- Beside the templates, because that is the other way a preset starts.
+       With nothing loaded it begins from the Deluge's own init synth and
+       rolls that, so the button never needs a preset first. The panel it
+       opens is the patch generator; the arpeggiator's note Randomiser is a
+       panel in the grid and shares no wording with it. -->
+  <button
+    type="button"
+    class="btn"
+    class:on={randomizer.open}
+    data-testid="randomize-button"
+    title="Generate a random patch: intensity, which sections it may touch, and a seed you can write down. Every roll is an edit you can undo from Changes."
+    onclick={() => { if (!editor.preset) editor.newSynth(); randomizer.open = !randomizer.open }}
+  >Randomize</button>
   <span class="sep" aria-hidden="true" data-testid="bar-sep"></span>
   <button type="button" class="btn" title="Open a preset XML from this computer" onclick={() => fileInput?.click()}>Open File</button>
   <span class="sep" aria-hidden="true" data-testid="bar-sep"></span>
