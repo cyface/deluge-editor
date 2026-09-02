@@ -291,3 +291,63 @@ test('every control in the panels says what it does (issue #20)', async ({ page 
   expect(kit.untitled).toEqual([])
   expect(kit.total).toBeGreaterThan(60)
 })
+
+test('the LFO and pulse-width graphs draw, and stand down where the firmware takes the control away (issues #35, #36)', async ({ page }) => {
+  await page.goto('/')
+  await page.getByTestId('file-input').setInputFiles(FIXTURE)
+
+  const lfo = page.getByTestId('lfo-graph')
+  // The caption and legend sit beside the svg, not inside it.
+  const lfoWrap = lfo.locator('../..')
+  const pwA = page.getByTestId('pulse-graph-1')
+  const pwB = page.getByTestId('pulse-graph-2')
+
+  // Default Synth is saw + square: both oscillators get a pulse width, and the
+  // rate axis is the firmware's own arithmetic, not the menu number.
+  await expect(pwA).toBeVisible()
+  await expect(pwB).toBeVisible()
+  await expect(lfo).toBeVisible()
+  await expect(lfoWrap).toContainText('Hz')
+
+  // The handle is grabbed and dragged, as the filter curve's dots are.
+  const handle = pwA.locator('[role="slider"]')
+  await expect(handle).toHaveAttribute('aria-valuenow', '0')
+  await pwA.scrollIntoViewIfNeeded()
+  const grip = (await handle.boundingBox())!
+  const box = (await pwA.boundingBox())!
+  await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(box.x + box.width / 2, grip.y + grip.height / 2)
+  await page.mouse.up()
+  await expect(handle).toHaveAttribute('aria-valuenow', '25')
+  await expect(page.locator('[data-param="oscAPulseWidth"]')).toHaveAttribute('aria-valuenow', '25')
+
+  // Pressing the graph itself is not a value change: only the handle moves it.
+  await page.mouse.click(box.x + box.width * 0.8, box.y + 12)
+  await expect(handle).toHaveAttribute('aria-valuenow', '25')
+
+  // A sample oscillator has no pulse width to draw — `PulseWidth::isRelevant`
+  // — so neither the knob nor the graph is offered for it.
+  await page.locator('select[data-attr="osc1.type"]').selectOption('sample')
+  await expect(pwA).toHaveCount(0)
+  await expect(page.locator('[data-param="oscAPulseWidth"]')).toHaveCount(0)
+  await expect(pwB).toBeVisible()
+
+  // Nor does anything in FM mode, where the firmware hides it for both.
+  await page.locator('select[data-attr="mode"]').selectOption('fm')
+  await expect(pwB).toHaveCount(0)
+
+  // A synced LFO has no frequency a preset file can know: the axis becomes
+  // cycles and the graph says the Rate knob is doing nothing.
+  await page.locator('select[data-attr="lfo1.syncLevel"]').selectOption('3')
+  await expect(lfoWrap).toContainText('1 cycle = 1-bar')
+  await expect(lfoWrap).not.toContainText('Hz')
+  await expect(lfo.locator('[role="slider"]')).toHaveCount(0)
+  // And the Rate knob stops taking input, rather than turning to no effect.
+  const rate = page.locator('[data-param="lfo1Rate"]')
+  await expect(rate).toHaveAttribute('aria-disabled', 'true')
+  const was = await rate.getAttribute('aria-valuenow')
+  await rate.focus()
+  await page.keyboard.press('ArrowUp')
+  await expect(rate).toHaveAttribute('aria-valuenow', was!)
+})

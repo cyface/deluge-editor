@@ -82,6 +82,22 @@ export function setParamMenu(sound: SoundElement, attr: SoundParamAttr, menu: nu
 // ---- sub-elements ---------------------------------------------------------
 
 export const osc = (sound: SoundElement, n: 1 | 2): OscElement | undefined => child(sound, `osc${n}`)
+
+/**
+ * Whether an oscillator has an audio file to play —
+ * `Source::hasAtLeastOneAudioFileLoaded`, which decides whether the firmware
+ * offers a wavetable oscillator its pulse width at all
+ * (`PulseWidth::isRelevant`). One file is the `fileName` attribute; several
+ * are `<sampleRanges>` / `<wavetableRanges>` entries.
+ */
+export function oscHasFile(o: OscElement | undefined): boolean {
+  if (!o) return false
+  if ((o.attrs.fileName ?? '') !== '') return true
+  return (['sampleRanges', 'wavetableRanges'] as const).some((tag) => {
+    const ranges = child(o, tag)
+    return ranges !== undefined && ranges.children.length > 0
+  })
+}
 export const lfo = (sound: SoundElement, n: 1 | 2 | 3 | 4): LfoElement | undefined => child(sound, `lfo${n}`)
 export const envelope = (sound: SoundElement, n: 1 | 2 | 3 | 4): EnvelopeElement | undefined =>
   params(sound) && child(params(sound)!, `envelope${n}`)

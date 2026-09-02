@@ -4,12 +4,14 @@
     isKit, type OscElement, type SoundElement,
   } from '../../core/preset'
   import { sampleRanges, soundingOrder } from '../../core/preset/ranges'
-  import { ensureParams, osc, params } from '../../core/preset/sound'
+  import { ensureParams, osc, oscHasFile, params } from '../../core/preset/sound'
   import { degreesToRetrig, retrigToDegrees } from '../../core/params/scale'
+  import { pulseWidthOffered } from '../../core/params/pulse'
   import { child, childrenOf, ensureChild, setAttr } from '../../core/xml'
   import HexKnob from '../controls/HexKnob.svelte'
   import KeyMap from '../controls/KeyMap.svelte'
   import NumberField from '../controls/NumberField.svelte'
+  import PulseGraph from '../controls/PulseGraph.svelte'
   import Select from '../controls/Select.svelte'
   import Toggle from '../controls/Toggle.svelte'
   import { HELP } from '../help'
@@ -74,17 +76,27 @@
       {/if}
     </div>
   {/if}
+  <!-- `PulseWidth::isRelevant` (gui/menu_item/osc/pulse_width.h) decides this,
+       not the waveform's name: never in FM, never for a sample or an input,
+       and a wavetable only once it has a file. DX7 is left out because it
+       never reaches the oscillator renderer at all — `Voice::render` hands it
+       to `dxVoice->compute`, so the menu's offer of the control is empty. -->
+  {@const pw = type !== 'dx7' && pulseWidthOffered(type, { fm, fileLoaded: oscHasFile(o) })}
   <div class="knobrow">
     <HexKnob el={params(sound)} ensure={P} attr={attr(n, 'Volume')} label="Level" order={SOUND_PARAM_ATTRS} {sound} />
     {#if type === 'wavetable'}
       <HexKnob el={params(sound)} ensure={P} attr={attr(n, 'WavetablePosition')} label="Wave Pos" order={SOUND_PARAM_ATTRS} {sound} />
-    {:else if type !== 'sample' && type !== 'dx7'}
+    {/if}
+    {#if pw}
       <HexKnob el={params(sound)} ensure={P} attr={attr(n, 'PulseWidth')} label="Pulse Width" scale="half" order={SOUND_PARAM_ATTRS} {sound} />
     {/if}
     {#if fm}
       <HexKnob el={params(sound)} ensure={P} attr={n === 1 ? 'carrier1Feedback' : 'carrier2Feedback'} label="Feedback" order={SOUND_PARAM_ATTRS} {sound} />
     {/if}
   </div>
+  {#if pw}
+    <PulseGraph {sound} {n} {type} />
+  {/if}
   <div class="fields">
     <NumberField label="Transpose" name="osc{n}.transpose" value={o?.attrs.transpose} min={-96} max={96} title={HELP['osc.transpose']} onchange={(v) => setAttr(ensureOsc(n)(), 'transpose', String(v), OSC_ATTR_ORDER)} />
     <NumberField label="Cents" name="osc{n}.cents" value={o?.attrs.cents} min={-50} max={50} title={HELP['osc.cents']} onchange={(v) => setAttr(ensureOsc(n)(), 'cents', String(v), OSC_ATTR_ORDER)} />

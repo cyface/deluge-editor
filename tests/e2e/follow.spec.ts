@@ -55,9 +55,13 @@ test('Follow Mode shows only what MIDI Follow reaches, and mirrors the instrumen
   await expect(page.locator('[data-follow-cc="74"] [data-param="lpfFrequency"]')).toBeVisible()
   // Osc B's wave index lost its CC in the c1.3 map, so it is not here.
   await expect(page.locator('[data-param="oscBWavetablePosition"]')).toHaveCount(0)
-  // The two panels whose picture is the control keep it.
+  // Every panel whose picture is the control keeps it (issues #35, #36).
   await expect(page.getByTestId('filter-graph')).toBeVisible()
   await expect(page.getByTestId('env-graph')).toBeVisible()
+  await expect(page.getByTestId('lfo-graph')).toBeVisible()
+  // Default Synth is saw + square, so both oscillators are offered pulse width.
+  await expect(page.getByTestId('pulse-graph-1')).toBeVisible()
+  await expect(page.getByTestId('pulse-graph-2')).toBeVisible()
 
   // A CC on the follow channel moves the matching control. 0x80 = ch 1,
   // CC 74 (LPF frequency), value 127 — the top of the knob's travel.

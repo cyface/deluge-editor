@@ -5,6 +5,7 @@
   import { ensureChild, setAttr } from '../../core/xml'
   import EnvGraph from '../controls/EnvGraph.svelte'
   import HexKnob from '../controls/HexKnob.svelte'
+  import LfoGraph from '../controls/LfoGraph.svelte'
   import Seg from '../controls/Seg.svelte'
   import Select from '../controls/Select.svelte'
   import { HELP } from '../help'
@@ -52,6 +53,15 @@
   const ensureLfo = () => ensureChild(sound, `lfo${lfoSel as N}`, SOUND_CHILD_ORDER)
   const lfoRateAttr = $derived(`lfo${lfoSel}Rate` as (typeof SOUND_PARAM_ATTRS)[number])
   const lfoSyncs = $derived(lfoSel === 1 || lfoSel === 3 || (lfoSel === 2 && editor.supports('lfo2Sync')) || (lfoSel === 4 && editor.supports('lfo4')))
+  /**
+   * With a sync level set, the firmware never looks at the rate parameter:
+   * `Sound::getGlobalLFOPhaseIncrement` and `Voice::getLocalLFOPhaseIncrement`
+   * return the tempo-derived increment instead, and `maySourcePatchToParam`
+   * refuses cables to it. The stored value stays and still round-trips; the
+   * knob stops taking input.
+   */
+  const lfoSynced = $derived(lfoSyncs && (theLfo?.attrs.syncLevel ?? '0') !== '0')
+  const SYNCED_NOTE = 'Disabled by tempo sync — the Deluge takes this LFO’s speed from the song, not from this value.'
 </script>
 
 <div class="h3">Envelopes</div>
@@ -79,8 +89,9 @@
     {/if}
   {/if}
 </div>
+<LfoGraph {sound} selected={lfoSel as N} available={lfos} />
 <div class="knobrow">
-  <HexKnob el={params(sound)} ensure={() => ensureParams(sound)} attr={lfoRateAttr} label="Rate" order={SOUND_PARAM_ATTRS} {sound} />
+  <HexKnob el={params(sound)} ensure={() => ensureParams(sound)} attr={lfoRateAttr} label="Rate" order={SOUND_PARAM_ATTRS} {sound} disabled={lfoSynced} disabledNote={SYNCED_NOTE} />
 </div>
 
 <style>

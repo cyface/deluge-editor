@@ -17,11 +17,14 @@
   import { paramValueToCc } from '../core/midi/follow'
   import { paramLabel, type KitElement, type SoundElement } from '../core/preset'
   import { KIT_FOLLOW_SLOTS, SOUND_FOLLOW_SLOTS, ensureSlotElement, slotElement, slotHex, slotOrder, slotScale } from '../core/preset/follow'
-  import { envelope, hexToMenu, menuToHex } from '../core/preset/sound'
+  import { envelope, hexToMenu, lfo as lfoElement, menuToHex, osc, oscHasFile } from '../core/preset/sound'
+  import { pulseWidthOffered } from '../core/params/pulse'
   import { setAttr } from '../core/xml'
   import EnvGraph from './controls/EnvGraph.svelte'
   import FilterGraph, { type FilterBinding } from './controls/FilterGraph.svelte'
   import HexKnob from './controls/HexKnob.svelte'
+  import LfoGraph from './controls/LfoGraph.svelte'
+  import PulseGraph from './controls/PulseGraph.svelte'
   import Panel from './controls/Panel.svelte'
   import Seg from './controls/Seg.svelte'
   import { KIT_GROUP, groupOf, gridGroups, type Group } from './groups'
@@ -93,10 +96,11 @@
   }
 
   /*
-   * The two panels whose picture is the control keep it: the filter response
-   * and the ADSR overlay are the same components the full editor uses, over
-   * the same values, so a cutoff sweep on the instrument draws itself here.
-   * Both are also draggable, like every other control in this view.
+   * Every panel whose picture is the control keeps it: the filter response,
+   * the ADSR overlay, the LFO shape and the oscillators' pulse width are the
+   * same components the full editor uses, over the same values, so a cutoff
+   * sweep on the instrument draws itself here. All four are draggable, like
+   * every other control in this view.
    */
   const slots = $derived(onBus ? KIT_FOLLOW_SLOTS : SOUND_FOLLOW_SLOTS)
   const filters = $derived<FilterBinding>({
@@ -139,12 +143,39 @@
     if (lfo) lfoSel = Number(lfo[1])
   })
 
+  /*
+   * The oscillators' picture, on the same terms as the filter's and the
+   * envelopes': both pulse widths are follow-mapped (CC 23 and 28), so a knob
+   * moved on the instrument redraws the wave here. Only where the firmware
+   * offers the control, which is the panel's own rule everywhere else — and
+   * never on the kit bus, which has no oscillators to draw.
+   */
+  const fm = $derived(!onBus && (root as SoundElement | null)?.attrs.mode === 'fm')
+  const oscType = (n: 1 | 2): string =>
+    fm ? 'sine' : (osc(root as SoundElement, n)?.attrs.type ?? 'square')
+  function drawsPulse(n: 1 | 2): boolean {
+    if (onBus || root === null) return false
+    if (!follow.slots.some((e) => e.name === `osc${n === 1 ? 'A' : 'B'}PhaseWidth`)) return false
+    const type = oscType(n)
+    return type !== 'dx7' && pulseWidthOffered(type, { fm, fileLoaded: oscHasFile(osc(root as SoundElement, n)) })
+  }
+
   /** The stages of the selected envelope, in the order the firmware writes them. */
   const STAGES = ['Attack', 'Decay', 'Sustain', 'Release']
   const envEntries = $derived(
     STAGES.map((st) => follow.slots.find((e) => e.name === `env${envSel}${st}`)).filter((e) => e !== undefined),
   )
   const lfoEntries = $derived(follow.slots.filter((e) => e.name === `lfo${lfoSel}Rate`))
+  /*
+   * A synced LFO's rate is a value the firmware never reads
+   * (`Sound::getGlobalLFOPhaseIncrement`). The CC still exists and the
+   * instrument will still send it, so the knob stays and keeps showing what is
+   * stored — it just takes no input here, as in the full editor.
+   */
+  const lfoSynced = $derived(
+    !onBus && root !== null && (lfoElement(root as SoundElement, lfoSel as 1 | 2 | 3 | 4)?.attrs.syncLevel ?? '0') !== '0',
+  )
+  const SYNCED_NOTE = 'Disabled by tempo sync — the Deluge takes this LFO’s speed from the song, not from this value.'
 
   /*
    * Sending: the current CC value of every mapped parameter, offered to the
@@ -241,7 +272,7 @@
   {/if}
 </section>
 
-{#snippet slotKnob(e: Entry)}
+{#snippet slotKnob(e: Entry, disabled = false, disabledNote: string | undefined = undefined)}
   <span class="slot" class:lit={follow.glow[e.name] !== undefined} data-follow-cc={e.cc}>
     <HexKnob
       el={slotElement(root!, e.slot)}
@@ -252,6 +283,8 @@
       order={slotOrder(e.slot, onBus)}
       sound={onBus ? undefined : (root as SoundElement)}
       dest={e.name}
+      {disabled}
+      {disabledNote}
     />
   </span>
 {/snippet}
@@ -298,10 +331,20 @@
                     selected={lfoSel}
                     onselect={(n) => (lfoSel = n)}
                   />
+                  <LfoGraph sound={root as SoundElement} selected={lfoSel as 1 | 2 | 3 | 4} available={lfos} />
                   <div class="knobrow">
-                    {#each lfoEntries as e (e.cc)}{@render slotKnob(e)}{/each}
+                    {#each lfoEntries as e (e.cc)}{@render slotKnob(e, lfoSynced, SYNCED_NOTE)}{/each}
                   </div>
                 {/if}
+              {:else if b.group.id === 'osc' && (drawsPulse(1) || drawsPulse(2))}
+                {#each [1, 2] as const as on (on)}
+                  {#if drawsPulse(on)}
+                    <PulseGraph sound={root as SoundElement} n={on} type={oscType(on)} />
+                  {/if}
+                {/each}
+                <div class="knobrow">
+                  {#each b.entries as e (e.cc)}{@render slotKnob(e)}{/each}
+                </div>
               {:else}
                 <div class="knobrow">
                   {#each b.entries as e (e.cc)}{@render slotKnob(e)}{/each}

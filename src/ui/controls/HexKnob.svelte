@@ -33,8 +33,12 @@
     extraDest?: string
     /** Overrides the description `help.ts` holds for this parameter. */
     title?: string
+    /** The firmware is not reading this value right now; see `Knob`. */
+    disabled?: boolean
+    /** Why it is disabled; joined onto the tooltip. */
+    disabledNote?: string
   }
-  let { el, ensure, attr, label, scale = 'standard', order, sound, dest, extraDest, title }: Props = $props()
+  let { el, ensure, attr, label, scale = 'standard', order, sound, dest, extraDest, title, disabled = false, disabledNote }: Props = $props()
 
   const range = $derived(scale === 'pan' ? { min: -25, max: 25 } : { min: 0, max: 50 })
   const hex = $derived(el?.attrs[attr])
@@ -64,7 +68,10 @@
   // Right-click starts a cable into this param (issue #13). Only params the
   // firmware can patch get the menu — an unpatchable one gets nothing, not a
   // disabled stub (docs/decisions.md). Long-press fires contextmenu on touch.
-  const patchable = $derived(sound !== undefined && isPatchableDestination(destination, editor.supports))
+  // A disabled knob is one the firmware is not reading, and the firmware
+  // won't take a cable to it either — `Sound::maySourcePatchToParam` returns
+  // DISALLOWED for an LFO rate under sync — so the menu goes with it.
+  const patchable = $derived(!disabled && sound !== undefined && isPatchableDestination(destination, editor.supports))
   function context(e: MouseEvent) {
     if (!patchable) return
     e.preventDefault()
@@ -73,5 +80,5 @@
 </script>
 
 <span style="display: contents" role="presentation" oncontextmenu={context}>
-  <Knob {label} {value} min={range.min} max={range.max} onchange={set} {format} {mod} {gold} param={attr} title={tip} />
+  <Knob {label} {value} min={range.min} max={range.max} onchange={set} {format} {mod} {gold} param={attr} title={tip} {disabled} {disabledNote} />
 </span>

@@ -604,3 +604,69 @@ The test is the sweep, not a sample: `help.test.ts` asserts every parameter
 name the UI can show has copy and that none of it grows past a hint, and the
 e2e walks every knob, select, toggle and number field in the rendered panels
 of a synth and a kit and fails on the first one with nothing to say.
+
+## A graph is drawn where a picture is the control, and it is a sketch
+
+Four panels draw what their controls do rather than only numbering them: the
+filter response, the ADSR overlay, the LFO shapes (issue #35) and the
+oscillators' pulse width (issue #36). All four are the same components in the
+full editor and in Follow Mode, over the same values, and all four are
+draggable, so a knob that moved on the instrument redraws its own picture.
+
+All four are worked the same way: a handle is grabbed and dragged, and
+pressing the drawing itself does nothing — the two new ones put theirs on a
+track along the bottom edge rather than floating it in the plot, because their
+x axis is time and a value cannot share it.
+
+The maths behind each is *illustrative*, and each says so in its header
+comment — `FilterGraph` set the precedent ("menu value → 20 Hz…20 kHz, not the
+firmware's filter model"), and the LFO's random shapes and the pulse graph's
+band-limiting are the same kind of approximation. What is **not** a sketch is
+anything the graph puts a number on. Those come from
+`src/core/params/lfo.ts` and `src/core/params/pulse.ts`, which are the
+firmware's own integer arithmetic under test, held to the same bar as
+`params/scale.ts`.
+
+**An LFO rate is shown in hertz, which the Deluge never shows.** The
+instrument's menu says 0–50 like every other patched parameter. The frequency
+is derived, not invented: `getExp(121739, presetValue × 2^30 >> 32)` is the
+phase increment `LFO::render` advances a uint32 phase by each sample
+(`Sound::getGlobalLFOPhaseIncrement`, `Voice::getLocalLFOPhaseIncrement`,
+`Patcher::recalculateFinalValueForParamWithNoCables`, `getParamNeutralValue`),
+so at 44.1 kHz one cycle is 2^32 / that many samples. It comes out at just
+under sixteen octaves: menu 0 is one cycle in 205 seconds, menu 25 is 1.25 Hz,
+menu 50 is 320 Hz. The knob still reads 0–50; the graph is the only place the
+derived number appears, and the tests pin it to the firmware's own values.
+
+**A synced LFO gets no frequency at all.** Its phase increment comes from
+`playbackHandler.getTimePerInternalTickInverse()`, so the speed is the song's
+tempo and a preset file does not carry one. Rather than guess a tempo, the
+graph draws its axis in cycles and names the sync note length.
+
+**And its Rate knob is disabled, not just annotated.** While a sync level is
+set the firmware never reads the rate parameter — `getGlobalLFOPhaseIncrement`
+and `getLocalLFOPhaseIncrement` return the tempo-derived increment instead —
+and it refuses cables to it (`Sound::maySourcePatchToParam`,
+`GLOBAL_LFO_FREQ_1` → DISALLOWED), so the right-click cable menu goes too.
+This is the one place the editor greys a control rather than removing it, and
+the exception is deliberate: the value is still in the file and still
+round-trips, and the difference between "there is no such control" and "this
+control is not being read right now" is exactly what the user needs to know.
+Removing it would leave the sync setting looking like it had eaten the rate.
+A knob that turns and changes nothing is the worst of the three.
+
+**Pulse width is drawn because its name misleads.** On the Deluge it is not a
+square-wave control and, for the shapes that are not squares, not a duty cycle:
+`Oscillator::renderOsc` runs the wave at `1 + pulseWidth / 2^31` times the
+note's rate and hard-syncs it back, so a saw at full pulse width is two saws in
+the space of one. Zero is *off* rather than a 50% square
+(`doPulseWave = (pulseWidth != 0)`), and Osc Sync takes the control away from
+every shape but the mathematical square (`doPulseWave = (pulseWidth &&
+!doOscSync)`) — the knob stays, because the firmware's menu keeps offering it,
+and the graph says why it does nothing.
+
+The same pass made the knob follow `PulseWidth::isRelevant` instead of its own
+list: no pulse width in FM mode, none for a sample or an audio input, and a
+wavetable gets one only once it has a file. DX7 is left out although the menu
+offers it, because a DX7 oscillator never reaches this renderer at all —
+`Voice::render` hands it to `dxVoice->compute`, so the control is inert.

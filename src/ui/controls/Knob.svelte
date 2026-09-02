@@ -27,8 +27,18 @@
     /** For tests and tooling: which parameter this is. */
     param?: string
     title?: string
+    /**
+     * The value is in the file but the firmware is not reading it — an LFO
+     * rate under tempo sync is the case this exists for. The knob still shows
+     * what is stored, because it is still stored, but it takes no input and
+     * says why: a knob that moves and changes nothing is worse than one that
+     * won't move (docs/decisions.md).
+     */
+    disabled?: boolean
+    /** Why it is disabled; joined onto the tooltip. */
+    disabledNote?: string
   }
-  let { label, value, min = 0, max = 50, onchange, format, mod = [], gold = false, param, title }: Props = $props()
+  let { label, value, min = 0, max = 50, onchange, format, mod = [], gold = false, param, title, disabled = false, disabledNote }: Props = $props()
 
   const A_MIN = -135
   const A_SPAN = 270
@@ -61,21 +71,27 @@
    * a `title` used to hide the absent-attribute hint entirely.
    */
   const UNSET = 'Not in the file: the firmware default applies. Adjust to set it.'
-  const tip = $derived([title, value === undefined ? UNSET : undefined].filter(Boolean).join('\n\n') || undefined)
+  const tip = $derived(
+    [title, disabled ? disabledNote : undefined, !disabled && value === undefined ? UNSET : undefined]
+      .filter(Boolean)
+      .join('\n\n') || undefined,
+  )
 
   let y0 = 0
   let v0 = 0
   function down(e: PointerEvent) {
+    if (disabled) return
     ;(e.currentTarget as SVGElement).setPointerCapture(e.pointerId)
     y0 = e.clientY
     v0 = value ?? min
   }
   function move(e: PointerEvent) {
-    if (!(e.currentTarget as SVGElement).hasPointerCapture(e.pointerId)) return
+    if (disabled || !(e.currentTarget as SVGElement).hasPointerCapture(e.pointerId)) return
     const n = clamp(Math.round(v0 + ((y0 - e.clientY) * (max - min)) / 150), min, max)
     if (n !== value) onchange(n)
   }
   function key(e: KeyboardEvent) {
+    if (disabled) return
     const step = e.shiftKey ? 5 : 1
     const cur = value ?? min
     let n: number | undefined
@@ -89,15 +105,16 @@
   }
 </script>
 
-<div class="k" class:gold class:unset={value === undefined} title={tip}>
+<div class="k" class:gold class:unset={value === undefined} class:off={disabled} title={tip}>
   <svg
     class="dial"
     viewBox="0 0 48 48"
     width="44"
     height="44"
     role="slider"
-    tabindex="0"
+    tabindex={disabled ? -1 : 0}
     aria-label={label}
+    aria-disabled={disabled ? 'true' : undefined}
     aria-valuemin={min}
     aria-valuemax={max}
     aria-valuenow={value}
@@ -129,4 +146,7 @@
   .val { font-family: var(--mono); font-size: 10px; font-weight: 500; color: #ded4c2; font-variant-numeric: tabular-nums; }
   .gold .lbl { color: #c4b294; }
   .unset .val { color: var(--faint); }
+  /* Still legible — the value is real, it is just not being read right now. */
+  .off { opacity: .42; }
+  .off .dial { cursor: default; }
 </style>
