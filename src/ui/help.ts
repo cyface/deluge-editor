@@ -204,7 +204,7 @@ export const HELP: Record<string, string> = {
   'randomize.roll': 'Roll a new patch into the sections above. Values come from the firmware’s own menu ranges, and only the ones the selected firmware can honour.',
   'randomize.again': 'Roll the last seed again — the same patch, so a re-roll you liked less can be taken back.',
   'randomize.seed': 'The number behind a roll. Note one down to reproduce it exactly, or type one in before rolling.',
-  'randomize.name': 'Give a preset with no name yet a name drawn from what the roll produced. A file you have already named is never renamed.',
+  'randomize.name': 'Name the preset after each roll, from what the roll produced. Turn it off to keep the name you have.',
   'panel.kit': 'The kit’s own filters, effects and sidechain, over the summed output of every row.',
 
   // --- Oscillators ---------------------------------------------------------

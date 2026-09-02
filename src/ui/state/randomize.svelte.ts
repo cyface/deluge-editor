@@ -54,7 +54,7 @@ class Randomizer {
   open = $state(false)
   intensity = $state<Intensity>('moderate')
   sections = $state<RandomSection[]>([...DEFAULT_SECTIONS])
-  /** Name the preset from what the roll produced, when it has no name yet. */
+  /** Name the preset from what each roll produced (synths; a kit row has its own name). */
   nameIt = $state(true)
   /** The seed of the last roll, so it can be repeated or written down. */
   lastSeed = $state<number | null>(null)
@@ -106,10 +106,11 @@ class Randomizer {
     })
     this.lastSeed = result.seed
 
-    // Naming a file the user already named would be vandalism, so this only
-    // fills in a blank — a new synth, or one built from nothing. The name is
-    // drawn after the roll, from the patch the roll produced.
-    if (this.nameIt && editor.preset !== null && !isKit(editor.preset) && editor.fileName === '') {
+    // Every roll is a new patch and, with Name it on, gets a new name — the
+    // toggle is the consent, so a file the user named is renamed too while it
+    // is on; off, no roll touches the name. The name is drawn after the
+    // roll, from the patch the roll produced, so the same seed names alike.
+    if (this.nameIt && editor.preset !== null && !isKit(editor.preset)) {
       editor.fileName = patchFileName(randomPatchName(sound, makeRng(result.seed)))
     }
   }
