@@ -46,9 +46,12 @@ The whole preset is on one page. The **flow strip** at the top (Osc → Voice �
 Filters → … → Out, modulators below) is the table of contents: click a block
 to focus it, shift-click to pin several, click the strip's background to
 expand everything. The OLED line above it is a mechanical summary of the
-model. Controls are shown for the firmware in the top-right pill (defaulting
-to the loaded file's) and a control that firmware can't honour is simply not
-there. **Changes** lists every value that differs from the file you opened.
+model. The bar's **New**, **Open** and **Save** menus start a preset, open
+one from this computer or from the Deluge, and download it or write it back;
+a dot on the firmware pill says a Deluge is connected. Controls are shown for
+the firmware in that pill (defaulting to the loaded file's) and a control that
+firmware can't honour is simply not there. **Changes** lists every value that
+differs from the file you opened.
 
 **Follow Mode** mirrors the instrument: with MIDI Follow feedback enabled on
 the Deluge (`SETTINGS > MIDI > MIDI-Follow > Feedback`), turning a gold encoder

@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { choose } from './bar.js'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -36,7 +37,7 @@ test('build a kit from a sample folder: guessed order, reorder, rename, share zi
   fs.writeFileSync(path.join(dir, 'Snare.wav'), wavBytes(600))
 
   await page.goto('/')
-  await page.getByTestId('new-kit').click()
+  await choose(page, 'new-kit')
   const rows = page.locator('[data-testid="kit-rows"] tbody tr')
   await expect(rows).toHaveCount(1) // the blank kit's one silent row
 
@@ -116,7 +117,7 @@ test('build a kit from a sample folder: guessed order, reorder, rename, share zi
   // Share zip: README + KITS/ + the three samples still in the kit.
   await page.locator('#kit-author').fill('Tim')
   const downloadPromise = page.waitForEvent('download')
-  await page.getByTestId('download-zip-top').click()
+  await choose(page, 'download-zip-top')
   const download = await downloadPromise
   const zipPath = await download.path()
   const zip = fs.readFileSync(zipPath!)
@@ -133,7 +134,7 @@ test("a row's sample is chosen from the rows table itself", async ({ page }) => 
   fs.writeFileSync(wav, wavBytes(1000))
 
   await page.goto('/')
-  await page.getByTestId('new-kit').click()
+  await choose(page, 'new-kit')
   const rows = page.locator('[data-testid="kit-rows"] tbody tr')
   await expect(rows).toHaveCount(1)
   // The blank row the device writes carries `fileName=""`, which used to leave

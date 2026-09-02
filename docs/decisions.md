@@ -891,3 +891,28 @@ seeds at four intensities against both firmware lineages).
 The editor's Randomize and the firmware's own **Randomiser** panel are
 different things — the latter is the arpeggiator's per-note probability and
 spread menu — and they never share wording or colour.
+
+## The bar's commands are menus; its modes are buttons
+
+The top bar had grown a button per feature — ten of them by issue #37, and
+the file name, the one thing on the bar that is *about* the preset, had no
+room left. They are folded into three dropdowns by verb: **New** (Synth, Kit,
+Randomize), **Open** (from this computer, from the Deluge), **Save**
+(download XML, download Zip when the preset references samples, to the
+Deluge). A desktop-style File menu row would have said the same thing at the
+cost of a second row of chrome.
+
+Two things stay out as buttons on purpose. **Follow Mode** and **Changes**
+are modes, not commands: one pulses while it is listening, the other carries
+the count and toggles the dock, and a menu hides exactly what you glance at.
+The connected dot moves to the firmware pill for the same reason — the pill
+is already what a connection changes, since it locks to the device's firmware
+— and it pulses amber through a card transfer whether or not the dialog is
+open.
+
+The dropdown (`src/ui/controls/Menu.svelte`) is a menu button and nothing
+more: `aria-haspopup="menu"`, `aria-expanded`, `role="menu"` /
+`role="menuitem"`, focus lands on the first item, the arrows walk the items,
+Escape and a click outside close it and return focus. Save's items are
+disabled without a preset rather than the whole menu, so it still says what it
+would do.

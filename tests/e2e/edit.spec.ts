@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { choose } from './bar.js'
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -81,7 +82,7 @@ test('reassign a gold knob: one change, the brass face follows (issue #23)', asy
 
 test('New Synth starts from the Deluge-authored init template (issue #25)', async ({ page }) => {
   await page.goto('/')
-  await page.getByTestId('new-synth').click()
+  await choose(page, 'new-synth')
 
   // The template loads like an opened file: unnamed, c1.3.0-authored, clean.
   await expect(page.getByTestId('file-name')).toHaveText('UNNAMED')
@@ -219,38 +220,68 @@ test('a dropped file over a loaded preset asks before replacing it', async ({ pa
   await expect(page.getByTestId('change-count')).toHaveText('0')
 })
 
-test('the top bar’s buttons are grouped by dividers that stay put (issue #34)', async ({ page }) => {
+test('the top bar’s commands live under New, Open and Save; the modes stay out (issue #37)', async ({ page }) => {
   await page.goto('/')
-  await page.getByTestId('file-input').setInputFiles(FIXTURE)
 
-  // Four dividers cut the ten buttons into five groups: the Deluge over MIDI,
-  // starting a preset (from a template or from a roll), opening from this
-  // computer, downloads, changes.
-  const seps = page.getByTestId('bar-sep')
-  await expect(seps).toHaveCount(4)
-  const groups = async () =>
+  // Three verbs and the two modes: that is the whole row of buttons. (Follow
+  // Mode is there because the default firmware has MIDI Follow.)
+  const buttons = () =>
     page.locator('.bar').evaluate((bar) =>
-      [...bar.children]
-        .filter((el) => el.tagName === 'BUTTON' || el.dataset.testid === 'bar-sep')
-        .map((el) => (el.dataset.testid === 'bar-sep' ? '|' : (el.textContent ?? '').trim()))
-        .join(' '),
+      [...bar.querySelectorAll(':scope > button, :scope > .wrap > button')].map((el) => (el.textContent ?? '').trim()).join(' | '),
     )
-  expect(await groups()).toBe(
-    'Open from Deluge Save to Deluge Follow Mode | New Synth New Kit Randomize | Open File | Download XML | Changes 0',
-  )
+  expect(await buttons()).toBe('New▾ | Open▾ | Save▾ | Follow Mode | Changes')
 
-  // Download Zip is conditional, so the last divider has to live outside it:
-  // a kit grows a button in that group and the divider does not move.
-  await page.getByTestId('new-kit').click()
-  await expect(page.getByTestId('download-zip-top')).toBeVisible()
-  await expect(seps).toHaveCount(4)
-  expect(await groups()).toBe(
-    'Open from Deluge Save to Deluge Follow Mode | New Synth New Kit Randomize | Open File | Download XML Download Zip | Changes 0',
-  )
+  // A menu is a menu: the button says it has one and whether it is open, the
+  // items are menuitems, and opening puts focus on the first of them.
+  const menu = page.getByTestId('menu-save')
+  await expect(menu).toHaveAttribute('aria-haspopup', 'menu')
+  await expect(menu).toHaveAttribute('aria-expanded', 'false')
+  await menu.click()
+  await expect(menu).toHaveAttribute('aria-expanded', 'true')
+  const list = page.getByTestId('menu-save-list')
+  await expect(list).toHaveRole('menu')
+  await expect(list.getByRole('menuitem')).toHaveText(['Download XML', 'To Deluge'])
+  // Nothing loaded: the items say what they would do, but cannot do it yet.
+  await expect(page.getByTestId('download-xml')).toBeDisabled()
+  await expect(page.getByTestId('card-save-button')).toBeDisabled()
 
-  // A divider is a drawn line, nothing more: not announced, not reachable.
-  for (const sep of await seps.all()) await expect(sep).toHaveAttribute('aria-hidden', 'true')
-  await expect(page.locator('.bar [data-testid="bar-sep"][tabindex]')).toHaveCount(0)
+  // Escape closes it and puts focus back on the button; a click elsewhere closes it too.
+  await page.keyboard.press('Escape')
+  await expect(list).toHaveCount(0)
+  await expect(menu).toBeFocused()
+  await menu.click()
+  await expect(list).toBeVisible()
+  await page.locator('.bar .logo').click()
+  await expect(list).toHaveCount(0)
+
+  // Arrow keys walk the items and wrap; Home and End jump.
+  await page.getByTestId('menu-new').click()
+  await expect(page.getByTestId('new-synth')).toBeFocused()
+  await page.keyboard.press('ArrowDown')
+  await expect(page.getByTestId('new-kit')).toBeFocused()
+  await page.keyboard.press('ArrowUp')
+  await page.keyboard.press('ArrowUp')
+  await expect(page.getByTestId('randomize-button')).toBeFocused()
+  await page.keyboard.press('Home')
+  await expect(page.getByTestId('new-synth')).toBeFocused()
+  await page.keyboard.press('Enter')
+  await expect(page.getByTestId('menu-new-list')).toHaveCount(0)
+  await expect(page.getByTestId('file-name')).toHaveText('UNNAMED')
+
+  // Download Zip is conditional: a kit grows it, between XML and the Deluge.
+  await choose(page, 'new-kit')
+  await page.getByTestId('menu-save').click()
+  await expect(list.getByRole('menuitem')).toHaveText(['Download XML', 'Download Zip', 'To Deluge'])
+  await expect(page.getByTestId('download-xml')).toBeEnabled()
+  await page.keyboard.press('Escape')
+
+  // The file name is the flex child that pays for the row: with the commands
+  // folded away a long name is not cut short even on a laptop.
+  await page.setViewportSize({ width: 1024, height: 700 })
+  await page.getByTestId('file-input').setInputFiles(FIXTURE)
+  const name = page.getByTestId('file-name')
+  await expect(name).toHaveText('Default Synth.XML')
+  expect(await name.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
 })
 
 test('every control in the panels says what it does (issue #20)', async ({ page }) => {
@@ -286,7 +317,7 @@ test('every control in the panels says what it does (issue #20)', async ({ page 
   expect(await headings.evaluateAll((hs) => hs.filter((h) => !h.title).length)).toBe(0)
 
   // And the same sweep over a kit, whose bus panel and rows are different code.
-  await page.getByTestId('new-kit').click()
+  await choose(page, 'new-kit')
   await expect(page.locator('[data-group="kit"]')).toBeVisible()
   const kit = await sweep()
   expect(kit.untitled).toEqual([])

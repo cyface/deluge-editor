@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { choose } from './bar.js'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -79,7 +80,7 @@ test('build a multi-sampled synth from a folder of samples (issue #33)', async (
   fs.writeFileSync(path.join(dir, 'room tone.wav'), wavBytes(700))
 
   await page.goto('/')
-  await page.getByTestId('new-synth').click()
+  await choose(page, 'new-synth')
 
   // The folder import belongs to a sample oscillator: the waveform is the way
   // in, and only then does the panel ask where the samples are.
@@ -141,7 +142,7 @@ test('re-detect the roots of ranges that are already there (issue #33)', async (
   }
 
   await page.goto('/')
-  await page.getByTestId('new-synth').click()
+  await choose(page, 'new-synth')
   await page.locator('[data-attr="osc1.type"]').selectOption('sample')
   await page.getByTestId('build-multisample-1').click()
   await page.getByTestId('ms-folder-input').setInputFiles(dir)
@@ -182,7 +183,7 @@ test('dismissing the folder question leaves the oscillator as it was (issue #33)
   // a sample oscillator while the question is up, and only stays one if a
   // sample lands on it.
   await page.goto('/')
-  await page.getByTestId('new-synth').click()
+  await choose(page, 'new-synth')
   const waveform = page.locator('[data-attr="osc1.type"]')
 
   await dropFolder(page, 'Piano', ['notes.txt'])
@@ -205,7 +206,7 @@ test('the preview button keeps its width when it becomes a stop button (issue #3
   fs.writeFileSync(path.join(dir, 'Piano C4.wav'), wavBytes(900))
 
   await page.goto('/')
-  await page.getByTestId('new-synth').click()
+  await choose(page, 'new-synth')
   await page.locator('[data-attr="osc1.type"]').selectOption('sample')
   await page.getByTestId('build-multisample-1').click()
   await page.getByTestId('ms-folder-input').setInputFiles(dir)
@@ -228,7 +229,7 @@ test('a synth takes one sample, without a folder', async ({ page }) => {
   fs.writeFileSync(wav, wavBytes(1000))
 
   await page.goto('/')
-  await page.getByTestId('new-synth').click()
+  await choose(page, 'new-synth')
   const waveform = page.locator('[data-attr="osc1.type"]')
   await expect(waveform).toHaveValue('square')
 

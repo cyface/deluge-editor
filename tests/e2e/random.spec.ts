@@ -1,10 +1,11 @@
 import { expect, test } from '@playwright/test'
+import { choose, reveal } from './bar.js'
 
 test('roll a random patch: seeded, scoped, and every change listed', async ({ page }) => {
   await page.goto('/')
 
   // The button needs no preset: it starts from the firmware's init synth.
-  await page.getByTestId('randomize-button').click()
+  await choose(page, 'randomize-button')
   await expect(page.getByTestId('randomize-panel')).toBeVisible()
   await expect(page.getByTestId('file-name')).toHaveText('UNNAMED')
   await expect(page.getByTestId('change-count')).toHaveText('0')
@@ -29,7 +30,7 @@ test('roll a random patch: seeded, scoped, and every change listed', async ({ pa
   await expect(page.getByTestId('file-name')).toHaveText(named!) // a named file is never renamed
 
   // Scope: filters only, and the changes dock shows nothing else moved.
-  await page.getByTestId('new-synth').click()
+  await choose(page, 'new-synth')
   await expect(page.getByTestId('change-count')).toHaveText('0')
   await page.locator('[data-section]').filter({ hasText: 'Oscillators' }).click() // off
   for (const section of ['Voice', 'Mod FX', 'Delay & Reverb', 'Envelopes & LFOs', 'Mod Matrix']) {
@@ -54,8 +55,8 @@ test('roll a random patch: seeded, scoped, and every change listed', async ({ pa
 
 test('intensity and scope stay put while the panel is open, and Escape closes it', async ({ page }) => {
   await page.goto('/')
-  await page.getByTestId('new-synth').click()
-  await page.getByTestId('randomize-button').click()
+  await choose(page, 'new-synth')
+  await choose(page, 'randomize-button')
 
   await page.locator('[data-level="wild"]').click()
   await expect(page.locator('[data-level="wild"]')).toHaveAttribute('aria-pressed', 'true')
@@ -68,19 +69,20 @@ test('intensity and scope stay put while the panel is open, and Escape closes it
   await page.keyboard.press('Escape')
   await expect(page.getByTestId('randomize-panel')).toHaveCount(0)
   // Reopening keeps the choices; it is a panel, not a wizard.
-  await page.getByTestId('randomize-button').click()
+  await choose(page, 'randomize-button')
   await expect(page.locator('[data-level="wild"]')).toHaveAttribute('aria-pressed', 'true')
 })
 
 test('the generator and the arpeggiator’s own Randomiser stay distinct', async ({ page }) => {
   await page.goto('/')
-  await page.getByTestId('new-synth').click()
+  await choose(page, 'new-synth')
   // The firmware's note randomiser is a panel in the grid, under its own name.
   await expect(page.locator('[data-group="random"] h2')).toHaveText('Randomiser')
-  // The generator is a bar button and a strip, and never uses that word: it
-  // is called Randomize everywhere it appears.
-  await expect(page.getByTestId('randomize-button')).toHaveText('Randomize')
-  await page.getByTestId('randomize-button').click()
+  // The generator is a New menu item and a strip, and never uses that word:
+  // it is called Randomize everywhere it appears.
+  const item = await reveal(page, 'randomize-button')
+  await expect(item).toHaveText('Randomize')
+  await item.click()
   const strip = page.getByTestId('randomize-panel')
   await expect(strip).toBeVisible()
   await expect(strip).not.toContainText('Randomiser')

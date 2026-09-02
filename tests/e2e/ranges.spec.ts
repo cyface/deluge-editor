@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { choose } from './bar.js'
 import path from 'node:path'
 
 const FIXTURE = path.resolve('tests/fixtures/community-c1.3.0-beta-3f898e9/Sample Ranges.XML')
@@ -144,7 +145,7 @@ test('assign a range a sample browsed on the card, zone and all', async ({ page 
   await page.addInitScript({ path: path.resolve('tests/e2e/fake-deluge.js') })
   await page.goto('/')
 
-  await page.getByTestId('card-open-button').click()
+  await choose(page, 'card-open-button')
   await expect(page.getByTestId('card-path')).toHaveText('/SYNTHS')
   await page.keyboard.press('Escape') // dismiss the dialog, keep the connection
   await page.getByTestId('file-input').setInputFiles(FIXTURE)

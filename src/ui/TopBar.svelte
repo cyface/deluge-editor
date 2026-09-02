@@ -6,6 +6,8 @@
   import { kit } from './state/kit.svelte'
   import { randomizer } from './state/randomize.svelte'
   import Mark from './Mark.svelte'
+  import Menu from './controls/Menu.svelte'
+  import MenuItem from './controls/MenuItem.svelte'
 
   let fileInput: HTMLInputElement | undefined = $state()
   async function pick(e: Event) {
@@ -44,6 +46,16 @@
       : 'Firmware the controls are shown for. A control this firmware can’t honour is omitted.') +
       ' Saving does not restamp the file — it keeps the version that wrote it.',
   )
+  /*
+   * The connected dot lives on the pill (issue #37): the pill is already what
+   * a connection changes, since it locks to the device's firmware, so it is
+   * where "a Deluge is here" belongs — and it is the one place that stays in
+   * view when the commands fold into menus. Amber and pulsing during a
+   * transfer, whether or not the card dialog is open.
+   */
+  const dotTitle = $derived(card.busy ? `Card transfer in progress: ${card.busy}…` : 'Connected to the Deluge over MIDI')
+  const midiTitle = (does: string) =>
+    card.busy ? `Card transfer in progress: ${card.busy}…` : card.supported ? `${does} (connects first if needed)` : 'Web MIDI needs Chrome or Edge'
 </script>
 
 <div class="bar">
@@ -57,6 +69,7 @@
     {/if}
   </div>
   <label class="pill" title={fwTitle}>
+    {#if card.status === 'connected'}<span class="dot" class:pulse={!!card.busy} data-testid="deluge-dot" title={dotTitle}></span>{/if}
     {#if fwLocked}
       <span class="fw" data-testid="firmware-locked">{editor.firmware}</span>
     {:else}
@@ -66,43 +79,47 @@
     {/if}
   </label>
   <input bind:this={fileInput} type="file" accept=".xml,.XML,text/xml,application/xml" hidden data-testid="file-input" onchange={pick} />
-  <button
-    type="button"
-    class="btn"
-    class:on={card.open && card.mode === 'open'}
-    data-testid="card-open-button"
-    title={card.busy
-      ? `Card transfer in progress: ${card.busy}…`
-      : card.supported
-        ? 'Open a preset from the Deluge’s SD card over MIDI (connects first if needed)'
-        : 'Web MIDI needs Chrome or Edge'}
-    onclick={() => card.openPanel('open')}
-  >
-    {#if card.status === 'connected'}<span class="dot" class:pulse={!!card.busy}></span>{/if}Open from Deluge
-  </button>
-  <button
-    type="button"
-    class="btn"
-    class:on={card.open && card.mode === 'save'}
-    data-testid="card-save-button"
-    disabled={!editor.preset}
-    title={card.busy
-      ? `Card transfer in progress: ${card.busy}…`
-      : card.supported
-        ? 'Write the current preset to the Deluge’s SD card (connects first if needed)'
-        : 'Web MIDI needs Chrome or Edge'}
-    onclick={() => card.openPanel('save')}
-  >
-    {#if card.status === 'connected'}<span class="dot" class:pulse={!!card.busy}></span>{/if}Save to Deluge
-  </button>
+  <!--
+    The commands are grouped by verb (issue #37): ten buttons in a row left
+    the file name no room. Only the modes stay out as buttons — Follow Mode
+    and Changes carry live state, and a menu would hide exactly the thing you
+    glance at.
+  -->
+  <Menu label="New" testid="menu-new" title="Start a preset from the Deluge's own templates, or roll one">
+    <MenuItem label="Synth" testid="new-synth" title="Start a new synth from the Deluge's own init preset" onclick={() => editor.newSynth()} />
+    <MenuItem label="Kit" testid="new-kit" title="Start a kit from the Deluge's own blank kit — then drop a folder of WAVs on the page" onclick={() => editor.newKit()} />
+    <!-- With nothing loaded it begins from the init synth and rolls that, so
+         it never needs a preset first. The panel it opens is the patch
+         generator; the arpeggiator's note Randomiser is a panel in the grid
+         and shares no wording with it. -->
+    <MenuItem
+      label="Randomize"
+      testid="randomize-button"
+      title="Generate a random patch: intensity, which sections it may touch, and a seed you can write down. Every roll is an edit you can undo from Changes."
+      onclick={() => { if (!editor.preset) editor.newSynth(); randomizer.open = true }}
+    />
+  </Menu>
+  <Menu label="Open" testid="menu-open" title="Open a preset from this computer or from the Deluge">
+    <MenuItem label="From this computer" testid="file-open-button" title="Open a preset XML from this computer" onclick={() => fileInput?.click()} />
+    <MenuItem label="From Deluge" testid="card-open-button" title={midiTitle('Open a preset from the Deluge’s SD card over MIDI')} onclick={() => card.openPanel('open')} />
+  </Menu>
+  <!-- Save's items are disabled without a preset rather than the whole menu,
+       so it still says what it would do. -->
+  <Menu label="Save" testid="menu-save" title="Download the preset, or write it to the Deluge">
+    <MenuItem label="Download XML" testid="download-xml" title="Just the preset file being edited" disabled={!editor.preset} onclick={download} />
+    {#if showZip}
+      <MenuItem label="Download Zip" testid="download-zip-top" title="Preset + samples + README, ready to share{editor.preset?.tag === 'kit' ? ' — credits are set in the Share section below' : ''}" onclick={() => kit.downloadZip()} />
+    {/if}
+    <MenuItem label="To Deluge" testid="card-save-button" title={midiTitle('Write the current preset to the Deluge’s SD card')} disabled={!editor.preset} onclick={() => card.openPanel('save')} />
+  </Menu>
   {#if follow.available}
     <!-- Firmware-gated like every other control: MIDI Follow does not exist
          below community 1.1.0 and on no official build, so the button is
          absent there rather than disabled (docs/decisions.md). -->
-    <!-- Unlike the other buttons this one does not need a preset first: the
-         mode is a reason to start one, not something you do to one you already
+    <!-- Unlike the commands this one does not need a preset first: the mode
+         is a reason to start one, not something you do to one you already
          have. With nothing loaded it opens the Deluge's own init synth for the
-         CCs to land in, the same file New Synth would give you. -->
+         CCs to land in, the same file New › Synth would give you. -->
     <button
       type="button"
       class="btn"
@@ -114,30 +131,6 @@
       {#if follow.status === 'listening'}<span class="dot pulse"></span>{/if}Follow Mode
     </button>
   {/if}
-  <span class="sep" aria-hidden="true" data-testid="bar-sep"></span>
-  <button type="button" class="btn" title="Start a new synth from the Deluge's own init preset" data-testid="new-synth" onclick={() => editor.newSynth()}>New Synth</button>
-  <button type="button" class="btn" title="Start a kit from the Deluge's own blank kit — then drop a folder of WAVs on the page" data-testid="new-kit" onclick={() => editor.newKit()}>New Kit</button>
-  <!-- Beside the templates, because that is the other way a preset starts.
-       With nothing loaded it begins from the Deluge's own init synth and
-       rolls that, so the button never needs a preset first. The panel it
-       opens is the patch generator; the arpeggiator's note Randomiser is a
-       panel in the grid and shares no wording with it. -->
-  <button
-    type="button"
-    class="btn"
-    class:on={randomizer.open}
-    data-testid="randomize-button"
-    title="Generate a random patch: intensity, which sections it may touch, and a seed you can write down. Every roll is an edit you can undo from Changes."
-    onclick={() => { if (!editor.preset) editor.newSynth(); randomizer.open = !randomizer.open }}
-  >Randomize</button>
-  <span class="sep" aria-hidden="true" data-testid="bar-sep"></span>
-  <button type="button" class="btn" title="Open a preset XML from this computer" onclick={() => fileInput?.click()}>Open File</button>
-  <span class="sep" aria-hidden="true" data-testid="bar-sep"></span>
-  <button type="button" class="btn" disabled={!editor.preset} title="Just the preset file being edited" onclick={download}>Download XML</button>
-  {#if showZip}
-    <button type="button" class="btn" data-testid="download-zip-top" title="Preset + samples + README, ready to share{editor.preset?.tag === 'kit' ? ' — credits are set in the Share section below' : ''}" onclick={() => kit.downloadZip()}>Download Zip</button>
-  {/if}
-  <span class="sep" aria-hidden="true" data-testid="bar-sep"></span>
   <button type="button" class="btn" class:on={editor.showChanges} disabled={!editor.preset} data-testid="changes-button" onclick={() => (editor.showChanges = !editor.showChanges)}>
     Changes {#if editor.preset}<span class="badge" data-testid="change-count">{editor.changeCount}</span>{/if}
   </button>
@@ -153,27 +146,16 @@
   .logo b { font-family: var(--cond); font-weight: 700; letter-spacing: .15em; text-transform: uppercase; font-size: 14px; color: #e9e2d6; }
   .logo b span { color: var(--brass); }
   .namewrap { flex: 1; display: flex; align-items: baseline; gap: 11px; min-width: 0; }
-  .name { color: #efe6d7; font-family: var(--cond); font-size: 19px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .path { font-family: var(--mono); font-size: 10.5px; color: var(--faint); white-space: nowrap; }
+  /* When the row is tight the firmware note gives way before the name loses a pixel: the name is what the bar is about. */
+  .name { flex: 0 0 auto; max-width: 100%; color: #efe6d7; font-family: var(--cond); font-size: 19px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .path { flex: 0 1 auto; min-width: 0; font-family: var(--mono); font-size: 10.5px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .pill { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 6px 0 10px; border-radius: 12px; border: 1px solid #2f4a2c; background: #0e1410; flex: none; }
   /* Locked to the connected device: same face as the select, but it is just text. */
   .pill .fw { color: #a9d9a1; font-family: var(--cond); font-size: 12px; letter-spacing: .09em; text-transform: uppercase; }
-  /*
-   * The kinds of action in the bar — the Deluge over MIDI, starting from a
-   * template, opening from this computer, downloads, changes — read as one
-   * undifferentiated row at a single uniform gap (issue #34). Presentational
-   * only: aria-hidden, no `<hr>`, nothing to tab to. `--edge-hi` rather than
-   * `--edge` so the line is at least as bright as the button borders either
-   * side of it; at `--edge` it sits below them and reads as grime.
-   *
-   * The negative margin pulls back most of the second gap a flex child costs,
-   * so a divider spends about 6px of the bar rather than 14 — the name is the
-   * flex child that pays for it.
-   */
-  .sep { flex: none; width: 1px; height: 19px; margin: 0 -4px; background: var(--edge-hi); }
-  .btn .dot { display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: 50%; background: #67c45c; box-shadow: 0 0 6px #67c45c; vertical-align: 1px; }
-  /* A transfer is running (even with the panel closed): amber, pulsing. */
-  .btn .dot.pulse { background: #e8b06a; box-shadow: 0 0 6px #e8b06a; animation: cardbusy 1s ease-in-out infinite; }
+  .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #67c45c; box-shadow: 0 0 6px #67c45c; flex: none; }
+  .btn .dot { margin-right: 6px; vertical-align: 1px; }
+  /* A transfer is running (even with the dialog closed), or Follow is listening: amber, pulsing. */
+  .dot.pulse { background: #e8b06a; box-shadow: 0 0 6px #e8b06a; animation: cardbusy 1s ease-in-out infinite; }
   @keyframes cardbusy { 0%, 100% { opacity: 1; } 50% { opacity: .25; } }
   .pill select { background: transparent; border: 0; color: #a9d9a1; font-family: var(--cond); font-size: 12px; letter-spacing: .09em; text-transform: uppercase; cursor: pointer; }
   .pill select:focus { outline: none; }

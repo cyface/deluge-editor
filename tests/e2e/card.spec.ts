@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { choose, reveal } from './bar.js'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -43,10 +44,10 @@ test('kit builder: rows from card samples via header reads, local samples pushed
   await page.addInitScript({ path: path.resolve('tests/e2e/fake-deluge.js') })
   await page.goto('/')
 
-  await page.getByTestId('card-open-button').click()
+  await choose(page, 'card-open-button')
   await expect(page.getByTestId('card-path')).toHaveText('/SYNTHS')
   await page.keyboard.press('Escape') // dismiss the dialog; the connection stays
-  await page.getByTestId('new-kit').click()
+  await choose(page, 'new-kit')
 
   // Browse SAMPLES/ on the device and build rows from the WAVs' headers.
   await page.getByTestId('browse-card-samples').click()
@@ -59,7 +60,7 @@ test('kit builder: rows from card samples via header reads, local samples pushed
 
   // The zone ends are the WAVs' exact frame counts, read over SysEx.
   const downloadPromise = page.waitForEvent('download')
-  await page.getByRole('button', { name: 'Download XML', exact: true }).click()
+  await choose(page, 'download-xml')
   const xml = fs.readFileSync((await (await downloadPromise).path())!, 'utf8')
   expect(xml).toContain('endSamplePos="32"')
   expect(xml).toContain('endSamplePos="45"')
@@ -78,7 +79,7 @@ test('kit builder: rows from card samples via header reads, local samples pushed
 
   // Saving the kit retargets its local samples to the saved folder path
   // (KITS/Rumbles.XML → SAMPLES/Rumbles/) and copies them along.
-  await page.getByTestId('card-save-button').click()
+  await choose(page, 'card-save-button')
   await page.getByTestId('card-panel').getByRole('button', { name: 'Up', exact: true }).click()
   await page.locator('[data-entry="KITS"]').click()
   await page.getByTestId('card-save-name').fill('Rumbles')
@@ -120,10 +121,11 @@ test('card: connect, browse, load, edit, save with verification, reload', async 
   await page.addInitScript({ path: path.resolve('tests/e2e/fake-deluge.js') })
   await page.goto('/')
 
-  // Connect: Open from Deluge connects on first use and opens the panel in
-  // open mode; Save to Deluge is disabled until something is loaded.
-  await expect(page.getByTestId('card-save-button')).toBeDisabled()
-  await page.getByTestId('card-open-button').click()
+  // Connect: Open › From Deluge connects on first use and opens the panel in
+  // open mode; Save › To Deluge is disabled until something is loaded.
+  await expect(await reveal(page, 'card-save-button')).toBeDisabled()
+  await page.keyboard.press('Escape')
+  await choose(page, 'card-open-button')
   await expect(page.getByTestId('card-panel')).toBeVisible()
   await expect(page.getByTestId('card-panel')).toContainText('Open from Deluge')
   await expect(page.getByTestId('card-path')).toHaveText('/SYNTHS')
@@ -154,7 +156,7 @@ test('card: connect, browse, load, edit, save with verification, reload', async 
   // Save: in save mode, clicking a file row picks it as the target — the
   // name fills and the overwrite arms (the gesture that used to open the
   // file instead). The write is still read back and byte-compared.
-  await page.getByTestId('card-save-button').click()
+  await choose(page, 'card-save-button')
   await expect(page.getByTestId('card-panel')).toContainText('Save to Deluge')
   await page.locator('[data-entry="Default Synth.XML"]').click()
   await expect(page.getByTestId('card-save-name')).toHaveValue('Default Synth.XML')
@@ -175,21 +177,21 @@ test('card: connect, browse, load, edit, save with verification, reload', async 
   expect(onCard).toContain('lpfFrequency')
 
   // Reload from the card: the edit persisted and is now the clean baseline.
-  await page.getByTestId('card-open-button').click()
+  await choose(page, 'card-open-button')
   await page.locator('[data-entry="Default Synth.XML"]').click()
   await expect(knob).toHaveAttribute('aria-valuenow', '29')
   await expect(page.getByTestId('change-count')).toHaveText('0')
 
   // A name typed without an extension gets .XML appended — a bare name would
   // save fine but never show in the Deluge's preset browser.
-  await page.getByTestId('card-save-button').click()
+  await choose(page, 'card-save-button')
   await page.getByTestId('card-save-name').fill('Rumbles')
   await page.getByTestId('card-save').click()
   // A verified save closes the dialog and leaves its confirmation on the page.
   await expect(page.getByTestId('card-panel')).toBeHidden()
   await expect(page.getByTestId('card-saved')).toContainText('Rumbles.XML')
   // The name the save actually used, kept for the next one.
-  await page.getByTestId('card-save-button').click()
+  await choose(page, 'card-save-button')
   await expect(page.getByTestId('card-save-name')).toHaveValue('Rumbles.XML')
   await page.keyboard.press('Escape')
   const bare = await page.evaluate(() =>
@@ -204,7 +206,7 @@ test('card: connect, browse, load, edit, save with verification, reload', async 
   await knob.focus()
   await page.keyboard.press('ArrowUp')
   await expect(page.getByTestId('change-count')).toHaveText('1')
-  await page.getByTestId('card-open-button').click()
+  await choose(page, 'card-open-button')
   await page.locator('[data-entry="Baseline.XML"]').click()
   await expect(page.getByTestId('card-panel')).toContainText('discards your changes?')
   await expect(page.getByTestId('file-name')).toHaveText('Rumbles.XML') // not loaded yet
@@ -222,7 +224,7 @@ test('card: a second editor on the same Deluge is detected and warned about (iss
 
   // Web MIDI is not exclusive: another tab's replies arrive here too. Until
   // one does, nothing is claimed — a lone editor sees no advisory.
-  await page.getByTestId('card-open-button').click()
+  await choose(page, 'card-open-button')
   await expect(page.getByTestId('card-path')).toHaveText('/SYNTHS')
   await expect(page.getByTestId('card-other-editor')).toHaveCount(0)
   await page.locator('[data-entry="Default Synth.XML"]').click()
@@ -230,7 +232,7 @@ test('card: a second editor on the same Deluge is detected and warned about (iss
 
   // One reply on another session's msgIds is the whole tell.
   await page.evaluate(() => (globalThis as unknown as { __fakeCard: { otherEditor: () => void } }).__fakeCard.otherEditor())
-  await page.getByTestId('card-save-button').click()
+  await choose(page, 'card-save-button')
   await expect(page.getByTestId('card-other-editor')).toContainText('Another editor is talking to this Deluge')
 
   // Saving is not blocked — no client can stop the other one writing — but
@@ -254,13 +256,13 @@ test('multi-sample import: the Deluge option connects by itself and builds from 
   })
   await page.addInitScript({ path: path.resolve('tests/e2e/fake-deluge.js') })
   await page.goto('/')
-  await page.getByTestId('new-synth').click()
+  await choose(page, 'new-synth')
   await page.locator('[data-attr="osc1.type"]').selectOption('sample')
   await page.getByTestId('build-multisample-1').click()
 
-  // Nothing has connected yet: choosing the Deluge does it, the way Open from
-  // Deluge does.
-  await expect(page.getByTestId('card-open-button')).not.toContainText('●')
+  // Nothing has connected yet — no dot on the firmware pill: choosing the
+  // Deluge does it, the way Open › From Deluge does.
+  await expect(page.getByTestId('deluge-dot')).toHaveCount(0)
   await page.getByTestId('ms-source-card').click()
   const browser = page.getByTestId('ms-card-browser')
   await expect(browser).toContainText('/SAMPLES')
@@ -274,7 +276,7 @@ test('multi-sample import: the Deluge option connects by itself and builds from 
   await expect(rows.nth(0)).toContainText('up to C#3')
 
   const downloadPromise = page.waitForEvent('download')
-  await page.getByRole('button', { name: 'Download XML', exact: true }).click()
+  await choose(page, 'download-xml')
   const xml = fs.readFileSync((await (await downloadPromise).path())!, 'utf8')
   expect(xml).toContain('fileName="SAMPLES/Piano/Piano C3.wav"')
   expect(xml).toContain('endSamplePos="300"')
