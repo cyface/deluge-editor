@@ -98,14 +98,17 @@
     <!-- Firmware-gated like every other control: MIDI Follow does not exist
          below community 1.1.0 and on no official build, so the button is
          absent there rather than disabled (docs/decisions.md). -->
+    <!-- Unlike the other buttons this one does not need a preset first: the
+         mode is a reason to start one, not something you do to one you already
+         have. With nothing loaded it opens the Deluge's own init synth for the
+         CCs to land in, the same file New Synth would give you. -->
     <button
       type="button"
       class="btn"
       class:on={follow.on}
       data-testid="follow-button"
-      disabled={!editor.preset}
-      title="Mirror the Deluge’s own knob moves: shows only the parameters MIDI Follow can reach, and moves them as the instrument reports them. Listens only — it never sends."
-      onclick={() => void follow.toggle()}
+      title="Mirror the Deluge’s own knob moves: shows only the parameters MIDI Follow can reach, and moves them as the instrument reports them. Starts a new synth if nothing is loaded."
+      onclick={() => { if (!editor.preset) editor.newSynth(); void follow.toggle() }}
     >
       {#if follow.status === 'listening'}<span class="dot pulse"></span>{/if}Follow Mode
     </button>

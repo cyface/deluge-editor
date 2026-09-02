@@ -19,7 +19,13 @@
   import { KIT_FOLLOW_SLOTS, SOUND_FOLLOW_SLOTS, ensureSlotElement, slotElement, slotHex, slotOrder, slotScale } from '../core/preset/follow'
   import { envelope, hexToMenu, lfo as lfoElement, menuToHex, osc, oscHasFile } from '../core/preset/sound'
   import { pulseWidthOffered } from '../core/params/pulse'
+  import { MOD_FX_ATTR_KNOB, modFxEnabled, modFxKnobLabel, modFxOffered } from '../core/params/modfx'
+  import type { ModFxType } from '../core/preset/enums'
+  import { KIT_ATTR_ORDER, SOUND_ATTR_ORDER } from '../core/preset/order'
   import { setAttr } from '../core/xml'
+  import FollowHelp from './FollowHelp.svelte'
+  import Select from './controls/Select.svelte'
+  import { modFxOptions } from './options'
   import EnvGraph from './controls/EnvGraph.svelte'
   import FilterGraph, { type FilterBinding } from './controls/FilterGraph.svelte'
   import HexKnob from './controls/HexKnob.svelte'
@@ -42,6 +48,25 @@
 
   type Entry = { cc: number; name: string; slot: (typeof follow.slots)[number]['slot'] }
 
+  /*
+   * Mod FX is one slot with four knobs, and most of the eight things it can be
+   * read only two of them. The knobs here follow the firmware's own menu
+   * relevance, exactly as the full editor's panel does — a follow CC for a
+   * knob this type ignores would move a number the instrument is not reading.
+   * The type itself is not a follow parameter and cannot be: it is a member of
+   * `ModControllableAudio`, not a modulation param, so no CC addresses it and
+   * no feedback reports it. That is why the panel carries its select. It is
+   * the one control here that follow cannot reach, and it is allowed in
+   * because it is the gate on the other four rather than a fifth of them —
+   * without it, turning Mod FX back on would mean leaving the mode.
+   */
+  const modFxType = $derived((root?.attrs.modFXType ?? 'none') as ModFxType)
+  const modFxOn = $derived(modFxEnabled(modFxType))
+  const showsEntry = (e: Entry): boolean => {
+    const knob = MOD_FX_ATTR_KNOB[e.slot.attr]
+    return knob === undefined || modFxOffered(modFxType, knob)
+  }
+
   /** The follow parameters gathered into the flow blocks that show them. */
   const blocks = $derived.by<{ group: Group; entries: Entry[] }[]>(() => {
     const order = [...gridGroups(), KIT_GROUP]
@@ -50,9 +75,12 @@
       // On the kit bus the two parameters no sound has — the kit's own pitch
       // and its ducking amount — have no owning block, so they land on the bus.
       const id = groupOf(e.name)?.id ?? KIT_GROUP.id
-      const list = byId.get(id)
-      if (list) list.push(e)
-      else byId.set(id, [e])
+      const list = byId.get(id) ?? []
+      if (!byId.has(id)) byId.set(id, list)
+      // A knob this Mod FX type does not read leaves the block but not the
+      // grid: the block keeps its place, because its select is the only way
+      // to turn the slot back on without leaving the mode.
+      if (showsEntry(e)) list.push(e)
     }
     return order
       .filter((g, i) => order.indexOf(g) === i && byId.has(g.id))
@@ -200,6 +228,8 @@
     follow.push(outgoing, outgoingKey)
   })
 
+  let helpOpen = $state(false)
+
   const channels = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
   const sendChannels = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
   const lastLine = $derived.by(() => {
@@ -218,7 +248,33 @@
         {#each channels as c (c)}<option value={c}>{c === 0 ? 'Any' : c}</option>{/each}
       </select>
     </label>
+    <span class="rule" aria-hidden="true"></span>
+    <!-- The other direction, and the one that can do harm: this writes into
+         the sound the instrument has live (docs/decisions.md). It sits beside
+         the listening channel because the two channels are the thing to get
+         right, and a CC that misses MIDI-Follow is still a CC the instrument
+         acts on. -->
+    <button
+      type="button"
+      class="sendbtn"
+      class:on={follow.sending}
+      data-testid="follow-send"
+      aria-pressed={follow.sending}
+      disabled={follow.sendPort === null}
+      title={follow.sendPort === null ? 'No Deluge MIDI output found. Sending goes only to a port that names itself a Deluge, so a CC cannot land on some other instrument.' : HELP['follow.send']}
+      onclick={() => (follow.sending = !follow.sending)}
+    >Send</button>
+    <label class="pick" title={HELP['follow.sendChannel']}>
+      on ch
+      <!-- Heard is the default and the only setting that is right whatever the
+           instrument's follow channel is set to, an MPE zone included. -->
+      <select data-testid="follow-send-channel" disabled={!follow.sending} bind:value={follow.sendChannel}>
+        <option value="auto">Heard{follow.heardChannel === null ? '' : ` · ${follow.heardChannel}`}</option>
+        {#each sendChannels as c (c)}<option value={c}>{c}</option>{/each}
+      </select>
+    </label>
     {#if kit}
+      <span class="rule" aria-hidden="true"></span>
       <!-- The instrument routes a kit clip's follow CCs by AFFECT ENTIRE: on,
            they reach the kit bus; off, the selected row's sound
            (`MidiFollow::getModelStackWithParamForKitClip`). Nothing on the wire
@@ -229,56 +285,35 @@
       </div>
     {/if}
     <span class="last" data-testid="follow-last">{lastLine}</span>
-    <span class="count" data-testid="follow-applied">{follow.applied} applied</span>
-    <span class="rule" aria-hidden="true"></span>
-    <!-- The other direction, off until asked for: this one writes into the
-         sound the instrument has live (docs/decisions.md). -->
-    <button
-      type="button"
-      class="sendbtn"
-      class:on={follow.sending}
-      data-testid="follow-send"
-      aria-pressed={follow.sending}
-      disabled={follow.sendPort === null}
-      title={HELP['follow.send']}
-      onclick={() => (follow.sending = !follow.sending)}
-    >Send</button>
-    <label class="pick" title={HELP['follow.sendChannel']}>
-      on ch
-      <select data-testid="follow-send-channel" disabled={!follow.sending} bind:value={follow.sendChannel}>
-        {#each sendChannels as c (c)}<option value={c}>{c}</option>{/each}
-      </select>
-    </label>
-    {#if follow.sending}<span class="count" data-testid="follow-sent">{follow.sent} sent</span>{/if}
+    <button type="button" class="helpbtn" data-testid="follow-help-button" onclick={() => (helpOpen = true)}>MIDI Follow Help</button>
   </div>
   {#if follow.error}
     <p class="err" role="alert" data-testid="follow-error">{follow.error}</p>
-  {:else}
-    <p class="note">
-      Turn a gold encoder on the Deluge and the matching control moves here.
-      The instrument needs a feedback channel set under
-      <code>SETTINGS &gt; MIDI &gt; MIDI-Follow &gt; Feedback</code>{#if follow.ports.length}, and this is
-      listening on {follow.ports.join(', ')}{/if}. A follow CC says a value changed on the
-      instrument, never which sound it belongs to — these edits land on
-      {onBus ? 'the kit bus' : editor.fileName || 'the loaded preset'} whether or not that is what the
-      Deluge has open, and like every edit here nothing is written until you save.
-      {#if follow.sending}
-        <strong>Sending on {follow.sendPort} channel {follow.sendChannel}</strong> — moving a control here
-        changes the instrument’s active sound, and lands exactly only with MIDI-Follow’s takeover mode on
-        JUMP (its default). On PICKUP or SCALE the instrument waits until the values meet; on RELATIVE it
-        reads every value as an increment and will run away.
+  {:else if follow.sending}
+    <!-- One line, only while the hazard is live. The rest of the explanation
+         is behind the help button, where it is not in the way. -->
+    <p class="sendwarn" data-testid="follow-send-warning">
+      {#if follow.outChannel === null}
+        Waiting to hear the Deluge before sending. Turn a gold encoder on the instrument, and the channel
+        its feedback arrives on becomes the channel sends go out on.
+      {:else}
+        Sending on {follow.sendPort} channel {follow.outChannel} — this changes the sound the Deluge has
+        live.{#if !follow.deviceChecked} Read the Deluge’s settings from the help sheet if it does not
+        respond: which of its USB ports a CC goes out on decides whether MIDI-Follow accepts it.{/if}
       {/if}
     </p>
   {/if}
 </section>
 
-{#snippet slotKnob(e: Entry, disabled = false, disabledNote: string | undefined = undefined)}
+{#if helpOpen}<FollowHelp onclose={() => (helpOpen = false)} />{/if}
+
+{#snippet slotKnob(e: Entry, disabled = false, disabledNote: string | undefined = undefined, label: string | undefined = undefined)}
   <span class="slot" class:lit={follow.glow[e.name] !== undefined} data-follow-cc={e.cc}>
     <HexKnob
       el={slotElement(root!, e.slot)}
       ensure={() => ensureSlotElement(root!, e.slot, onBus)}
       attr={e.slot.attr}
-      label={paramLabel(e.name)}
+      label={label ?? paramLabel(e.name)}
       scale={slotScale(e.slot)}
       order={slotOrder(e.slot, onBus)}
       sound={onBus ? undefined : (root as SoundElement)}
@@ -303,7 +338,35 @@
         {#each stack as b (b.group.id)}
           <div use:measure={b.group.id}>
             <Panel group={b.group} sub={`${b.entries.length} CC${b.entries.length === 1 ? '' : 's'}`}>
-              {#if b.group.id === 'filters'}
+              {#if b.group.id === 'modfx'}
+                <!-- The type is not a follow parameter and never can be, so it
+                     is set here rather than mirrored. Its knobs come and go by
+                     the firmware's own menu relevance. -->
+                <div class="fields">
+                  <Select
+                    label="Type"
+                    name="modFXType"
+                    value={root!.attrs.modFXType}
+                    options={modFxOptions(editor.supports)}
+                    title={HELP['sound.modFXType']}
+                    onchange={(v) => setAttr(root!, 'modFXType', v, onBus ? KIT_ATTR_ORDER : SOUND_ATTR_ORDER)}
+                  />
+                </div>
+                <p class="gate" data-testid="follow-modfx-note">
+                  {#if modFxOn}
+                    These land only while Mod FX is set to something. The Deluge ignores the knobs this
+                    type does not read, so they are not shown.
+                  {:else}
+                    Mod FX is off in this preset, so these CCs change nothing you can hear. Pick a type to
+                    get its controls.
+                  {/if}
+                </p>
+                {#if b.entries.length}
+                  <div class="knobrow">
+                    {#each b.entries as e (e.cc)}{@render slotKnob(e, false, undefined, modFxKnobLabel(modFxType, MOD_FX_ATTR_KNOB[e.slot.attr]))}{/each}
+                  </div>
+                {/if}
+              {:else if b.group.id === 'filters'}
                 <FilterGraph {filters} />
                 <div class="knobrow">
                   {#each b.entries as e (e.cc)}{@render slotKnob(e)}{/each}
@@ -379,11 +442,13 @@
   /* Sending writes to the instrument, so it wears the warning colour the card
      panel uses for "this may not stay as you left it", not the calm green. */
   .sendbtn.on { background: #1d1710; border-color: #6b4a1c; color: #e8b06a; }
-  .note strong { color: #e8b06a; font-weight: 600; }
-  .count { font-family: var(--mono); font-size: 10.5px; color: var(--faint); }
-  .note { margin: 8px 0 0; font-size: 11px; color: var(--faint); line-height: 1.55; }
-  .note code { font-family: var(--mono); font-size: 10px; color: var(--muted); }
   .err { margin: 8px 0 0; font-family: var(--mono); font-size: 11px; color: #e8a08f; }
+  /* The one line of prose the header keeps, and only while sending is on. */
+  .sendwarn { margin: 8px 0 0; font-size: 11.5px; line-height: 1.5; color: #e8b06a; }
+  .helpbtn { height: 22px; padding: 0 10px; border-radius: 3px; border: 1px solid var(--edge-hi); background: #141210; color: var(--muted); font-family: var(--cond); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; cursor: pointer; }
+  .helpbtn:hover { color: var(--text); border-color: var(--brass); }
+  /* Mod FX's one-line reason, inside the panel rather than the header. */
+  .gate { margin: 8px 0 0; font-size: 11px; color: var(--faint); line-height: 1.5; }
   .grid { padding: 10px 0 0; display: grid; align-items: start; }
   .stack { min-width: 0; }
   /* A parameter the instrument just moved: a brief ring, so a knob sweep is

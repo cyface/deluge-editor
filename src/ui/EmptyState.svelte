@@ -1,5 +1,6 @@
 <script lang="ts">
-  /** Nothing loaded: open a file, drop one, or connect to the Deluge itself. */
+  /** Nothing loaded: open a file, drop one, connect to the Deluge, or follow it. */
+  import { follow } from './state/follow.svelte'
 </script>
 
 <div class="empty">
@@ -7,6 +8,12 @@
   <p class="lead alt">Drop a <b>folder of WAVs</b> anywhere on the page to build a kit from samples.</p>
   <p class="lead alt">Click <b>Open File</b> to open a Deluge <b>SYNTHS/</b> or <b>KITS/</b> preset, or drop one anywhere on the page.</p>
   <p class="lead alt">Or click <b>Open from Deluge</b> to browse your Deluge over USB in either Chrome or Edge.</p>
+  {#if follow.available}
+    <!-- Follow Mode needs no file of its own: it starts one. Worth saying
+         here, because the mode is the fastest way in for someone whose sound
+         is already on the instrument. -->
+    <p class="lead alt">Or click <b>Follow Mode</b> to start a synth and have the Deluge's own knob moves fill it in as you turn them.</p>
+  {/if}
 </div>
 
 <style>

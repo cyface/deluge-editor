@@ -10,8 +10,10 @@
  * it (`src/core/preset/follow.ts`).
  *
  * It listens by default. Sending — moving a control here and having the
- * instrument follow — is a second switch, off until asked for, because that
- * direction writes into the live sound on the device (see docs/decisions.md).
+ * instrument follow — writes into the live sound on the device, so it is
+ * guarded rather than merely offered: it goes only to a port that names itself
+ * a Deluge, and only on a channel that Deluge has actually been heard on
+ * (see docs/decisions.md).
  *
  * The honesty problem this mode exists to solve: a follow CC says *a* value
  * changed on the instrument, never *which sound* it belongs to. If the loaded
@@ -22,6 +24,15 @@
  */
 
 import { controlChange, followMap, parseControlChange } from '../../core/midi/follow'
+import {
+  chooseSendTarget,
+  followAdvice,
+  parseFollowSettings,
+  parseMpeInputs,
+  type FollowSettings,
+  type MpeZones,
+} from '../../core/midi/followsettings'
+import { SysexError } from '../../core/sysex'
 import { isKit } from '../../core/preset'
 import { KIT_FOLLOW_SLOTS, SOUND_FOLLOW_SLOTS, applyFollowCC, type FollowSlot } from '../../core/preset/follow'
 import { editor } from './editor.svelte'
@@ -42,6 +53,20 @@ export interface SeenCC {
 /** How long a mirrored parameter stays highlighted, ms. */
 const GLOW_FOR = 1200
 
+/**
+ * The cable number in a Deluge output's name. Web MIDI names them "Deluge Port
+ * 1" and so on, one per USB cable, and which cable a CC goes out on decides
+ * whether MIDI-Follow can match it at all.
+ */
+export function portNumber(name: string | null | undefined): number | null {
+  const m = /(\d+)\s*$/.exec(name ?? '')
+  return m ? Number(m[1]) : null
+}
+
+/** FatFS results that mean the file simply is not there (`src/core/sysex/fatfs.ts`). */
+const FR_NO_FILE = 4
+const FR_NO_PATH = 5
+
 class Follow {
   /** Follow Mode is on: the page shows the follow view and CCs are applied. */
   on = $state(false)
@@ -59,14 +84,62 @@ class Follow {
   /** Parameter names touched in the last moment, for the view's glow. */
   glow = $state<Record<string, number>>({})
 
-  /** Send editor moves back to the instrument. Off until asked for. */
-  sending = $state(false)
+  /**
+   * Send editor moves back to the instrument.
+   *
+   * On, but it cannot fire until the instrument has been heard: the channel
+   * defaults to `'auto'`, which is the channel MIDI-Follow's own feedback
+   * arrives on, and until something arrives there is nowhere to aim. Together
+   * with sending only to a Deluge-named port, that is what makes this safe to
+   * leave on — a CC can only go to a Deluge, on a channel that Deluge just
+   * used for MIDI-Follow.
+   */
+  sending = $state(true)
   /**
    * The channel sends go out on. Unlike listening there is no "any": a CC only
    * reaches the instrument's follow handler when its channel matches one of
    * MIDI-Follow's A/B/C (`MidiFollow::checkMidiFollowMatch`).
+   *
+   * And that match is not always a number. A follow channel can be set to an
+   * MPE zone instead — `LearnedMIDI::isForMPEZone`, `channelOrZone >= 16` —
+   * in which case `checkMatch` accepts any channel the input port maps into
+   * that zone, and the instrument's own feedback goes out on the zone's master
+   * channel (`sendCCForMidiFollowFeedback`: `channel = getMasterChannel()`,
+   * which is 0 for the lower zone and 15 for the upper, so MIDI channel 1 or
+   * 16). None of that is a number the user can read off the menu, which shows
+   * "MPE Lower Zone". So the default is not a number either: it is whatever
+   * channel the feedback came in on, which is right for a plain channel and
+   * for either zone without anyone having to work it out.
    */
-  sendChannel = $state(1)
+  sendChannel = $state<number | 'auto'>('auto')
+  /** The channel the last mapped follow CC arrived on. What `'auto'` resolves to. */
+  heardChannel = $state<number | null>(null)
+
+  /**
+   * The instrument's own MIDI-Follow settings, read from `SETTINGS/MIDIFollow.XML`
+   * on the card. Which channel MIDI-Follow is on is the one thing this mode
+   * cannot learn over MIDI, and the menu answers it as "A" or "MPE Lower
+   * Zone", neither of which is a number to send on. The file says outright.
+   */
+  settings = $state<FollowSettings | null>(null)
+  settingsAdvice = $state<string[]>([])
+  settingsError = $state<string | null>(null)
+  checking = $state(false)
+  /**
+   * Where the instrument's own settings say a send will be accepted: which of
+   * its three USB cables, and on which channel. Null once checked means
+   * nothing will accept on any of them, and that is an answer rather than a
+   * gap, so the editor stops guessing.
+   *
+   * The port half is not a detail. Only USB cable 2 has MPE zones by default
+   * (`MIDICableUSBUpstream`, `midi_device_manager.cpp`), so a follow channel
+   * set to a zone can only ever match there, and a plain follow channel can
+   * only ever match on cables 1 or 3. Picking the first Deluge output in the
+   * browser's list is picking one of those at random.
+   */
+  deviceSendPort = $state<number | null>(null)
+  deviceSendChannel = $state<number | null>(null)
+  deviceChecked = $state(false)
   /** The output port sends go out on, by name. */
   sendPort = $state<string | null>(null)
   /** CCs sent since the mode was last switched on. */
@@ -76,10 +149,35 @@ class Follow {
 
   /** The default CC map of the selected firmware, or null where follow does not exist. */
   readonly map = $derived(followMap(editor.version))
-  /** Whether the top bar offers the mode at all. */
-  readonly available = $derived(this.map !== null)
+  /**
+   * Whether the top bar offers the mode at all.
+   *
+   * With a file loaded this is a firmware question: MIDI Follow does not exist
+   * on any official build or below community 1.1.0, so the button is absent
+   * there rather than disabled. With nothing loaded there is no firmware to
+   * ask about yet, and the mode is a way to *start* a preset rather than
+   * something done to one — entering it opens the init synth, which is a
+   * c1.3.0 file — so it is offered.
+   */
+  readonly available = $derived(this.map !== null || editor.preset === null)
   /** True while the CCs land on the kit bus rather than a row's sound. */
   readonly onBus = $derived(editor.preset !== null && isKit(editor.preset) && this.target === 'bus')
+
+  /**
+   * The channel a send would actually go out on, or null while `'auto'` has
+   * not heard the instrument yet. Nothing is sent while this is null: aiming
+   * at a guess is how a follow CC ends up somewhere it was not meant to go.
+   */
+  readonly outChannel = $derived<number | null>(
+    this.sendChannel !== 'auto'
+      ? this.sendChannel
+      : // Once the instrument's own settings have been read they are the
+        // authority: the channel feedback arrives on is not always a channel
+        // a send is accepted on, which is exactly the MPE-zone case.
+        this.deviceChecked
+        ? this.deviceSendChannel
+        : this.heardChannel,
+  )
 
   /**
    * CC → parameter name for what the CCs currently land on. A kit row takes
@@ -171,12 +269,20 @@ class Follow {
     this.detach()
     if (this.glowTimer !== null) clearInterval(this.glowTimer)
     this.glowTimer = null
-    // The readouts describe a session of listening; leaving the mode ends it,
-    // and a stale "42 applied" over a fresh session would be a lie.
+    // The counters describe a session of listening; leaving the mode ends it.
+    // Nothing shows them now, but they are what the tests read to say whether
+    // a CC was taken, so they are reset with everything else.
     this.glow = {}
     this.last = null
     this.applied = 0
     this.sent = 0
+    this.heardChannel = null
+    this.deviceSendPort = null
+    this.deviceSendChannel = null
+    this.deviceChecked = false
+    this.settings = null
+    this.settingsAdvice = []
+    this.settingsError = null
     this.echo.clear()
     this.baseline = null
     this.baselineKey = ''
@@ -205,9 +311,24 @@ class Follow {
     // Exactly one output, never all of them: with the instrument's takeover
     // mode set to RELATIVE a CC is an increment, so the same message on three
     // cables would move the parameter three times.
-    const outs = [...(this.access?.outputs.values() ?? [])]
-    this.out = outs.find((o) => /deluge/i.test(o.name ?? '')) ?? outs[0] ?? null
+    //
+    // And only a port that names itself a Deluge. Sending is the direction
+    // that changes something outside this page, and a CC that lands on the
+    // wrong device is not a no-op there either — it can trip a learned
+    // command or be recorded into whatever is armed. Listening falls back to
+    // every port because hearing the wrong port costs nothing; this cannot,
+    // so with no Deluge output the Send button stays disabled and says why.
+    const outs = [...(this.access?.outputs.values() ?? [])].filter((o) => /deluge/i.test(o.name ?? ''))
+    // Which Deluge cable, not just which device. Only cable 2 has MPE zones by
+    // default, so a follow channel set to a zone matches there and nowhere
+    // else, and a plain one matches anywhere else and not there. Until the
+    // instrument's settings have been read there is nothing to go on, so the
+    // first is used and the readout is what corrects it.
+    const wanted = this.deviceSendPort
+    this.out =
+      (wanted === null ? undefined : outs.find((o) => portNumber(o.name) === wanted)) ?? outs[0] ?? null
     this.sendPort = this.out?.name ?? null
+    if (this.out === null) this.sending = false
     if (chosen.length === 0) {
       this.status = 'error'
       this.error = 'No MIDI input found — connect the Deluge over USB.'
@@ -235,6 +356,9 @@ class Follow {
     if (mine && mine.value === cc.value && Date.now() - mine.at < Follow.ECHO_FOR) return
     const applied = this.apply(name, cc.value)
     if (applied) {
+      // A mapped CC on this channel is proof MIDI-Follow is talking here, and
+      // for an MPE zone it is the master channel a send has to go back on.
+      this.heardChannel = cc.channel
       this.applied += 1
       this.glow = { ...this.glow, [name]: Date.now() }
       // An applied CC is the new baseline, or the send watcher would read it
@@ -289,15 +413,93 @@ class Follow {
   }
 
   private emit(cc: number, value: number): void {
-    if (!this.sending || !this.out) return
+    const channel = this.outChannel
+    if (!this.sending || !this.out || channel === null) return
     try {
-      this.out.send(controlChange(this.sendChannel, cc, value))
+      this.out.send(controlChange(channel, cc, value))
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e)
       return
     }
     this.echo.set(cc, { value, at: Date.now() })
     this.sent += 1
+  }
+
+  /**
+   * Ask the Deluge what its MIDI-Follow settings actually are.
+   *
+   * Over the card protocol, not over MIDI, because the settings are not on the
+   * wire at all. Connecting is the card store's job and it prompts for the
+   * same Web MIDI permission this mode already holds, so it is one button.
+   */
+  async checkDevice(): Promise<void> {
+    this.checking = true
+    this.settingsError = null
+    try {
+      const { card } = await import('./card.svelte')
+      if (!(await card.ensureConnected())) {
+        this.settingsError = card.error ?? 'Could not reach the Deluge over USB.'
+        return
+      }
+      const bytes = await this.readSetting(card, 'MIDIFollow.XML')
+      const parsed = parseFollowSettings(new TextDecoder().decode(bytes))
+      /*
+       * And the MPE zones, which decide whether a follow channel set to a zone
+       * can match anything at all. The firmware writes this file only when
+       * something is worth writing and deletes it otherwise
+       * (`MIDIDeviceManager::writeDevicesToFile`), so "no such file" is an
+       * answer — there are no zones — while a transfer that fails for any
+       * other reason is not, and leaves the advice hedged rather than
+       * asserting something the card never confirmed.
+       */
+      let zones: Record<string, MpeZones> | undefined
+      try {
+        const dev = await this.readSetting(card, 'MIDIDevices.XML')
+        zones = parseMpeInputs(new TextDecoder().decode(dev))
+      } catch (e) {
+        // Absent is an answer: the firmware writes the file only when there is
+        // something worth writing, so its absence means every cable is on its
+        // built-in defaults, which `cableZones` supplies. Any other failure is
+        // not an answer, and leaves the defaults in play too — they are the
+        // best available guess either way, and the advice says which port it
+        // is relying on.
+        void (e instanceof SysexError && (e.code === FR_NO_FILE || e.code === FR_NO_PATH))
+        zones = undefined
+      }
+      this.settings = parsed
+      this.settingsAdvice = followAdvice(parsed, zones)
+      const target = chooseSendTarget(parsed, zones)
+      this.deviceSendPort = target?.port ?? null
+      this.deviceSendChannel = target?.channel ?? null
+      this.deviceChecked = true
+      // The port is half the answer, so re-pick the output now that it is known.
+      this.attach()
+    } catch (e) {
+      this.settingsError =
+        e instanceof Error ? e.message : 'Could not read SETTINGS/MIDIFollow.XML from the card.'
+    } finally {
+      this.checking = false
+    }
+  }
+
+  /**
+   * One of the settings files, wherever this firmware keeps it. Community
+   * 1.3 moved them into `SETTINGS/`
+   * (`MIDIDeviceManager::readDevicesFromFile` still renames the old path), so
+   * a card written by earlier firmware has them at the root.
+   */
+  private async readSetting(
+    card: { readSampleFile: (p: string) => Promise<Uint8Array> },
+    name: string,
+  ): Promise<Uint8Array> {
+    try {
+      return await card.readSampleFile(`SETTINGS/${name}`)
+    } catch (e) {
+      if (e instanceof SysexError && (e.code === FR_NO_FILE || e.code === FR_NO_PATH)) {
+        return await card.readSampleFile(name)
+      }
+      throw e
+    }
   }
 
   private expireGlow(): void {

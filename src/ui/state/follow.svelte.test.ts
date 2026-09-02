@@ -44,6 +44,7 @@ beforeEach(() => {
   follow.stop()
   follow.sending = false
   follow.sendChannel = 1
+  follow.heardChannel = null
   follow.channel = 0
   follow.target = 'row'
   editor.deviceFirmware = null
@@ -54,11 +55,25 @@ beforeEach(() => {
 
 describe('availability', () => {
   it('is offered only where the firmware has MIDI Follow', () => {
+    editor.load(synthXml, 'Default Synth.XML')
     editor.firmware = '4.1.4'
     expect(follow.available).toBe(false)
     editor.firmware = 'c1.0.1'
     expect(follow.available).toBe(false)
     editor.firmware = 'c1.3.0'
+    expect(follow.available).toBe(true)
+  })
+
+  /*
+   * With nothing loaded there is no firmware to ask about: the target defaults
+   * to the last official build, which has no MIDI Follow at all, and gating on
+   * that would hide the mode from exactly the person it suits — someone whose
+   * sound is already on the instrument and who has opened nothing here.
+   * Entering the mode opens the init synth, which is a c1.3.0 file.
+   */
+  it('is offered with nothing loaded, whatever the fallback firmware is', () => {
+    expect(editor.preset).toBe(null)
+    expect(editor.firmware).toBe(FALLBACK_FIRMWARE)
     expect(follow.available).toBe(true)
   })
 
@@ -69,6 +84,107 @@ describe('availability', () => {
     editor.firmware = 'c1.2.1'
     expect(names()).not.toContain('env3Attack')
     expect(names()).toContain('lpfFrequency')
+  })
+})
+
+/*
+ * Which ports the mode uses. Listening is broadcast-safe, so it falls back to
+ * every input; sending is not, so it does not fall back at all.
+ */
+describe('choosing ports', () => {
+  class FakePort extends EventTarget {
+    constructor(readonly name: string) {
+      super()
+    }
+    open() {
+      return Promise.resolve(this)
+    }
+    send() {}
+  }
+  const attachWith = (ins: string[], outs: string[]) => {
+    const access = {
+      inputs: new Map(ins.map((n, i) => [String(i), new FakePort(n)])),
+      outputs: new Map(outs.map((n, i) => [String(i), new FakePort(n)])),
+    }
+    const store = follow as unknown as { access: unknown; attach: () => void }
+    store.access = access
+    store.attach()
+  }
+
+  it('sends only to a port that names itself a Deluge', () => {
+    attachWith(['Deluge Port 3'], ['Scarlett 2i2', 'Deluge Port 3'])
+    expect(follow.sendPort).toBe('Deluge Port 3')
+  })
+
+  /*
+   * The one that mattered: with no Deluge output the old code took whatever
+   * port happened to be first. A CC is not a no-op on the wrong instrument —
+   * it can trip a learned command or be recorded into whatever is armed — so
+   * there is no fallback here, and Send goes unavailable instead.
+   */
+  it('refuses to send anywhere when no output is a Deluge', () => {
+    follow.sending = true
+    attachWith(['Deluge Port 3'], ['Scarlett 2i2', 'IAC Driver Bus 1'])
+    expect(follow.sendPort).toBe(null)
+    expect(follow.sending).toBe(false)
+  })
+
+  it('still listens to every input when none names a Deluge', () => {
+    attachWith(['MIDISPORT 1x1'], [])
+    expect(follow.ports).toEqual(['MIDISPORT 1x1'])
+  })
+})
+
+/*
+ * Where a send is aimed. A MIDI-Follow channel is not always a number: set to
+ * an MPE zone, `LearnedMIDI::checkMatch` accepts any channel the port maps
+ * into that zone, and the instrument's own feedback goes out on the zone's
+ * master channel — MIDI 1 for the lower zone, 16 for the upper
+ * (`getMasterChannel`, `sendCCForMidiFollowFeedback`). Nobody should have to
+ * work that out, so the default aims where the instrument was heard.
+ */
+describe('aiming a send', () => {
+  beforeEach(() => {
+    editor.load(synthXml, 'Default Synth.XML')
+    follow.on = true
+    follow.sending = true
+    follow.sendChannel = 'auto'
+  })
+
+  /** Move a value here, the way a knob drag would. */
+  const moveLpf = (hex: string) => {
+    editor.sound!.children.find((c) => c.tag === 'defaultParams')!.attrs.lpfFrequency = hex
+  }
+
+  it('sends nothing at all until the instrument has been heard', () => {
+    const sent = fakeOutput()
+    expect(follow.outChannel).toBe(null)
+    follow.push(snapshot(), 'a')
+    moveLpf('0x7FFFFFFF')
+    follow.push(snapshot(), 'a')
+    expect(sent).toEqual([])
+  })
+
+  it('aims at the channel the feedback arrived on, MPE zone or not', () => {
+    const sent = fakeOutput()
+    // An upper-zone follow channel reports on MIDI 16; a lower-zone one on 1.
+    follow.receive(cc(81, 40, 16))
+    expect(follow.outChannel).toBe(16)
+    follow.push(snapshot(), 'a')
+    moveLpf('0x7FFFFFFF')
+    follow.push(snapshot(), 'a')
+    expect(sent.map((b) => b[0])).toEqual([0xbf])
+  })
+
+  it('lets a number override the heard channel', () => {
+    const sent = fakeOutput()
+    follow.receive(cc(81, 40, 16))
+    follow.sendChannel = 3
+    expect(follow.outChannel).toBe(3)
+    follow.push(snapshot(), 'a')
+    moveLpf('0x7FFFFFFF')
+    follow.push(snapshot(), 'a')
+    expect(sent.map((b) => b[0])).toEqual([0xb2])
   })
 })
 

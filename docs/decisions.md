@@ -475,19 +475,35 @@ move, and a control follow cannot address is absent rather than inert. The
 header says in words whose file the edits are landing in, and nothing is
 committed until you save, as everywhere else here.
 
-**Sending is off until asked for.** Listening is broadcast-safe — any number
-of tabs can mirror at once and the instrument's state is never at risk, so
-it is simply what the mode does. The other direction writes into the sound the
-Deluge has live, so it is a separate switch, wearing the same warning colour
-the card panel uses for "this may not stay as you left it", and it says on
-screen which port and channel it is using.
+**Sending is on, and aimed rather than switched off.** Listening is
+broadcast-safe — any number of tabs can mirror at once and the instrument's
+state is never at risk, so it is simply what the mode does. The other
+direction writes into the sound the Deluge has live, and it used to be a
+switch you turned on, off by default, because that was the only protection it
+had. It now has two better ones, so the switch stays but starts on: sends go
+only to a port that names itself a Deluge, and only on a channel the
+instrument has actually been heard on. A CC can therefore reach a Deluge that
+is talking MIDI-Follow, or nothing at all. It still wears the warning colour
+the card panel uses for "this may not stay as you left it", and it still says
+on screen which port and channel it is using.
 
 Two firmware facts shape it:
 
-- **A CC only reaches the follow handler on a follow channel.**
-  `MidiFollow::checkMidiFollowMatch` tests the incoming channel against
-  MIDI-Follow's own A/B/C. So the send channel is a number, not "any" — the
-  header's listening selector has an Any and this one cannot.
+- **A CC only reaches the follow handler on a follow channel, and that is not
+  always a number.** `MidiFollow::checkMidiFollowMatch` tests the incoming
+  channel against MIDI-Follow's own A/B/C, and each of those is a `LearnedMIDI`
+  whose `channelOrZone` can be an MPE zone instead of a channel
+  (`isForMPEZone`: `channelOrZone >= 16`). For a zone, `checkMatch` accepts any
+  channel the input port maps into it (`MIDIPort::channelToZone`), and the
+  instrument's own feedback goes out on the zone's master channel —
+  `sendCCForMidiFollowFeedback` does `channel = getMasterChannel()`, which is 0
+  for the lower zone and 15 for the upper, so MIDI channel 1 or 16. The menu
+  shows "MPE Lower Zone", not a number, so asking the user for a number was
+  asking them to derive one. The send channel therefore defaults to **Heard**:
+  whatever channel the feedback arrived on. That is correct for a plain follow
+  channel and for either zone, and it means nothing is sent before the
+  instrument has proved which channel it is talking on. A number can still be
+  set by hand.
 - **Takeover mode decides what the instrument does with the value.**
   `MidiTakeover::calculateKnobPos` (`io/midi/midi_takeover.cpp`): on JUMP —
   the default (`midiTakeover = MIDITakeoverMode::JUMP`, `midi_engine.cpp:58`) —
@@ -502,10 +518,11 @@ Consequences of sending:
   Deluge input because an absolute value applied twice is applied once; an
   increment applied three times is not, so the same message on three cables
   would triple a RELATIVE move.
-- **Changes go out, not the whole preset.** Turning Send on does not push the
+- **Changes go out, not the whole preset.** Entering the mode does not push the
   loaded file at the instrument — that would be a load, from an editor that
-  cannot know what it is overwriting. Only values that move while it is on are
-  sent. Switching kit row, the bus, or the file replaces every value at once
+  cannot know what it is overwriting. Only values that move while sending is on
+  are sent, and the first snapshot of any target is adopted as the baseline
+  rather than played. Switching kit row, the bus, or the file replaces every value at once
   and is adopted silently for the same reason.
 - **Our own echo is filtered.** The instrument sends an accepted value straight
   back as feedback; applying that would count as a move nobody made. The last
@@ -670,3 +687,152 @@ list: no pulse width in FM mode, none for a sample or an audio input, and a
 wavetable gets one only once it has a file. DX7 is left out although the menu
 offers it, because a DX7 oscillator never reaches this renderer at all —
 `Voice::render` hands it to `dxVoice->compute`, so the control is inert.
+
+**Mod FX knobs follow the same rule, for the same reason.** The slot has four
+controls and eight things it can be, and most of the eight read only two of
+them. The firmware's own menu says which: every item under
+`gui/menu_item/mod_fx/` carries an `isRelevant` (upstream/community bef6d9df,
+identical in the fork), so on the instrument a flanger's menu has no Depth and
+a chorus's has no Feedback. `src/core/params/modfx.ts` is that table. The
+render path is the check that it is not merely tidying —
+`ModFXProcessor::setupModFXWFeedback` gives a flanger the constant
+`kFlangerAmplitude` and never reads `modFXDepth`, and `setupChorus` reads the
+offset but no feedback at all. Grain also renames three of the four, so the
+labels come from `modfx::getParamName` rather than from us: its depth is a
+Mix, its feedback a Pitch Spread, its offset a Density.
+
+With the type off there are no knobs, and the panel is the select alone. The
+stored values stay in the file and round-trip untouched either way; this only
+decides what is worth showing.
+
+**And Follow Mode carries the type select, though follow cannot reach it.**
+Mod FX type is a member of `ModControllableAudio`, not a modulation param, so
+no CC addresses it and no feedback reports it — the wire never says the type
+changed, and the editor cannot notice mod FX coming back on. That is exactly
+why the select is allowed onto a page whose rule is "only the parameters MIDI
+Follow can reach". It is not a fifth parameter, it is the gate on the other
+four, and without it turning Mod FX back on would mean leaving the mode to do
+it. The panel keeps its place in the grid even at zero CCs, and says in one
+line that the CCs change nothing while the slot is off.
+
+## Follow Mode's header is controls, and its prose is behind a button
+
+The mode used to explain itself in a paragraph wedged under its own controls.
+On a wide screen that was one long line nobody read; on a narrow one it pushed
+the controls down. The text was not wrong, it was in the way. It now lives
+behind **MIDI Follow Help** at a size worth reading, and the header carries
+only what you operate: the listening channel, Send and its channel beside it,
+the kit target, and the last CC heard. The applied and sent counters went with
+the paragraph — they were a comfort readout, not information anyone acts on.
+
+One line survives in the header, and only while sending is on, because that is
+the only state here that can change something outside the page.
+
+**Sending goes to a Deluge or to nowhere.** It used to fall back to the first
+MIDI output when no port named itself a Deluge. That was wrong in the
+dangerous direction: a CC is not a no-op on the wrong instrument. Every number
+the editor sends is one of MIDI-Follow's own — the map is verified against
+`MidiFollow::initDefaultMappings` CC for CC — but a follow CC that misses
+MIDI-Follow's A/B/C channels, or lands on some other device entirely, falls
+through to ordinary MIDI handling, where it can trip a learned command or be
+recorded into whatever is armed. So listening still falls back to every input,
+because hearing the wrong port costs nothing, and sending does not fall back
+at all: with no Deluge output the Send button is disabled and says why. The
+channel default above is the other half of the same guard.
+
+## Follow Mode asks the Deluge what its channel actually is
+
+Which channel MIDI-Follow is on is the one thing this mode cannot learn from
+the wire. A follow CC carries a channel number, so listening can be set to Any
+and simply work, but sending has to be aimed, and the instrument's menu answers
+the question in terms that are not a number: the setting is **A**, **B** or
+**C**, and each of those can itself be an MPE zone rather than a channel.
+
+Worse, the two directions do not fail together. `sendCCForMidiFollowFeedback`
+takes a zone's master channel from `getMasterChannel()` and nothing else, so
+feedback goes out on MIDI 1 for the lower zone and 16 for the upper whatever
+the port is configured to do. Receiving is stricter: `LearnedMIDI::checkMatch`
+compares the slot's `channelOrZone` against `MIDIPort::channelToZone(incoming)`,
+and that only returns a zone when the *input port* has that zone set up
+(`mpeLowerZoneLastMemberChannel` non-zero). A Deluge whose follow channel is a
+zone but whose USB input has no zone configured will mirror perfectly and
+accept nothing at all. From this end that is indistinguishable from sending
+being broken.
+
+So the editor stops guessing and reads `SETTINGS/MIDIFollow.XML` off the card
+over the SysEx protocol it already speaks (`src/core/midi/followsettings.ts`).
+The file holds all three channel slots, the feedback slot and the feedback
+filter. The one trap in it is that `<channel>` stores `channelOrZone + 1`, and
+`channelOrZone` is not a channel when it is a zone: 17 in the file is the MPE
+lower zone, 18 the upper, 256 unassigned, and 1 to 16 a plain channel.
+
+It reads `SETTINGS/MIDIDevices.XML` too, because the follow file alone cannot
+settle the question. That one holds the MPE zones each port has configured
+(`MIDIPort::writeToFile`, `<mpeLowerZone numMemberChannels="…"/>` under
+`<input>`), and only with both files in hand can the editor say whether a
+follow channel set to a zone will actually match. The firmware writes that
+file only when something is worth writing and deletes it otherwise, so "no
+such file" is an answer rather than a failure — but only that specific FatFS
+result. Any other transfer error leaves the verdict hedged rather than
+asserting something the card never confirmed.
+
+**Which USB port a send goes out on is half the answer.** The Deluge presents
+three USB MIDI cables and they are not configured alike: only cable 2 is built
+with MPE zones. `upstreamUSBMIDICable2{1, true, false}` passes `mpe = true` to
+`MIDICableUSBUpstream`, whose constructor sets every port's
+`mpeLowerZoneLastMemberChannel` to 7 and `mpeUpperZoneLastMemberChannel` to 8;
+cables 1 and 3 pass false and get nothing
+(`midi_device_manager.cpp`, `io/midi/cable_types/usb_device_cable.h`).
+
+So on Deluge Port 2, MIDI channel 1 is not channel 1 — `channelToZone` maps it
+into the lower zone — and a follow channel set to a plain 1 can never match it.
+On Ports 1 and 3 the reverse holds, and a follow channel set to the MPE lower
+zone can never match. Port 2's two zones between them cover all sixteen
+channels, so no plain channel matches there at any number. Picking the first
+Deluge output the browser lists is picking one of these at random, and it was
+the whole bug: a correctly configured instrument, mirroring perfectly, ignoring
+everything sent to it. The upstream fork's own help text had the trap written
+down, which is exactly what reading it is for.
+
+The editor now chooses the port and the channel together, from the settings it
+read, and re-picks its output when it learns them.
+
+**Listening and sending are answered separately, because they fail
+separately.** Where feedback arrives from is not where a send is accepted.
+Naming one channel for both is what made an MPE configuration look like broken
+sending. And the way out of that configuration does not cost the MPE setup at
+all: `MidiFollow::checkMidiFollowMatch` loops over all three slots
+(`kNumMIDIFollowChannelTypes` is 3), so a spare slot set to a plain channel
+carries sending while the zone slot goes on being where feedback comes from.
+The readout says which slots are free and recommends exactly that, rather than
+telling anyone to give up their zone.
+
+The readout sits in the help sheet rather than the header, because it is a
+thing you consult once when something is wrong. Once it has run, the
+instrument's own settings become the authority for the send channel, in place
+of the channel feedback happened to arrive on. A plain slot is preferred over
+a zone even when both would work, because `checkMatch` returns CHANNEL for it
+outright while a zone counts only on its master channel — MPE_MEMBER is
+dropped before it reaches any parameter. When nothing can accept, the send
+channel is null and nothing goes out, which is the honest state rather than a
+guess.
+
+**The feedback filter is worth naming too.** With it on, the firmware ignores
+an incoming CC within one second of having sent that same CC number as
+feedback (`midiCCReceivedForSelectedOrActiveClip`, comparing
+`AudioEngine::audioSampleTimer - timeLastCCSent[ccNumber]` against
+`kSampleRate`). Since the instrument echoes every value it accepts, a knob
+dragged here moves the parameter once and then goes quiet for a second. That
+reads as a broken send rather than as a filter doing its job, so the readout
+says so.
+
+## Follow Mode does not need a file first
+
+Every other top-bar button acts on a loaded preset, so it is disabled without
+one. This one is a way to *start* a preset: the sound is already on the
+instrument, and the mode's whole job is to bring it here. So the button is
+live with nothing loaded, opens the Deluge's own init synth for the CCs to
+land in, and the empty state says so. The firmware gate still applies to a
+loaded file — MIDI Follow exists on no official build and below community
+1.1.0 — but with nothing loaded there is no firmware to ask about yet, and the
+init synth is a c1.3.0 file.

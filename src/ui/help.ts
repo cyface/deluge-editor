@@ -329,7 +329,7 @@ export const HELP: Record<string, string> = {
   'follow.target': 'Which half of a kit clip the CCs reach, mirroring AFFECT ENTIRE on the instrument: the kit bus, or the selected row’s own sound.',
   // MidiTakeover::calculateKnobPos; midiTakeover defaults to JUMP.
   'follow.send': 'Send moves made here back to the Deluge, changing its active sound. Values land exactly only with MIDI-Follow takeover on JUMP, its default.',
-  'follow.sendChannel': 'The channel to send on. It has to be one of MIDI-Follow’s own A, B or C channels, or the instrument ignores the CC.',
+  'follow.sendChannel': 'The channel to send on. Heard uses whichever channel the instrument’s own feedback arrives on, which is right for a plain follow channel and for an MPE zone alike.',
 }
 
 /** Help for a panel header, by group id. */
