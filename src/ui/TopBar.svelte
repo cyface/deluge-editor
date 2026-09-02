@@ -1,6 +1,7 @@
 <script lang="ts">
   import { referencedSampleFiles } from '../core/preset'
   import { card } from './state/card.svelte'
+  import { changesNote, confirm, loadedName } from './state/confirm.svelte'
   import { editor } from './state/editor.svelte'
   import { follow } from './state/follow.svelte'
   import { kit } from './state/kit.svelte'
@@ -27,6 +28,19 @@
     URL.revokeObjectURL(url)
   }
   const kind = $derived(editor.preset?.tag === 'kit' ? 'Kit' : editor.preset ? 'Synth' : 'Editor')
+  /*
+   * New must not silently discard unsaved work: with edits pending it asks
+   * first, in the same dialog a preset dropped over one uses. Clean, it just
+   * goes — a fresh template over an unedited one loses nothing.
+   */
+  function startNew(what: 'synth' | 'kit'): void {
+    const run = () => (what === 'synth' ? editor.newSynth() : editor.newKit())
+    if (editor.preset && editor.changeCount > 0) {
+      confirm.ask({ question: `Discard changes to ${loadedName()}? A new ${what} replaces it${changesNote()}.`, verb: 'Discard', run })
+      return
+    }
+    run()
+  }
   /** A kit, or any preset referencing external files, can share as a zip. */
   const showZip = $derived(
     editor.preset !== null && (editor.preset.tag === 'kit' || referencedSampleFiles(editor.preset).length > 0),
@@ -86,8 +100,8 @@
     glance at.
   -->
   <Menu label="New" testid="menu-new" title="Start a preset from the Deluge's own templates, or roll one">
-    <MenuItem label="Synth" testid="new-synth" title="Start a new synth from the Deluge's own init preset" onclick={() => editor.newSynth()} />
-    <MenuItem label="Kit" testid="new-kit" title="Start a kit from the Deluge's own blank kit — then drop a folder of WAVs on the page" onclick={() => editor.newKit()} />
+    <MenuItem label="Synth" testid="new-synth" title="Start a new synth from the Deluge's own init preset. Asks first if there are unsaved changes." onclick={() => startNew('synth')} />
+    <MenuItem label="Kit" testid="new-kit" title="Start a kit from the Deluge's own blank kit — then drop a folder of WAVs on the page. Asks first if there are unsaved changes." onclick={() => startNew('kit')} />
     <!-- With nothing loaded it begins from the init synth and rolls that, so
          it never needs a preset first. The panel it opens is the patch
          generator; the arpeggiator's note Randomiser is a panel in the grid
@@ -111,6 +125,23 @@
       <MenuItem label="Download Zip" testid="download-zip-top" title="Preset + samples + README, ready to share{editor.preset?.tag === 'kit' ? ' — credits are set in the Share section below' : ''}" onclick={() => kit.downloadZip()} />
     {/if}
     <MenuItem label="To Deluge" testid="card-save-button" title={midiTitle('Write the current preset to the Deluge’s SD card')} disabled={!editor.preset} onclick={() => card.openPanel('save')} />
+    <!-- Straight back to the file it came from or last went to, no browser:
+         the hint is the path so the item says exactly what it overwrites.
+         Disabled, not hidden, when the preset has no card path yet, so the
+         command stays discoverable. Set apart by a rule: it is the one item
+         here that acts on the card at a click, so a slip off To Deluge
+         should not land on it. -->
+    <div class="sep" role="separator"></div>
+    <MenuItem
+      label="To Deluge – Overwrite"
+      testid="card-overwrite"
+      hint={editor.cardPath ?? undefined}
+      title={editor.cardPath
+        ? midiTitle(`Write the preset straight back to ${editor.cardPath} — where it was opened from, or last saved — with no dialog`)
+        : 'Open a preset from the Deluge, or save one there, and this writes it back to the same file'}
+      disabled={!editor.cardPath || !!card.busy}
+      onclick={() => void card.overwrite()}
+    />
   </Menu>
   {#if follow.available}
     <!-- Firmware-gated like every other control: MIDI Follow does not exist
@@ -159,4 +190,6 @@
   @keyframes cardbusy { 0%, 100% { opacity: 1; } 50% { opacity: .25; } }
   .pill select { background: transparent; border: 0; color: #a9d9a1; font-family: var(--cond); font-size: 12px; letter-spacing: .09em; text-transform: uppercase; cursor: pointer; }
   .pill select:focus { outline: none; }
+  /* Rendered inside the menu's list (the snippet compiles here, so the style reaches it). */
+  .sep { height: 1px; margin: 4px 6px; background: var(--edge-hi); }
 </style>

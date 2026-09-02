@@ -13,6 +13,7 @@ const MENU: Record<string, string> = {
   'download-xml': 'menu-save',
   'download-zip-top': 'menu-save',
   'card-save-button': 'menu-save',
+  'card-overwrite': 'menu-save',
 }
 
 function menuOf(item: string): string {

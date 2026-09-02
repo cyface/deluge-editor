@@ -22,21 +22,16 @@
   import { randomizer } from './state/randomize.svelte'
   import { kit as kitBuilder } from './state/kit.svelte'
   import { multisample } from './state/multisample.svelte'
+  import { changesNote, confirm, loadedName } from './state/confirm.svelte'
   import { samplePick } from './state/samplepick.svelte'
   import { samples as stash } from './state/samples.svelte'
 
   let dragging = $state(false)
-  /** A drop over a loaded preset, held for the user's yes. */
-  let confirmDrop = $state<{ question: string; verb: string; run: () => Promise<void> | void } | null>(null)
-
-  const loadedName = () => editor.fileName || 'your unsaved preset'
-  const changesNote = () =>
-    editor.changeCount > 0 ? ` — ${editor.changeCount} unsaved change${editor.changeCount === 1 ? '' : 's'}` : ''
 
   async function drop(e: DragEvent) {
     e.preventDefault()
     dragging = false
-    confirmDrop = null
+    confirm.cancel()
     if (!e.dataTransfer) return
     // A folder (or loose WAVs) builds an instrument from samples; a file is a
     // preset. Over a synth the folder is a multi-sample import: it opens the
@@ -55,7 +50,7 @@
       const run = () => kitBuilder.addLocalSamples(folder, dropped.files)
       const n = dropped.files.length
       if (editor.preset?.tag === 'kit') {
-        confirmDrop = { question: `Add ${n} WAV${n === 1 ? '' : 's'} from “${folder}” to ${editor.fileName || 'the current kit'}?`, verb: 'Add', run }
+        confirm.ask({ question: `Add ${n} WAV${n === 1 ? '' : 's'} from “${folder}” to ${editor.fileName || 'the current kit'}?`, verb: 'Add', run })
         return
       }
       await run()
@@ -66,7 +61,7 @@
     const text = await f.text() // read now: the DataTransfer dies with the event
     const run = () => editor.load(text, f.name)
     if (editor.preset) {
-      confirmDrop = { question: `Open ${f.name}? It replaces ${loadedName()}${changesNote()}.`, verb: 'Replace', run }
+      confirm.ask({ question: `Open ${f.name}? It replaces ${loadedName()}${changesNote()}.`, verb: 'Replace', run })
       return
     }
     run()
@@ -78,19 +73,22 @@
   ondragover={(e) => { e.preventDefault(); dragging = true }}
   ondragleave={() => (dragging = false)}
   ondrop={drop}
-  onkeydown={(e) => { if (e.key === 'Escape') { confirmDrop = null; if (multisample.open) multisample.cancel(); if (samplePick.open) samplePick.cancel(); if (card.open) card.close(); randomizer.open = false } }}
+  onkeydown={(e) => { if (e.key === 'Escape') { confirm.cancel(); if (multisample.open) multisample.cancel(); if (samplePick.open) samplePick.cancel(); if (card.open) card.close(); randomizer.open = false } }}
 />
 
 {#if multisample.open}<FolderImport />{/if}
 {#if samplePick.open}<SamplePicker />{/if}
 
-{#if confirmDrop}
-  <div class="veil" role="alertdialog" aria-label="Replace the loaded preset?" data-testid="drop-confirm">
+<!-- The one question dialog (`state/confirm.svelte.ts`): a drop over a
+     preset, samples onto a kit, New over unsaved work. Above everything,
+     including the menus that ask it. -->
+{#if confirm.pending}
+  <div class="veil" role="alertdialog" aria-label={confirm.pending.question} data-testid="confirm">
     <div class="ask">
-      <p>{confirmDrop.question}</p>
+      <p>{confirm.pending.question}</p>
       <div class="row">
-        <button type="button" class="btn go" data-testid="drop-confirm-replace" onclick={() => { const d = confirmDrop!; confirmDrop = null; void d.run() }}>{confirmDrop.verb}</button>
-        <button type="button" class="btn" data-testid="drop-confirm-cancel" onclick={() => (confirmDrop = null)}>Cancel</button>
+        <button type="button" class="btn go" data-testid="confirm-go" onclick={() => confirm.go()}>{confirm.pending.verb}</button>
+        <button type="button" class="btn" data-testid="confirm-cancel" onclick={() => confirm.cancel()}>Cancel</button>
       </div>
     </div>
   </div>

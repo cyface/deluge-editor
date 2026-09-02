@@ -5,10 +5,11 @@
    * expands everything. Modulators sit below; clicking one draws its cables
    * to the blocks it reaches.
    */
+  import { tick } from 'svelte'
   import type { PatchSource, SoundElement } from '../core/preset'
   import { cables } from '../core/preset/sound'
   import { groupOf, visibleGroups, type Group } from './groups'
-  import { ALL_SOURCES, SOURCE_FEATURE, sourceColor, sourceHint, sourceName } from './sources'
+  import { ALL_SOURCES, SOURCE_FEATURE, sourceColor, sourceHint, sourceName, sourceTip } from './sources'
   import { editor } from './state/editor.svelte'
 
   interface Props { sound: SoundElement }
@@ -34,9 +35,15 @@
     e.stopPropagation()
     editor.toggleFocus(g.id, e.shiftKey || e.metaKey || e.ctrlKey)
   }
-  function clickSource(e: MouseEvent, s: PatchSource) {
+  async function clickSource(e: MouseEvent, s: PatchSource) {
     e.stopPropagation()
-    editor.inspect = editor.inspect === s ? null : s
+    editor.inspectSource(s)
+    if (editor.inspect === null) return
+    // The matrix highlights this source's cables; bring it on screen if it
+    // is below the fold (or was a chip a moment ago), and leave the scroll
+    // alone if it is already in view.
+    await tick()
+    document.getElementById('panel-cables')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
   }
 
   // Wires from the inspected modulator to its target blocks.
@@ -77,7 +84,7 @@
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="rig" bind:this={rig} onclick={() => editor.clearFocus()} onkeydown={(e) => { if (e.key === 'Escape') editor.clearFocus() }} data-testid="flow-strip" title="Click a block to focus it; shift- or ⌘-click to pin several; click the background to show everything">
+<div class="rig" bind:this={rig} onclick={() => editor.clearFocus()} onkeydown={(e) => { if (e.key === 'Escape') editor.clearFocus() }} data-testid="flow-strip" title="Click a block to focus it; shift- or ⌘-click to pin several">
   {#if editor.focus.length}
     <button type="button" class="btn small showall" data-testid="show-all" onclick={(e) => { e.stopPropagation(); editor.clearFocus() }}>Show all</button>
   {/if}
@@ -124,7 +131,7 @@
     <div class="mods">
       {#each sources as s (s)}
         {@const n = allCables.filter((c) => c.attrs.source === s).length}
-        <button type="button" class="mblk" class:idle={n === 0} class:sel={editor.inspect === s} style="--bc:{sourceColor(s)}" data-source={s} onclick={(e) => clickSource(e, s)}>
+        <button type="button" class="mblk" class:idle={n === 0} class:sel={editor.inspect === s} style="--bc:{sourceColor(s)}" data-source={s} title={sourceTip(s)} onclick={(e) => clickSource(e, s)}>
           <span class="sw"></span>
           <span class="t"><b>{sourceName(s)}</b><i>{n ? `${n} cable${n > 1 ? 's' : ''}` : sourceHint(s)}</i></span>
         </button>

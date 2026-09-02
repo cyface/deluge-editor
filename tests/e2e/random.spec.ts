@@ -24,13 +24,23 @@ test('roll a random patch: seeded, scoped, and every change listed', async ({ pa
   await page.getByTestId('randomize-roll').click()
   await expect(page.getByTestId('change-count')).toHaveText(String(count))
 
-  // A fresh roll is a different patch.
+  // A fresh roll is a different patch, and with Name it on, a different name.
   await page.getByTestId('randomize-seed').fill('')
   await page.getByTestId('randomize-roll').click()
-  await expect(page.getByTestId('file-name')).toHaveText(named!) // a named file is never renamed
+  await expect(page.getByTestId('file-name')).not.toHaveText(named!)
+  await expect(page.getByTestId('file-name')).toHaveText(/^[A-Z0-9]+ [A-Z0-9]+\.XML$/)
+
+  // Name it off: the name stays put through a roll.
+  await page.getByTestId('randomize-name').click()
+  const kept = await page.getByTestId('file-name').textContent()
+  await page.getByTestId('randomize-roll').click()
+  await expect(page.getByTestId('file-name')).toHaveText(kept!)
+  await page.getByTestId('randomize-name').click()
 
   // Scope: filters only, and the changes dock shows nothing else moved.
+  // The roll is unsaved work, so New asks first.
   await choose(page, 'new-synth')
+  await page.getByTestId('confirm-go').click()
   await expect(page.getByTestId('change-count')).toHaveText('0')
   await page.locator('[data-section]').filter({ hasText: 'Oscillators' }).click() // off
   for (const section of ['Voice', 'Mod FX', 'Delay & Reverb', 'Envelopes & LFOs', 'Mod Matrix']) {

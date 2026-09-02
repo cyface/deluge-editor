@@ -39,3 +39,33 @@ export function sourceHint(s: PatchSource): string {
   return hints[s] ?? ''
 }
 
+
+/**
+ * What feeds a modulator, for its tooltip in the flow strip. The MIDI facts
+ * are the firmware's routing in `MelodicInstrument::receivedCC`,
+ * `receivedPitchBend` and `receivedAftertouch`
+ * (`model/instrument/melodic_instrument.cpp`, `upstream/community` bef6d9df):
+ * the mod wheel (CC 1) on a plain channel becomes the Y axis, CC 74 on an MPE
+ * member channel becomes per-note Y, pitch bend is X, and channel or
+ * polyphonic pressure is aftertouch.
+ */
+export function sourceTip(s: PatchSource): string {
+  const about: Record<PatchSource, string> = {
+    lfo1: 'LFO 1 — one free-running oscillator shared by every voice.',
+    lfo2: 'LFO 2 — per voice: restarts with each note.',
+    lfo3: 'LFO 3 — one free-running oscillator shared by every voice.',
+    lfo4: 'LFO 4 — per voice: restarts with each note.',
+    envelope1: 'Envelope 1 — the volume envelope; every note passes through it, and it can drive other destinations too.',
+    envelope2: 'Envelope 2 — a free envelope: does nothing until a cable gives it a destination.',
+    envelope3: 'Envelope 3 — a free envelope: does nothing until a cable gives it a destination.',
+    envelope4: 'Envelope 4 — a free envelope: does nothing until a cable gives it a destination.',
+    velocity: 'Velocity — how hard the note was struck, fixed for the life of the note.',
+    note: 'Note — where the note sits on the keyboard, so a destination tracks pitch.',
+    aftertouch: 'Aftertouch — pressure after the note is down: channel pressure, or per note from a polyphonic or MPE controller.',
+    random: 'Random — a fresh random value for each note, fixed for its life.',
+    compressor: 'Sidechain — the compressor block’s envelope, pulled down on every trigger.',
+    x: 'MPE X — pitch bend: per note on an MPE member channel, whole channel otherwise.',
+    y: 'MPE Y — the mod wheel (CC 1) on an ordinary MIDI channel, or per-note slide (CC 74) from an MPE controller.',
+  }
+  return `${about[s]} Click to trace its cables.`
+}

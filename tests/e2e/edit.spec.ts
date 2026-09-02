@@ -52,6 +52,21 @@ test('load a fixture, see the whole preset, focus a block, edit one value, see e
   await expect(page.getByTestId('identical')).toContainText('byte-identical')
   await page.getByTestId('changes-button').click()
 
+  // Clicking a modulator while a focus hides the Mod Matrix pins the matrix
+  // too: its cables are what the click shows, and they are drawn there.
+  await expect(page.locator('[data-group="cables"]')).toHaveCount(0)
+  // Each modulator says what feeds it; Y is the mod wheel on an ordinary channel.
+  await expect(page.locator('[data-source="y"]')).toHaveAttribute('title', /mod wheel \(CC 1\)/)
+  await expect(page.getByTestId('flow-strip')).not.toHaveAttribute('title', /background/)
+  await page.locator('[data-source="velocity"]').click()
+  await expect(page.locator('[data-group="cables"]')).toBeVisible()
+  await expect(panels).toHaveCount(3)
+  await expect(page.locator('[data-group="cables"] .cable.hl')).toHaveCount(2)
+  // Clicking it again stops inspecting; the pins stay as they are.
+  await page.locator('[data-source="velocity"]').click()
+  await expect(page.locator('[data-group="cables"] .cable.hl')).toHaveCount(0)
+  await expect(panels).toHaveCount(3)
+
   // Clicking the strip's background expands everything again.
   await page.getByTestId('flow-strip').click({ position: { x: 5, y: 5 } })
   await expect(panels).toHaveCount(12)
@@ -78,6 +93,48 @@ test('reassign a gold knob: one change, the brass face follows (issue #23)', asy
   await page.locator('[data-attr="modKnob3.controlsParam"]').selectOption('lpfFrequency')
   await expect(page.getByTestId('change-count')).toHaveText('0')
   await expect(page.getByTestId('identical')).toContainText('byte-identical')
+})
+
+test('New asks before discarding unsaved changes, in the same dialog a dropped preset uses', async ({ page }) => {
+  await page.goto('/')
+  await choose(page, 'new-synth')
+  await expect(page.getByTestId('change-count')).toHaveText('0')
+
+  // Clean: New › Kit just goes, no question.
+  await choose(page, 'new-kit')
+  await expect(page.locator('[data-group="kit"]')).toBeVisible()
+  await expect(page.getByTestId('confirm')).toHaveCount(0)
+  await choose(page, 'new-synth')
+  await expect(page.locator('[data-group="kit"]')).toHaveCount(0)
+
+  // Dirty: the item closes the menu and asks in a modal; Cancel and Escape
+  // both keep the work.
+  const knob = page.locator('[data-param="lpfFrequency"]')
+  await expect(knob).toHaveAttribute('aria-valuenow', '50') // the init synth's cutoff is wide open
+  await knob.focus()
+  await page.keyboard.press('ArrowDown')
+  await expect(page.getByTestId('change-count')).toHaveText('1')
+  await choose(page, 'new-kit')
+  await expect(page.getByTestId('menu-new-list')).toHaveCount(0)
+  await expect(page.getByTestId('confirm')).toBeVisible()
+  await expect(page.getByTestId('confirm')).toContainText('Discard changes to your unsaved preset? A new kit replaces it — 1 unsaved change.')
+  await expect(page.getByTestId('confirm-go')).toHaveText('Discard')
+  await page.getByTestId('confirm-cancel').click()
+  await expect(page.getByTestId('confirm')).toHaveCount(0)
+  await expect(page.getByTestId('change-count')).toHaveText('1')
+  await expect(page.locator('[data-group="kit"]')).toHaveCount(0)
+  await choose(page, 'new-synth')
+  await expect(page.getByTestId('confirm')).toContainText('A new synth replaces it')
+  await page.keyboard.press('Escape')
+  await expect(page.getByTestId('confirm')).toHaveCount(0)
+  await expect(page.getByTestId('change-count')).toHaveText('1')
+
+  // Discard goes through: the edit is gone, the new preset is here.
+  await choose(page, 'new-kit')
+  await page.getByTestId('confirm-go').click()
+  await expect(page.getByTestId('confirm')).toHaveCount(0)
+  await expect(page.locator('[data-group="kit"]')).toBeVisible()
+  await expect(page.getByTestId('change-count')).toHaveText('0')
 })
 
 test('New Synth starts from the Deluge-authored init template (issue #25)', async ({ page }) => {
@@ -200,13 +257,13 @@ test('a dropped file over a loaded preset asks before replacing it', async ({ pa
   const xml = fs.readFileSync(FIXTURE, 'utf8')
   await dropXml('Default Synth.XML', xml)
   await expect(page.getByTestId('file-name')).toHaveText('Default Synth.XML')
-  await expect(page.getByTestId('drop-confirm')).toHaveCount(0)
+  await expect(page.getByTestId('confirm')).toHaveCount(0)
 
   // A preset is loaded: the next drop must ask. Cancel keeps everything.
   await dropXml('Other.XML', xml)
-  await expect(page.getByTestId('drop-confirm')).toBeVisible()
-  await page.getByTestId('drop-confirm-cancel').click()
-  await expect(page.getByTestId('drop-confirm')).toHaveCount(0)
+  await expect(page.getByTestId('confirm')).toBeVisible()
+  await page.getByTestId('confirm-cancel').click()
+  await expect(page.getByTestId('confirm')).toHaveCount(0)
   await expect(page.getByTestId('file-name')).toHaveText('Default Synth.XML')
 
   // Replace goes through, and the dialog names unsaved changes when there are any.
@@ -214,8 +271,8 @@ test('a dropped file over a loaded preset asks before replacing it', async ({ pa
   await knob.focus()
   await page.keyboard.press('ArrowUp')
   await dropXml('Other.XML', xml)
-  await expect(page.getByTestId('drop-confirm')).toContainText('1 unsaved change')
-  await page.getByTestId('drop-confirm-replace').click()
+  await expect(page.getByTestId('confirm')).toContainText('1 unsaved change')
+  await page.getByTestId('confirm-go').click()
   await expect(page.getByTestId('file-name')).toHaveText('Other.XML')
   await expect(page.getByTestId('change-count')).toHaveText('0')
 })
@@ -240,10 +297,13 @@ test('the top bar’s commands live under New, Open and Save; the modes stay out
   await expect(menu).toHaveAttribute('aria-expanded', 'true')
   const list = page.getByTestId('menu-save-list')
   await expect(list).toHaveRole('menu')
-  await expect(list.getByRole('menuitem')).toHaveText(['Download XML', 'To Deluge'])
+  await expect(list.getByRole('menuitem')).toHaveText(['Download XML', 'To Deluge', 'To Deluge – Overwrite'])
   // Nothing loaded: the items say what they would do, but cannot do it yet.
   await expect(page.getByTestId('download-xml')).toBeDisabled()
   await expect(page.getByTestId('card-save-button')).toBeDisabled()
+  await expect(page.getByTestId('card-overwrite')).toBeDisabled()
+  // Overwrite acts on the card at a click, so a rule keeps it off To Deluge's doorstep.
+  await expect(list.getByRole('separator')).toHaveCount(1)
 
   // Escape closes it and puts focus back on the button; a click elsewhere closes it too.
   await page.keyboard.press('Escape')
@@ -271,7 +331,7 @@ test('the top bar’s commands live under New, Open and Save; the modes stay out
   // Download Zip is conditional: a kit grows it, between XML and the Deluge.
   await choose(page, 'new-kit')
   await page.getByTestId('menu-save').click()
-  await expect(list.getByRole('menuitem')).toHaveText(['Download XML', 'Download Zip', 'To Deluge'])
+  await expect(list.getByRole('menuitem')).toHaveText(['Download XML', 'Download Zip', 'To Deluge', 'To Deluge – Overwrite'])
   await expect(page.getByTestId('download-xml')).toBeEnabled()
   await page.keyboard.press('Escape')
 

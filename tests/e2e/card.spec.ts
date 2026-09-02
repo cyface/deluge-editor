@@ -124,6 +124,7 @@ test('card: connect, browse, load, edit, save with verification, reload', async 
   // Connect: Open › From Deluge connects on first use and opens the panel in
   // open mode; Save › To Deluge is disabled until something is loaded.
   await expect(await reveal(page, 'card-save-button')).toBeDisabled()
+  await expect(page.getByTestId('card-overwrite')).toBeDisabled()
   await page.keyboard.press('Escape')
   await choose(page, 'card-open-button')
   await expect(page.getByTestId('card-panel')).toBeVisible()
@@ -177,10 +178,32 @@ test('card: connect, browse, load, edit, save with verification, reload', async 
   expect(onCard).toContain('lpfFrequency')
 
   // Reload from the card: the edit persisted and is now the clean baseline.
+  // The panel closing is what says the load has landed — the knob already
+  // read 29 before it, so that alone would pass on the old state.
   await choose(page, 'card-open-button')
   await page.locator('[data-entry="Default Synth.XML"]').click()
+  await expect(page.getByTestId('card-panel')).toBeHidden()
   await expect(knob).toHaveAttribute('aria-valuenow', '29')
   await expect(page.getByTestId('change-count')).toHaveText('0')
+
+  // Save › To Deluge – Overwrite writes straight back to the file the preset
+  // came from — the path is on the item — with no dialog and no arming.
+  await knob.focus()
+  await page.keyboard.press('ArrowUp')
+  await expect(page.getByTestId('change-count')).toHaveText('1')
+  const overwrite = await reveal(page, 'card-overwrite')
+  await expect(overwrite).toBeEnabled()
+  await expect(overwrite).toContainText('/SYNTHS/Default Synth.XML')
+  await overwrite.click()
+  await expect(page.getByTestId('card-saved')).toContainText('Default Synth.XML written')
+  await expect(page.getByTestId('card-panel')).toBeHidden()
+  await expect(page.getByTestId('change-count')).toHaveText('0')
+  const overwritten = await page.evaluate(() =>
+    (globalThis as unknown as { __fakeCard: { text: (p: string) => string | null } }).__fakeCard.text(
+      '/SYNTHS/Default Synth.XML',
+    ),
+  )
+  expect(overwritten).not.toBe(onCard)
 
   // A name typed without an extension gets .XML appended — a bare name would
   // save fine but never show in the Deluge's preset browser.
@@ -190,9 +213,12 @@ test('card: connect, browse, load, edit, save with verification, reload', async 
   // A verified save closes the dialog and leaves its confirmation on the page.
   await expect(page.getByTestId('card-panel')).toBeHidden()
   await expect(page.getByTestId('card-saved')).toContainText('Rumbles.XML')
-  // The name the save actually used, kept for the next one.
+  // The name the save actually used, kept for the next one — and Overwrite
+  // now points at the new file, not the one the preset was opened from.
   await choose(page, 'card-save-button')
   await expect(page.getByTestId('card-save-name')).toHaveValue('Rumbles.XML')
+  await page.keyboard.press('Escape')
+  await expect(await reveal(page, 'card-overwrite')).toContainText('/SYNTHS/Rumbles.XML')
   await page.keyboard.press('Escape')
   const bare = await page.evaluate(() =>
     (globalThis as unknown as { __fakeCard: { files: Map<string, unknown> } }).__fakeCard.files.has('/SYNTHS/Rumbles.XML'),
@@ -213,6 +239,26 @@ test('card: connect, browse, load, edit, save with verification, reload', async 
   await page.locator('[data-entry="Baseline.XML"]').click()
   await expect(page.getByTestId('file-name')).toHaveText('Baseline.XML')
   await expect(page.getByTestId('firmware-locked')).toHaveText('c1.3.0')
+  await expect(await reveal(page, 'card-overwrite')).toContainText('/SYNTHS/Baseline.XML')
+  await page.keyboard.press('Escape')
+
+  // A preset from this computer is not the card's copy, whatever its name:
+  // Overwrite has nowhere to go until it is opened from or saved to the card.
+  await page.getByTestId('file-input').setInputFiles({ name: 'Baseline.XML', mimeType: 'text/xml', buffer: Buffer.from(officialText) })
+  await expect(await reveal(page, 'card-overwrite')).toBeDisabled()
+  await page.keyboard.press('Escape')
+
+  // The save dialog offers the preset's name as it is now, not the name of
+  // the last card operation — a renamed preset (the generator renames on
+  // every roll) saves under its new name, and an unnamed one offers nothing.
+  await page.getByTestId('file-input').setInputFiles({ name: 'Fresh.XML', mimeType: 'text/xml', buffer: Buffer.from(officialText) })
+  await choose(page, 'card-save-button')
+  await expect(page.getByTestId('card-save-name')).toHaveValue('Fresh.XML')
+  await page.keyboard.press('Escape')
+  await choose(page, 'new-synth') // clean, so no question
+  await choose(page, 'card-save-button')
+  await expect(page.getByTestId('card-save-name')).toHaveValue('')
+  await page.keyboard.press('Escape')
 })
 
 test('card: a second editor on the same Deluge is detected and warned about (issue #8)', async ({ page }) => {

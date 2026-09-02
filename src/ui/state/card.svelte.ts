@@ -117,6 +117,11 @@ class Card {
     this.mode = mode
     this.armedLoad = null
     this.armed = null
+    // The name offered is the preset's name as of now, not as of the last
+    // card operation: the generator names a synth with every roll, and a
+    // file opened from disk has a name of its own. An unnamed preset offers
+    // nothing, so a new synth is never one click from overwriting a file.
+    if (mode === 'save') this.saveName = editor.fileName
     this.open = true
     if (this.status === 'idle') void this.connect()
   }
@@ -253,9 +258,13 @@ class Card {
     this.armedLoad = null
     await this.run(`Reading ${name}`, async () => {
       const data = await this.client!.readFile(this.join(name), (d, t) => (this.progress = t ? d / t : 0))
+      const path = this.join(name)
       editor.load(new TextDecoder().decode(data), name)
       this.saveName = name
-      if (!editor.error) this.open = false
+      if (!editor.error) {
+        editor.cardPath = path
+        this.open = false
+      }
     })
   }
 
@@ -284,42 +293,80 @@ class Card {
     }
     this.armed = null
     await this.run(`Writing ${name}`, async () => {
-      // Locally sourced samples travel with the preset: retarget them to the
-      // saved folder path first, so the XML below carries the new references,
-      // then copy any the card is missing — samples first, preset second. The
-      // Deluge loads a preset whose samples are absent without complaining
-      // and plays it silently (`Source::loadAllSamples` ignores the per-range
-      // error, `processing/source.cpp:105`), so the preset must never be the
-      // thing that lands first. Every write is still verified by read-back;
-      // the message just doesn't dwell on it.
-      this.sampleRetarget?.(path)
-      let copied = 0
-      if (this.sampleSync) {
-        copied = await this.sampleSync((label, p) => {
-          if (label) this.busy = label
-          this.progress = p
-        })
-      }
-      this.busy = `Writing ${name}`
-      this.progress = 0
-      await this.client!.writeFile(path, new TextEncoder().encode(editor.output), (d, t) => (this.progress = d / t))
-      const written = copied ? `${name} and ${copied} sample${copied === 1 ? '' : 's'} written` : `${name} written`
-      // The read-back proves the card holds what we sent — but only as of
-      // now. With another editor on the same Deluge, its next `open` for
-      // write truncates whatever it names, so a verified save is not a
-      // durable one (issue #8).
-      this.announce(this.otherEditor ? `${written} — another editor is also on this Deluge and could overwrite it` : written)
-      // The verified card copy is the new clean baseline: the Changes dock
-      // reads 0 against the file just written, and open mode's discard
-      // guard won't arm over work that is already safe.
-      editor.source = editor.output
-      editor.fileName = name
+      await this.write(path, name)
       await this.list()
       // The file is written and verified: the browser has done its job and
       // gets out of the way, as loading one does. The confirmation outlives
       // it on the page.
       this.open = false
     })
+  }
+
+  /**
+   * Write the preset back to where it lives on the card — the file it was
+   * opened from, or the last one it was saved as — with no browser and no
+   * arming: the item is named Overwrite, and the path is on it. The panel's
+   * folder and name follow, so the next Save › To Deluge starts there too.
+   * The one way to see a failure with the panel closed is to open it, so a
+   * failed write opens it in save mode on that folder with the error showing.
+   */
+  async overwrite(): Promise<void> {
+    const path = editor.cardPath
+    if (!path || !editor.preset || this.busy) return
+    if (!(await this.ensureConnected())) {
+      this.openPanel('save')
+      return
+    }
+    const cut = path.lastIndexOf('/')
+    const name = path.slice(cut + 1)
+    this.path = cut === 0 ? '/' : path.slice(0, cut)
+    this.saveName = name
+    this.armed = null
+    await this.run(`Writing ${name}`, async () => {
+      await this.write(path, name)
+      await this.list()
+    })
+    if (this.error) {
+      const failed = this.error
+      this.openPanel('save')
+      await this.refresh()
+      this.error ??= failed
+    }
+  }
+
+  /** The write itself, shared by the panel's Save and the menu's Overwrite; runs inside `run()`. */
+  private async write(path: string, name: string): Promise<void> {
+    // Locally sourced samples travel with the preset: retarget them to the
+    // saved folder path first, so the XML below carries the new references,
+    // then copy any the card is missing — samples first, preset second. The
+    // Deluge loads a preset whose samples are absent without complaining
+    // and plays it silently (`Source::loadAllSamples` ignores the per-range
+    // error, `processing/source.cpp:105`), so the preset must never be the
+    // thing that lands first. Every write is still verified by read-back;
+    // the message just doesn't dwell on it.
+    this.sampleRetarget?.(path)
+    let copied = 0
+    if (this.sampleSync) {
+      copied = await this.sampleSync((label, p) => {
+        if (label) this.busy = label
+        this.progress = p
+      })
+    }
+    this.busy = `Writing ${name}`
+    this.progress = 0
+    await this.client!.writeFile(path, new TextEncoder().encode(editor.output), (d, t) => (this.progress = d / t))
+    const written = copied ? `${name} and ${copied} sample${copied === 1 ? '' : 's'} written` : `${name} written`
+    // The read-back proves the card holds what we sent — but only as of
+    // now. With another editor on the same Deluge, its next `open` for
+    // write truncates whatever it names, so a verified save is not a
+    // durable one (issue #8).
+    this.announce(this.otherEditor ? `${written} — another editor is also on this Deluge and could overwrite it` : written)
+    // The verified card copy is the new clean baseline: the Changes dock
+    // reads 0 against the file just written, and open mode's discard
+    // guard won't arm over work that is already safe.
+    editor.source = editor.output
+    editor.fileName = name
+    editor.cardPath = path
   }
 
   private join(name: string): string {

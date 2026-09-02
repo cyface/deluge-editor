@@ -38,6 +38,14 @@ class Editor {
   /** The file as loaded, for the diff. */
   source = $state<string | null>(null)
   fileName = $state('')
+  /**
+   * Where on the Deluge's card this preset lives: the full path it was opened
+   * from or last written to, set by the card store and null for anything
+   * that came from this computer or from a template. Save › To Deluge ›
+   * Overwrite writes back here without the browser. Load clears it: a file
+   * of the same name from disk is not the card's copy.
+   */
+  cardPath = $state<string | null>(null)
   preset = $state<Preset | null>(null)
   /**
    * Firmware the controls are gated for. It gates *only* that: a save keeps
@@ -115,6 +123,7 @@ class Editor {
       this.preset = preset
       this.source = text
       this.fileName = name
+      this.cardPath = null
       this.error = null
       this.focus = []
       this.row = 0
@@ -227,6 +236,17 @@ class Editor {
   }
   clearFocus(): void {
     this.focus = []
+  }
+  /**
+   * A modulator in the flow strip was clicked: inspect it, or stop. Its
+   * cables are what there is to see, and they live in the Mod Matrix — so if
+   * a focus has that panel collapsed to a chip, the panel is pinned alongside
+   * rather than the click lighting up nothing on the page.
+   */
+  inspectSource(s: string): void {
+    const on = this.inspect !== s
+    this.inspect = on ? s : null
+    if (on && this.focus.length && !this.focus.includes('cables')) this.focus = [...this.focus, 'cables']
   }
   isExpanded = (id: string): boolean => this.focus.length === 0 || this.focus.includes(id)
 }
