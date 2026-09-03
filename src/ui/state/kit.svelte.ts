@@ -177,7 +177,7 @@ class KitBuilder {
     if (!preset) return
     const kind = isKit(preset) ? ('kit' as const) : ('synth' as const)
     const fallback = kind === 'kit' ? (samples.folder ?? 'Kit') : 'Synth'
-    const presetFileName = (editor.fileName || `${fallback}.XML`).replace(/\.xml$/i, '.XML')
+    const presetFileName = (editor.fileName || editor.suggestedFileName || `${fallback}.XML`).replace(/\.xml$/i, '.XML')
     const files: ShareSample[] = samples.files().map((fileName) => ({
       fileName,
       data: samples.bytes.get(fileName),

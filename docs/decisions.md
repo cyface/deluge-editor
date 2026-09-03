@@ -362,7 +362,12 @@ is one the firmware actually wrote. The template is a purpose-captured copy
 with its own `SOURCES.md`, not an import from `tests/fixtures/` — the UI
 bundle doesn't reach into the test tree — and the round-trip suite globs the
 templates folder so they are held to the fixtures' bar. The name starts
-empty (shown as UNNAMED) so the card panel's save flow forces a real one.
+empty (shown as UNNAMED) so the card panel's save flow forces a real one —
+except that a preset built from samples is offered the name its samples
+suggest when it comes to be saved (`guessPresetName`: the folder they share,
+else the folder most of them came from, else the stem they share, else the
+one file's stem with its note dropped). A name already on the card still
+only arms on the first click, so the offer is never an overwrite by itself.
 New Kit waits for the kit editor (#10); its template, the blank kit the
 new-kit gesture creates, is already captured alongside.
 

@@ -80,6 +80,8 @@ test('kit builder: rows from card samples via header reads, local samples pushed
   // Saving the kit retargets its local samples to the saved folder path
   // (KITS/Rumbles.XML → SAMPLES/Rumbles/) and copies them along.
   await choose(page, 'card-save-button')
+  // The kit has no name yet, so the one its samples suggest is offered.
+  await expect(page.getByTestId('card-save-name')).toHaveValue('Fixtures.XML')
   await page.getByTestId('card-panel').getByRole('button', { name: 'Up', exact: true }).click()
   await page.locator('[data-entry="KITS"]').click()
   await page.getByTestId('card-save-name').fill('Rumbles')

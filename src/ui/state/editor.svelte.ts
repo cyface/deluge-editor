@@ -11,6 +11,7 @@ import initSynthTemplate from '../../assets/templates/Default Synth.XML?raw'
 import { supports as featureSupported } from '../../core/firmware/features'
 import { parseVersion, type FirmwareVersion } from '../../core/firmware/version'
 import { drumRows, isKit, isSound, type DrumRow, type Preset, type SoundElement } from '../../core/preset'
+import { guessPresetName } from '../../core/preset/files'
 import {
   diffFlat, element, ensureAtPath, fillFromFlat, findAtPath, findElementAtPath, flattenXML, generateXML,
   groupFlatDiff, parseXML, removeAttr, removeChild, setAttr,
@@ -38,6 +39,16 @@ class Editor {
   /** The file as loaded, for the diff. */
   source = $state<string | null>(null)
   fileName = $state('')
+  /**
+   * The name to save under when the preset has none of its own: the samples'
+   * folder or shared stem, `.XML` added — a kit dropped in as a folder, or a
+   * synth built from one, is named after what it holds (`guessPresetName`).
+   * Empty when nothing suggests a name. Every save reads `fileName` first.
+   */
+  readonly suggestedFileName = $derived.by(() => {
+    const guess = this.preset ? guessPresetName(this.preset) : undefined
+    return guess ? `${guess}.XML` : ''
+  })
   /**
    * Where on the Deluge's card this preset lives: the full path it was opened
    * from or last written to, set by the card store and null for anything

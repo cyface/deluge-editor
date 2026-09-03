@@ -3,7 +3,7 @@ import kitFixture from '../../../tests/fixtures/community-c1.3.0-beta-3f898e9/Ki
 import rangesFixture from '../../../tests/fixtures/community-c1.3.0-beta-3f898e9/Sample Ranges.XML?raw'
 import synthTemplate from '../../assets/templates/Default Synth.XML?raw'
 import { generateXML, parseXML } from '../xml'
-import { referencedSampleFiles, retargetSampleFiles } from './files'
+import { guessPresetName, referencedSampleFiles, retargetSampleFiles } from './files'
 
 describe('referencedSampleFiles', () => {
   it('a subtractive synth references nothing (DX7 patches are embedded too)', () => {
@@ -53,5 +53,50 @@ describe('retargetSampleFiles', () => {
     const kit = parseXML(kitFixture)
     expect(retargetSampleFiles(kit, () => null)).toEqual([])
     expect(generateXML(kit)).toContain('SAMPLES/Fixtures/kick.wav')
+  })
+})
+
+describe('guessPresetName', () => {
+  /** A synth whose osc1 holds the given ranges, or one plain file. */
+  const synthWith = (...files: string[]) => {
+    const preset = parseXML(rangesFixture)
+    retargetSampleFiles(preset, (f) => (f.endsWith('range-low.wav') ? files[0] : (files[1] ?? files[0])))
+    return preset
+  }
+
+  it('has nothing to say about a preset with no samples', () => {
+    expect(guessPresetName(parseXML(synthTemplate))).toBeUndefined()
+  })
+
+  it('names a kit after the folder its rows share', () => {
+    expect(guessPresetName(parseXML(kitFixture))).toBe('Fixtures')
+  })
+
+  it('names a multi-sample synth after its folder, however deep', () => {
+    expect(guessPresetName(synthWith('SAMPLES/Pianos/Grand/C3.wav', 'SAMPLES/Pianos/Grand/C4.wav'))).toBe('Grand')
+  })
+
+  it('names samples from several folders after the folder most came from', () => {
+    const kit = parseXML(kitFixture)
+    retargetSampleFiles(kit, (f) => (f.includes('hat-') ? f.replace('Fixtures', 'Loops') : null))
+    expect(guessPresetName(kit)).toBe('Fixtures') // 3 of 5
+  })
+
+  it('names files straight under SAMPLES/ by the stem they share, not SAMPLES', () => {
+    expect(guessPresetName(synthWith('SAMPLES/Piano C3.wav', 'SAMPLES/Piano C4.wav'))).toBe('Piano')
+  })
+
+  it('names one sample by its own stem, the note dropped', () => {
+    expect(guessPresetName(synthWith('SAMPLES/Keys/Rhodes A#3.wav', 'SAMPLES/Keys/Rhodes A#3.wav'))).toBe('Rhodes')
+    expect(guessPresetName(synthWith('SAMPLES/Kick.wav', 'SAMPLES/Kick.wav'))).toBe('Kick')
+    expect(guessPresetName(synthWith('SAMPLES/Grab2.wav', 'SAMPLES/Grab2.wav'))).toBe('Grab2')
+  })
+
+  it('falls back to the first stem when the files share nothing', () => {
+    expect(guessPresetName(synthWith('SAMPLES/Kick C2.wav', 'SAMPLES/Snare.wav'))).toBe('Kick')
+  })
+
+  it('drops what a FAT name cannot carry', () => {
+    expect(guessPresetName(synthWith('SAMPLES/What?/a.wav', 'SAMPLES/What?/b.wav'))).toBe('What')
   })
 })

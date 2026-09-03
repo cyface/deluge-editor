@@ -119,9 +119,11 @@ class Card {
     this.armed = null
     // The name offered is the preset's name as of now, not as of the last
     // card operation: the generator names a synth with every roll, and a
-    // file opened from disk has a name of its own. An unnamed preset offers
-    // nothing, so a new synth is never one click from overwriting a file.
-    if (mode === 'save') this.saveName = editor.fileName
+    // file opened from disk has a name of its own. An unnamed preset is
+    // offered the name its samples suggest, or nothing — and a name that is
+    // already on the card only arms on the first click (`save`), so neither
+    // is one click from overwriting a file.
+    if (mode === 'save') this.saveName = editor.fileName || editor.suggestedFileName
     this.open = true
     if (this.status === 'idle') void this.connect()
   }
@@ -220,7 +222,7 @@ class Card {
       await client.ping()
       this.status = 'connected'
       this.path = editor.preset?.tag === 'kit' ? '/KITS' : '/SYNTHS'
-      this.saveName = editor.fileName || ''
+      this.saveName = editor.fileName || editor.suggestedFileName
       await this.refresh()
     } catch (e) {
       this.status = 'error'

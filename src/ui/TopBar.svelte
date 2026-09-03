@@ -23,7 +23,7 @@
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = editor.fileName || `${editor.preset?.tag === 'kit' ? 'KIT' : 'SYNTH'}.XML`
+    a.download = editor.fileName || editor.suggestedFileName || `${editor.preset?.tag === 'kit' ? 'KIT' : 'SYNTH'}.XML`
     a.click()
     URL.revokeObjectURL(url)
   }

@@ -6,8 +6,10 @@
  * (`writeAttributeHexBytes("dx7patch", …)`, `processing/sound/sound.cpp:3712`,
  * upstream/community bef6d9df), so nothing external is referenced.
  *
- * Both functions here walk the same places, so a preset's references and a
- * rewrite of them can never disagree about where a `fileName` lives.
+ * Both walkers here go to the same places, so a preset's references and a
+ * rewrite of them can never disagree about where a `fileName` lives. The name
+ * guesser reads the same list, so a preset built from samples is named after
+ * the samples it actually holds.
  */
 
 import { child } from '../xml/element'
@@ -66,4 +68,68 @@ export function retargetSampleFiles(
     }
   }
   return moved
+}
+
+/** The file's own name, without its folder or extension. */
+const stemOf = (fileName: string): string => {
+  const file = fileName.slice(fileName.lastIndexOf('/') + 1)
+  const dot = file.lastIndexOf('.')
+  return dot > 0 ? file.slice(0, dot) : file
+}
+
+/**
+ * A trailing note token — `Piano C3` → `Piano`, `Kick` untouched. The token
+ * has to be its own word, as `parseNoteName` requires, so `Grab2` keeps its
+ * 2 and a `Bass` keeps its B.
+ */
+const withoutNote = (stem: string): string => stem.replace(/[\s_-]+[A-Ga-g][#sb]?-?\d{1,2}$/, '')
+
+/** Characters FAT and the firmware refuse in a name, dropped; the ends trimmed. */
+const cleanName = (name: string): string => name.replace(/[\\/:*?"<>|]/g, '').replace(/[\s_.-]+$/, '').trim()
+
+/**
+ * A name for a preset that has none, read off the samples it references —
+ * for the kit dropped in as a folder, or the synth built from one, that is
+ * about to be saved. No samples means no guess.
+ *
+ * Several samples are named after the folder they share — `SAMPLES/808 Kit/`
+ * is what the person called the set. Samples from more than one folder take
+ * the folder most of them came from. Files straight under `SAMPLES/` (or in
+ * no folder at all) have no folder to be named after, so the stem they share
+ * stands in: `Piano C3` and `Piano C4` are a `Piano`. One sample is its own
+ * stem, note dropped. The result carries no extension.
+ */
+export function guessPresetName(preset: Preset): string | undefined {
+  const files = referencedSampleFiles(preset)
+  if (files.length === 0) return undefined
+  const stems = files.map(stemOf)
+  if (files.length === 1) return cleanName(withoutNote(stems[0])) || undefined
+
+  const dirs = files.map((f) => f.split('/').slice(0, -1))
+  const shared: string[] = []
+  for (let i = 0; i < dirs[0].length; i++) {
+    const seg = dirs[0][i]
+    if (!dirs.every((d) => d[i]?.toLowerCase() === seg.toLowerCase())) break
+    shared.push(seg)
+  }
+  const folder = shared[shared.length - 1]
+  if (folder && folder.toUpperCase() !== 'SAMPLES') return cleanName(folder) || undefined
+
+  const tally = new Map<string, number>()
+  for (const d of dirs) {
+    const parent = d[d.length - 1]
+    if (parent && parent.toUpperCase() !== 'SAMPLES') tally.set(parent, (tally.get(parent) ?? 0) + 1)
+  }
+  const most = [...tally].sort((a, b) => b[1] - a[1])[0]?.[0]
+  if (most) return cleanName(most) || undefined
+
+  // Notes first, so `Piano C3` / `Piano C4` share `Piano`, not `Piano C`.
+  const named = stems.map(withoutNote)
+  let prefix = named[0]
+  for (const stem of named) {
+    let n = 0
+    while (n < prefix.length && n < stem.length && prefix[n].toLowerCase() === stem[n].toLowerCase()) n++
+    prefix = prefix.slice(0, n)
+  }
+  return cleanName(prefix) || cleanName(named[0]) || undefined
 }
