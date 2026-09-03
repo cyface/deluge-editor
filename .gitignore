@@ -24,3 +24,7 @@ dist-ssr
 coverage
 test-results
 playwright-report
+
+# Python bytecode from the fixture-capture skill
+__pycache__/
+*.pyc
