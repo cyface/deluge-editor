@@ -116,14 +116,14 @@ class KitBuilder {
   }
 
   /**
-   * Build rows from the WAVs in the browsed on-device folder. Frame counts
+   * Build rows from the WAVs in the browsed on-device folder — this panel's
+   * own browser, or the one a row's sample dialog was looking at. Frame counts
    * come from a ranged read of each header — the samples themselves stay on
    * the card and are never transferred.
    */
-  async addCardFolder(): Promise<void> {
-    const path = this.cardPath
+  async addCardFolder(path = this.cardPath, entries = this.cardEntries): Promise<void> {
     if (!path) return
-    const wavs = this.cardEntries.filter((e) => !e.dir && isWav(e.name))
+    const wavs = entries.filter((e) => !e.dir && isWav(e.name))
     if (wavs.length === 0) {
       this.error = `no .wav files in ${path}`
       return

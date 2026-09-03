@@ -286,10 +286,32 @@
   {#if list.length}
     <div class="scroll">
       <table class="rows" data-testid="range-rows">
-        <thead><tr><th class="num">#</th><th>Keys</th><th>Root</th>{#if session}<th>Root from</th>{/if}<th>Sample</th><th>Tuning</th><th>Zone</th><th></th></tr></thead>
+        <thead><tr><th class="playcell"></th><th class="num">#</th><th>Keys</th><th>Root</th>{#if session}<th>Root from</th>{/if}<th>Sample</th><th>Tuning</th><th>Zone</th><th></th></tr></thead>
         <tbody>
           {#each list as r, i (r.el)}
             <tr class:on={i === sel} data-range={i} onclick={() => ed.select(i)}>
+              <td class="playcell">
+                {#if r.fileName}
+                  {@const f = r.fileName}
+                  <button
+                    type="button"
+                    class="mini play"
+                    class:live={audio.playing === f}
+                    data-testid="range-play"
+                    disabled={audio.loading !== null || (!audio.canPreview(f) && audio.playing !== f)}
+                    title={audio.playing === f
+                      ? 'Stop'
+                      : audio.canPreview(f)
+                        ? 'Preview this sample'
+                        : 'Sample is not on this computer — connect the Deluge to preview it'}
+                    aria-label="{audio.playing === f ? 'Stop' : 'Preview'} {base(f)}"
+                    onclick={(e) => { e.stopPropagation(); void audio.toggle(f, reversed) }}
+                  >{audio.playing === f ? '■' : '▶'}</button>
+                  {#if audio.loading === f}
+                    <span class="mono pct" data-testid="range-play-progress">{Math.round(audio.progress * 100)}%</span>
+                  {/if}
+                {/if}
+              </td>
               <td class="num">{i + 1}</td>
               <td class="mono">{r.topNote === undefined ? `above ${noteName((list[i - 1]?.topNote ?? -1) + 1)}` : `up to ${noteName(r.topNote)}`}</td>
               <td class="mono">{rootName(r.rootCents)}</td>
@@ -314,9 +336,6 @@
               <td class="mono">{tuning(r)}</td>
               <td class="mono zone">{zoneText(r)}</td>
               <td class="acts">
-                {#if r.fileName && audio.canPreview(r.fileName)}
-                  <button type="button" class="mini" title="Preview" aria-label="Preview {base(r.fileName)}" onclick={(e) => { e.stopPropagation(); void audio.toggle(r.fileName!, reversed) }}>{audio.playing === r.fileName ? '■' : '▶'}</button>
-                {/if}
                 {#if ed.editable}
                   <button type="button" class="mini" title="Remove this range" aria-label="Remove range {i + 1}" data-testid="range-remove" onclick={(e) => { e.stopPropagation(); remove(i) }}>×</button>
                 {/if}
@@ -414,6 +433,13 @@
   .miss { color: var(--warn); cursor: help; margin-right: 4px; }
   .miss.pending { color: var(--faint); }
   td.acts { text-align: right; white-space: nowrap; }
+  /* The preview sits first, as it does on the kit's rows; the fetch progress
+     of a sample read off the Deluge shows beside it while it loads. */
+  .playcell { width: 58px; white-space: nowrap; }
+  .play.live { color: var(--brass-hi); border-color: var(--brass-dim); }
+  .play:disabled { opacity: .35; cursor: default; }
+  .play:disabled:hover { color: var(--faint); border-color: transparent; }
+  .pct { display: inline-block; width: 30px; text-align: right; font-variant-numeric: tabular-nums; color: var(--faint); }
   /* Fixed width: the play glyph swaps ▶ for ■ and they measure differently,
      which nudged the whole row sideways on every click. */
   .mini {

@@ -48,7 +48,7 @@
         ? 'Browse SAMPLES/ on the Deluge (connects first if needed)'
         : 'Web MIDI needs Chrome or Edge'}
       onclick={() => kit.browseCard()}
-    >From Card…</button>
+    >From Deluge…</button>
     {#if pushCount > 0}
       <button
         type="button"
@@ -86,7 +86,7 @@
       <button type="button" class="btn" data-testid="add-card-folder" disabled={!!kit.busy || !kit.cardEntries.some((e) => !e.dir && /\.wav$/i.test(e.name))} onclick={() => kit.addCardFolder()}>
         Add the WAVs in this folder
       </button>
-      <p class="hint">Samples stay on the card — only their headers are read, for the zone lengths.</p>
+      <p class="hint">Samples stay on the Deluge.</p>
     </div>
   {/if}
 

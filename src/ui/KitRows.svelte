@@ -95,7 +95,11 @@
     const o = sampleOsc(r)
     if (!o) return
     if (sampleRanges(o).length > 1) rangeEditor.open(1)
-    else samplePick.start(o, { label: r.attrs.name || `row ${i + 1}` })
+    else
+      samplePick.start(o, {
+        label: r.attrs.name || `row ${i + 1}`,
+        onFolder: (path, entries) => kitBuilder.addCardFolder(path, entries),
+      })
   }
 
   const vol = (r: DrumRow) => (isSoundRow(r) ? (paramMenu(r, 'volume') ?? '') : '')

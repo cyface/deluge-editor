@@ -143,7 +143,7 @@ describe('the tuning the instrument would set', () => {
   })
 })
 
-describe('a path typed by hand', () => {
+describe('the caller', () => {
   beforeEach(() => {
     pick.cancel()
     samples.reset()
@@ -151,28 +151,54 @@ describe('a path typed by hand', () => {
     pick.start(osc1(), { label: 'Osc A' })
   })
 
-  it('is stored as it stands, with the zone left open — the firmware reads that as the whole file', () => {
-    pick.typed = '/SAMPLES/Drums/Clap.wav'
-    pick.useTyped()
-    expect(range().fileName).toBe('SAMPLES/Drums/Clap.wav') // no leading slash, as the firmware stores it
-    // Zero, which `SampleHolder::setAudioFile` reads as the whole file.
-    expect(range().zone?.attrs.endSamplePos).toBe('0')
-    expect(pick.open).toBe(false)
-  })
-
-  it('leaves the repeat mode alone: nothing was read to decide it from', () => {
-    const before = osc1().attrs.loopMode
-    pick.typed = 'SAMPLES/Drums/Clap.wav'
-    pick.useTyped()
-    expect(osc1().attrs.loopMode).toBe(before)
-  })
-
-  it('tells the caller which range took it, so a selection can follow', async () => {
+  it('is told which range took the sample, so a selection can follow', async () => {
     let landed = -1
     await pick.useLocalFile(file('Piano C3.wav', 1000))
     pick.start(osc1(), { label: 'Osc A', target: { mode: 'add' }, onDone: (i) => (landed = i) })
-    pick.typed = 'SAMPLES/Drums/Clap.wav'
-    pick.useTyped()
+    await pick.useLocalFile(file('Piano C5.wav', 1000))
     expect(landed).toBe(1)
+  })
+
+  it('is offered the whole folder only when it asked for it', () => {
+    expect(pick.offersFolder).toBe(false)
+    pick.start(osc1(), { label: 'U1', onFolder: () => {} })
+    expect(pick.offersFolder).toBe(true)
+  })
+})
+
+describe('the card browser', () => {
+  const entries = [
+    { name: 'Hats', dir: true },
+    { name: 'Kick.wav', dir: false },
+    { name: 'notes.txt', dir: false },
+  ]
+  beforeEach(() => {
+    // The listing as browseCard would leave it — no Deluge is reached here.
+    pick.cardPath = '/SAMPLES/Drums'
+    pick.cardEntries = entries
+  })
+
+  it('picks a WAV out for Select, and nothing else', async () => {
+    await pick.chooseCard(entries[2])
+    expect(pick.selected).toBeNull()
+    await pick.chooseCard(entries[1])
+    expect(pick.selected).toBe('Kick.wav')
+    expect(pick.open).toBe(true) // picked out, not yet taken
+  })
+
+  it('hands the folder to the caller and closes', async () => {
+    let given: [string, number] | null = null
+    pick.start(osc1(), { label: 'U1', onFolder: (path, list) => void (given = [path, list.length]) })
+    pick.cardPath = '/SAMPLES/Drums'
+    pick.cardEntries = entries
+    expect(pick.folderHasWavs).toBe(true)
+    await pick.useFolder()
+    expect(given).toEqual(['/SAMPLES/Drums', 3])
+    expect(pick.open).toBe(false)
+  })
+
+  it('offers no folder with no WAV in it', () => {
+    pick.cardEntries = [entries[0], entries[2]]
+    expect(pick.folderHasWavs).toBe(false)
   })
 })

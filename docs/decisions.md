@@ -344,9 +344,7 @@ Three things follow from the model rather than from taste:
   still shown, in the list, because a preset can carry deliberate detuning.
 - **A range given a new sample gets a fresh zone.** The old `endSamplePos`
   belongs to the old file's length. Browsing the card reads the new WAV's
-  header over SysEx for its frame count; a path typed by hand writes
-  `endSamplePos="0"`, which the firmware reads as the whole file
-  (`SampleHolder::setAudioFile`).
+  header over SysEx for its frame count.
 - **Dragging a split reports the note under the pointer and nothing more.**
   Every clamp is the instrument's, in `setRangeTopNote`, so no gesture on the
   map can ask for a file the Deluge would refuse to load.

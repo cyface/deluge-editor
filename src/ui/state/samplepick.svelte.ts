@@ -5,10 +5,11 @@
  * synth's one sample, and the range editor's add / change / split.
  *
  * The question is the same one the folder import asks — on this computer, or
- * on the Deluge — plus the path typed by hand, for a file on a card that isn't
- * plugged in. A local file's bytes are kept so the sample can be previewed now
- * and copied to the card when the preset is saved; one already on the Deluge is
- * read header-only and left where it lies.
+ * on the Deluge. A local file's bytes are kept so the sample can be previewed
+ * now and copied to the card when the preset is saved; one already on the
+ * Deluge is picked out in the card browser and confirmed with Select, then read
+ * header-only and left where it lies. A kit row's dialog also offers the whole
+ * folder, as new rows, through the caller's `onFolder`.
  *
  * Choosing is also where the instrument decides two things about the sample,
  * and both are the firmware's, not ours:
@@ -70,6 +71,12 @@ export interface PickOptions {
   target?: PickTarget
   /** Told the index the sample landed on, so a caller's selection can follow it. */
   onDone?: (index: number) => void
+  /**
+   * Offered when the whole browsed folder is an answer too — a kit row's
+   * dialog, where every WAV in it becomes a new row. Given the card path and
+   * the entries listed there; the dialog closes once it has been handed over.
+   */
+  onFolder?: (path: string, entries: { name: string; dir: boolean }[]) => Promise<void> | void
 }
 
 const isWav = (name: string): boolean => /\.wav$/i.test(name)
@@ -88,19 +95,23 @@ class SamplePick {
   /** On-device browse: current path, null when the card browser is closed. */
   cardPath = $state<string | null>(null)
   cardEntries = $state<{ name: string; dir: boolean }[]>([])
-
-  /** A path typed in, for a sample on a card that isn't plugged in. */
-  typed = $state('')
+  /** The WAV picked out in the browsed folder, waiting on Select; null when none is. */
+  selected = $state<string | null>(null)
 
   private source: OscElement | null = null
   private target: PickTarget = { mode: 'only' }
   private onDone: ((index: number) => void) | null = null
+  private onFolder: PickOptions['onFolder'] | null = null
   /** The preset the dialog was opened over; loading another closes it. */
   private opened: Preset | null = null
   /** Where the card browser was left, so the next pick starts there. */
   private lastPath = '/SAMPLES'
 
   readonly open = $derived(this.for !== null && editor.preset === this.opened)
+  /** Whether the whole folder is on offer — only a kit row's dialog asks for it. */
+  offersFolder = $state(false)
+  /** Whether the browsed folder holds any WAV to take. */
+  readonly folderHasWavs = $derived(this.cardEntries.some((e) => !e.dir && isWav(e.name)))
 
   /**
    * Ask where the sample is. The oscillator already exists: only a sample
@@ -111,12 +122,14 @@ class SamplePick {
     this.source = osc
     this.target = options.target ?? { mode: 'only' }
     this.onDone = options.onDone ?? null
+    this.onFolder = options.onFolder ?? null
+    this.offersFolder = this.onFolder !== null
     this.opened = editor.preset
     this.for = options.label
     this.error = null
-    this.typed = this.currentFileName()
     this.cardPath = null
     this.cardEntries = []
+    this.selected = null
     // Already talking to a Deluge: show the card straight away rather than
     // making the choice twice.
     if (card.connected) void this.browseCard(this.lastPath)
@@ -126,9 +139,11 @@ class SamplePick {
     this.for = null
     this.source = null
     this.onDone = null
-    this.typed = ''
+    this.onFolder = null
+    this.offersFolder = false
     this.cardPath = null
     this.cardEntries = []
+    this.selected = null
   }
 
   /**
@@ -176,6 +191,7 @@ class SamplePick {
       this.cardPath = path
       this.lastPath = path
       this.cardEntries = entries.map((e) => ({ name: e.name, dir: isDirectory(e) }))
+      this.selected = null
     })
   }
 
@@ -184,38 +200,40 @@ class SamplePick {
     void this.browseCard(this.cardPath.slice(0, this.cardPath.lastIndexOf('/')) || '/SAMPLES')
   }
 
-  /** A click in the card browser: enter a folder, or take the file. */
+  /** A click in the card browser: enter a folder, or pick a file out for Select. */
   async chooseCard(entry: { name: string; dir: boolean }): Promise<void> {
     const path = this.cardPath
     if (!path) return
-    const full = `${path === '/' ? '' : path}/${entry.name}`
     if (entry.dir) {
-      await this.browseCard(full)
+      await this.browseCard(`${path === '/' ? '' : path}/${entry.name}`)
       return
     }
-    // Header only: the audio stays on the card, read over ranged reads.
-    await this.run(`Reading ${entry.name}`, async () => {
+    if (isWav(entry.name)) this.selected = entry.name
+  }
+
+  /** Select: take the picked-out file. Header only — the audio stays on the card. */
+  async useSelected(): Promise<void> {
+    const path = this.cardPath
+    const name = this.selected
+    if (!path || !name) return
+    const full = `${path === '/' ? '' : path}/${name}`
+    await this.run(`Reading ${name}`, async () => {
       this.assign(full, await card.wavInfo(full, { tags: true }))
     })
   }
 
   /**
-   * Take a typed path as it stands. Nothing is known about the file — it may
-   * not be on this card at all — so the zone is left open-ended, which the
-   * firmware reads as the whole file, and the repeat mode is left alone.
+   * All samples in this folder: hand the browsed folder to the caller, which
+   * turns its WAVs into new kit rows, and close — the rows are the answer,
+   * not one file for the source this was opened for.
    */
-  useTyped(): void {
-    const path = this.typed.trim()
-    if (path) this.assign(path, undefined)
-  }
-
-  /** The file the target range holds now, as the typed field's starting value. */
-  private currentFileName(): string {
-    const osc = this.source
-    if (!osc) return ''
-    const list = soundingOrder(sampleRanges(osc))
-    const at = this.target.mode === 'set' ? this.target.index : this.target.mode === 'only' ? 0 : -1
-    return (at >= 0 ? list[at]?.fileName : '') ?? ''
+  async useFolder(): Promise<void> {
+    const path = this.cardPath
+    const onFolder = this.onFolder
+    if (!path || !onFolder || !this.folderHasWavs) return
+    const entries = this.cardEntries
+    this.cancel()
+    await onFolder(path, entries)
   }
 
   /**

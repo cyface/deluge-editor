@@ -86,11 +86,14 @@ test('read, move, remove and split a multi-sample oscillator (issue #29)', async
   await page.getByTestId('changes-button').click()
 
   // Splitting it puts a new sample below, dividing the keyboard at the midpoint.
-  // The file is chosen in the shared dialog — here by the path it will store,
-  // which is the way in with no Deluge plugged in.
+  // The file is chosen in the shared dialog — here from this computer, which
+  // is the way in with no Deluge plugged in.
   await editor.getByTestId('range-split-below').click()
-  await page.getByTestId('sample-path-input').fill('SAMPLES/Fixtures/range-low.wav')
-  await page.getByTestId('sample-path-use').click()
+  await page.getByTestId('sample-file-input').setInputFiles({
+    name: 'range-low.wav',
+    mimeType: 'audio/wav',
+    buffer: Buffer.from(asciiWav(40), 'latin1'),
+  })
   const after = editor.locator('[data-range]')
   await expect(after).toHaveCount(2)
   await expect(after.nth(0)).toContainText('up to D#3') // note 63, the midpoint of 0..127
@@ -157,7 +160,10 @@ test('assign a range a sample browsed on the card, zone and all', async ({ page 
   const picker = page.getByTestId('sample-picker')
   await expect(picker.getByTestId('sample-card-browser')).toContainText('/SAMPLES')
   await picker.locator('.entry', { hasText: 'Fixtures' }).click()
+  // A file is picked out first and taken with Select.
+  await expect(picker.getByTestId('sample-select')).toBeDisabled()
   await picker.locator('.entry', { hasText: 'kick.wav' }).click()
+  await picker.getByTestId('sample-select').click()
 
   // The new sample's own length becomes the zone: 32 frames, read from the
   // header over SysEx. The old file's end would have overrun it.

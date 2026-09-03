@@ -151,7 +151,7 @@ class Card {
 
   /**
    * Connect for a gesture that needs the card but didn't come from the top
-   * bar — the sample browsers' "From Card…", which would otherwise sit
+   * bar — the sample browsers' "From Deluge…", which would otherwise sit
    * disabled until the user knew to open the preset panel first. Returns
    * whether the card is usable; the reason it isn't is in `error`. Two
    * panels asking at once share the one attempt.
