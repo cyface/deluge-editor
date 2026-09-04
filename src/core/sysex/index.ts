@@ -15,7 +15,11 @@ export {
   type SysexReply,
 } from './frame'
 export {
+  DEFAULT_TIMEOUTS,
   isDirectory,
+  NO_REPLY,
+  SHORT_READ,
+  SHORT_WRITE,
   SmsClient,
   SysexError,
   type DirEntry,

@@ -12,15 +12,18 @@
  * it (Chrome 111+, files only) and fall back to copy-then-remove — which is
  * also what a folder move is, since no browser moves a directory handle.
  * Like `f_rename`, a rename refuses a name already in use, except the
- * entry's own name in other capitalisation.
+ * entry's own name in other capitalisation. Failures are `CardError`s with
+ * the same codes the SysEx backend reports, so the library treats a card
+ * in a reader exactly as it treats one in the Deluge.
  *
  * Lives beside `dropdir.ts` rather than in `src/core/`: it is bound to a
- * browser API that happy-dom does not provide, so it is exercised end to
- * end against Chrome's origin-private file system (`tests/e2e/`) instead of
- * in Node.
+ * browser API that happy-dom does not provide. The handle surface is
+ * structural, so `localcard.test.ts` runs it over an in-memory tree; the
+ * browser's own implementation is exercised end to end against Chrome's
+ * origin-private file system (`tests/e2e/`).
  */
 
-import type { CardEntry, CardFS, CardProgress, RangedFile } from '../core/library'
+import { CardError, type CardEntry, type CardFS, type CardProgress, type RangedFile } from '../core/library'
 
 /** The handle surface used here; lib.dom lags the spec on `entries()` and `move()`. */
 interface FileHandle {
@@ -49,7 +52,8 @@ export const canMountCard = (): boolean =>
 
 const segments = (path: string): string[] => path.split('/').filter(Boolean)
 
-const notFound = (path: string): Error => new Error(`${path}: no such file or folder on the card`)
+const notFound = (path: string): CardError => new CardError('notFound', `${path}: no such file or folder on the card`)
+const notAFile = (path: string): CardError => new CardError('notAFile', `${path} is a folder`)
 
 /** A directory's child by name, exact first, then case-insensitively; null when absent. */
 async function childOf(dir: DirHandle, name: string): Promise<FileHandle | DirHandle | null> {
@@ -92,20 +96,33 @@ const split = (path: string): { dir: string; name: string } => {
   return { dir: `/${parts.slice(0, -1).join('/')}`, name: parts[parts.length - 1] ?? '' }
 }
 
-async function writeWhole(dir: DirHandle, name: string, data: Uint8Array): Promise<void> {
+/**
+ * Create or truncate, write, then read the file back and compare — the same
+ * bar the SysEx client holds a save to (`SmsClient.writeFile`, 'full'): a
+ * reader that lies about a write, or a card that drops bytes, must not be
+ * reported as "N files updated".
+ */
+async function writeWhole(dir: DirHandle, name: string, data: Uint8Array, path: string): Promise<void> {
   const fh = await dir.getFileHandle(name, { create: true })
   const w = await fh.createWritable()
   await w.write(data)
   await w.close()
+  const back = new Uint8Array(await (await fh.getFile()).arrayBuffer())
+  if (back.length !== data.length) {
+    throw new CardError('verify', `verify ${path}: wrote ${data.length} bytes but read back ${back.length} — the card copy is bad`)
+  }
+  for (let i = 0; i < data.length; i++) {
+    if (back[i] !== data[i]) throw new CardError('verify', `verify ${path}: card copy differs from what was sent, first at byte ${i}`)
+  }
 }
 
-async function copyTree(from: FileHandle | DirHandle, intoDir: DirHandle, name: string): Promise<void> {
+async function copyTree(from: FileHandle | DirHandle, intoDir: DirHandle, name: string, path: string): Promise<void> {
   if (from.kind === 'file') {
-    await writeWhole(intoDir, name, new Uint8Array(await (await from.getFile()).arrayBuffer()))
+    await writeWhole(intoDir, name, new Uint8Array(await (await from.getFile()).arrayBuffer()), path)
     return
   }
   const target = await intoDir.getDirectoryHandle(name, { create: true })
-  for await (const [n, h] of from.entries()) await copyTree(h, target, n)
+  for await (const [n, h] of from.entries()) await copyTree(h, target, n, `${path}/${n}`)
 }
 
 /**
@@ -148,7 +165,7 @@ export function localFS(root: DirHandle): CardFS {
     },
     async read(path, onProgress?: CardProgress) {
       const h = await entryAt(root, path)
-      if (h.kind !== 'file') throw new Error(`${path} is a folder`)
+      if (h.kind !== 'file') throw notAFile(path)
       const f = await h.getFile()
       const bytes = new Uint8Array(await f.arrayBuffer())
       onProgress?.(bytes.length, bytes.length)
@@ -156,7 +173,7 @@ export function localFS(root: DirHandle): CardFS {
     },
     async reader(path): Promise<RangedFile> {
       const h = await entryAt(root, path)
-      if (h.kind !== 'file') throw new Error(`${path} is a folder`)
+      if (h.kind !== 'file') throw notAFile(path)
       const f = await h.getFile()
       return {
         size: f.size,
@@ -166,7 +183,7 @@ export function localFS(root: DirHandle): CardFS {
     },
     async write(path, data, onProgress?: CardProgress) {
       const { dir, name } = split(path)
-      await writeWhole(await dirAt(root, dir), name, data)
+      await writeWhole(await dirAt(root, dir), name, data, path)
       onProgress?.(data.length, data.length)
     },
     async rename(from, to) {
@@ -174,7 +191,7 @@ export function localFS(root: DirHandle): CardFS {
       const { dir: toDir, name: toName } = split(to)
       const dest = await dirAt(root, toDir)
       const taken = await childOf(dest, toName)
-      if (taken && !(await taken.isSameEntry(src))) throw new Error(`${to} already exists (FR_EXIST)`)
+      if (taken && !(await taken.isSameEntry(src))) throw new CardError('exists', `${to} already exists`)
       if (src.kind === 'file' && typeof src.move === 'function') {
         await src.move(dest, toName)
         return
@@ -184,15 +201,15 @@ export function localFS(root: DirHandle): CardFS {
       if (taken) {
         // Only the case differs: go through a temporary name so the copy never lands on itself.
         const via = `${fromName}.renaming`
-        await copyTree(src, dest, via)
+        await copyTree(src, dest, via, `${toDir}/${via}`)
         await (await dirAt(root, fromDir)).removeEntry(fromName, { recursive: true })
         const tmp = await childOf(dest, via)
         if (!tmp) throw notFound(`${toDir}/${via}`)
-        await copyTree(tmp, dest, toName)
+        await copyTree(tmp, dest, toName, to)
         await dest.removeEntry(via, { recursive: true })
         return
       }
-      await copyTree(src, dest, toName)
+      await copyTree(src, dest, toName, to)
       await (await dirAt(root, fromDir)).removeEntry(fromName, { recursive: true })
     },
     async remove(path) {

@@ -25,8 +25,15 @@ export interface FakeOptions {
   dropSession?: boolean
   /** Next write commits only this many bytes, err 0 — once. */
   shortWriteOnce?: number
+  /**
+   * Every write commits at most this many bytes, err 0 — the macOS 752-byte
+   * cliff, where the host drops a byte from each frame and no rewrite helps.
+   */
+  shortWriteAlways?: number
   /** Every `open` fails with this FRESULT. */
   failOpen?: number
+  /** Every `dir` fails with this FRESULT (a listing that dies, as opposed to a folder that isn't there). */
+  failDir?: number
   /** Corrupt the first byte of every file after it is written (verify must catch it). */
   corruptWrites?: boolean
   /**
@@ -296,7 +303,9 @@ export class FakeDeluge {
       return
     }
     let commit = data
-    if (this.opts.shortWriteOnce !== undefined) {
+    if (this.opts.shortWriteAlways !== undefined) {
+      commit = data.subarray(0, Math.min(this.opts.shortWriteAlways, data.length))
+    } else if (this.opts.shortWriteOnce !== undefined) {
       commit = data.subarray(0, this.opts.shortWriteOnce)
       this.opts.shortWriteOnce = undefined
     }
@@ -315,6 +324,10 @@ export class FakeDeluge {
     const path = (cmd.path as string).replace(/\/$/, '') || '/'
     const offset = (cmd.offset as number) ?? 0
     const lines = Math.min((cmd.lines as number) ?? 20, 25) // MAX_DIR_LINES
+    if (this.opts.failDir) {
+      this.answerRaw(msgId, `{"^dir": {\n"list": [],\n"err": ${this.opts.failDir}}}`)
+      return
+    }
     if (!this.dirs.has(path)) {
       this.answerRaw(msgId, `{"^dir": {\n"list": [],\n"err": 5}}`)
       return

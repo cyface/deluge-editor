@@ -3,8 +3,8 @@ import kitFixture from '../../../tests/fixtures/community-c1.3.0-beta-3f898e9/Ki
 import rangesFixture from '../../../tests/fixtures/community-c1.3.0-beta-3f898e9/Sample Ranges.XML?raw'
 import synthTemplate from '../../assets/templates/Default Synth.XML?raw'
 import { FakeDeluge } from '../sysex/fake-deluge'
-import { SmsClient } from '../sysex/client'
-import { decodeXml, type CardFS } from './fs'
+import { SmsClient, SysexError } from '../sysex/client'
+import { CardError, decodeXml, isNotFound, type CardFS } from './fs'
 import { applyMove, applyMoveToIndex, deleteProblem, deleteTree, planMove, type MovePlan } from './move'
 import { referencedPaths } from './refs'
 import { scanReferences, type ScanProgress } from './scan'
@@ -58,6 +58,57 @@ describe('scanReferences', () => {
     fake.files.delete('/SONGS/Notes.txt')
     fake.dirs.delete('/SONGS')
     expect((await scanReferences(fs)).size).toBe(3)
+  })
+
+  it('a listing that fails for any other reason rejects the scan rather than indexing an empty root', async () => {
+    // FR_DISK_ERR on every `dir`: an index built anyway would say every
+    // sample is used by 0 files, and deleteProblem would let a delete through.
+    let client: SmsClient
+    const fake = new FakeDeluge((bytes) => client!.receive(bytes), { failDir: 1 })
+    client = new SmsClient((bytes) => fake.receive(bytes), { timeouts: [20, 20, 50, 100] })
+    fake.putFile('/KITS/Fixtures Kit.XML', kitFixture)
+    const err = await scanReferences(smsFS(client)).catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(CardError)
+    expect((err as CardError).code).toBe('io')
+    expect((err as CardError).message).toContain('FR_DISK_ERR')
+    expect(isNotFound(err)).toBe(false)
+  })
+
+  it('a listing that times out rejects too', async () => {
+    let client: SmsClient
+    const fake = new FakeDeluge((bytes) => client!.receive(bytes), { dropRequests: 99 })
+    client = new SmsClient((bytes) => fake.receive(bytes), { timeouts: [10, 10] })
+    fake.putFile('/KITS/Fixtures Kit.XML', kitFixture)
+    const err = await scanReferences(smsFS(client)).catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(CardError)
+    expect((err as CardError).code).toBe('io')
+  })
+})
+
+describe('smsFS errors', () => {
+  it('turns FatFS codes into CardError codes, keeping the SysexError as the cause', async () => {
+    const { fs } = rig()
+    const missing = await fs.list('/NOPE').catch((e: unknown) => e)
+    expect(missing).toBeInstanceOf(CardError)
+    expect((missing as CardError).code).toBe('notFound')
+    expect(isNotFound(missing)).toBe(true)
+    expect((missing as CardError).cause).toBeInstanceOf(SysexError)
+
+    const taken = await fs.rename('/SAMPLES/Fixtures/kick.wav', '/SAMPLES/Fixtures/snare.wav').catch((e: unknown) => e)
+    expect(taken).toBeInstanceOf(CardError)
+    expect((taken as CardError).code).toBe('exists')
+    expect(isNotFound(taken)).toBe(false)
+  })
+
+  it('a write whose read-back differs is a verify error', async () => {
+    let client: SmsClient
+    const fake = new FakeDeluge((bytes) => client!.receive(bytes), { corruptWrites: true })
+    client = new SmsClient((bytes) => fake.receive(bytes), { timeouts: [20, 20, 50, 100] })
+    const err = await smsFS(client)
+      .write('/SYNTHS/New.XML', new TextEncoder().encode(synthTemplate))
+      .catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(CardError)
+    expect((err as CardError).code).toBe('verify')
   })
 })
 

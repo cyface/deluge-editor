@@ -5,7 +5,7 @@
  * Deluge-authored) — with only the row name, the sample file, its zone, and
  * the loop mode set. The zone end is the WAV's exact frame count
  * (`src/core/samples/wav.ts`); loop mode 1 is ONCE
- * (`SampleRepeatMode::ONCE`, `src/definitions_cxx.hpp:495`, upstream/community
+ * (`SampleRepeatMode::ONCE`, `src/definitions_cxx.hpp:519`, upstream/community
  * bef6d9df), the mode every factory drum row uses.
  */
 

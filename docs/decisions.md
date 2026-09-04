@@ -40,6 +40,16 @@ Node on every commit instead of by hand against an SD card.
 requires zero missing, added, or changed entries, then a byte-identical second
 save. Name-only comparison has passed while values were being corrupted.
 
+The flattener (`src/core/xml/flatten.ts`) walks the DOM itself rather than
+reusing `parse.ts`: a parser bug applied to both sides of the comparison would
+cancel out, and the test exists to catch exactly that.
+
+The changes dock shows the same diff **grouped**: an element that is wholly
+new or wholly gone (a kit row built from a sample, a cable) is one entry, not
+one per attribute, and the count on the button counts it that way — a built
+kit reads "17 changes", not 2340. Each attribute is still listed, and still
+revertible, inside the group.
+
 ## State is the file's strings, in the file's order
 
 `parseXML` returns an ordered element tree (`src/core/xml/element.ts`) whose
@@ -56,7 +66,7 @@ representation that *is* the document, plus types over it, can't lose a value
 the UI never touched. Attribute and element order are the document's order;
 a new attribute assigned in the UI lands at the end, and where the firmware's
 order matters the UI is expected to place it (the writer order is recorded in
-`src/core/preset/params.ts` and the `types.ts` field order).
+`src/core/preset/order.ts`).
 
 Consequences:
 - Every attribute in the typed shapes is optional. The firmware omits many at
@@ -196,8 +206,8 @@ firmware selector locks to its version — a static pill, no dropdown, because
 the device is the ground truth and overriding it would only mislead. The lock
 **sticks**: after disconnect the dropdown returns with the last-connected
 version still selected, and loading a file no longer resets it from its
-attribute (the "saved by firmware …" label still shows provenance). The Connect
-button becomes "Device" with a green dot while connected.
+attribute (the "saved by firmware …" label still shows provenance). The pill
+carries a green dot while connected (see "The bar's commands are menus").
 
 Two firmware facts make this sound: the identity reply carries
 `FIRMWARE_VERSION_MAJOR/MINOR/PATCH` (`src/deluge/io/midi/midi_engine.cpp:784`),
@@ -265,8 +275,9 @@ comparisons in the reader before assuming the pass-through is still free.
 
 The kit builder (issue #10) never authors a sound. Every row it adds is a
 deep clone of the one row in `src/assets/templates/Default Kit.XML` — the row
-the firmware itself creates for the new-kit gesture — with exactly four
-things set: the row name, `osc1`'s `fileName`, the zone, and the loop mode.
+the firmware itself creates for the new-kit gesture — with exactly five
+things set: the row name, `osc1`'s `type` (sample, which the template already
+says), its `fileName`, the zone, and the loop mode.
 The zone end is the WAV's exact frame count, data-chunk bytes over block
 align, which is the same arithmetic the firmware runs on load
 (`Sample::finalizeAfterLoad`, `model/sample/sample.cpp:1715-1729`,
@@ -309,8 +320,9 @@ Two consequences worth naming:
   reader inserts them sorted whatever order the file listed them in, so
   document order carries no information — but leaving a file out of order
   would make it differ from the one the instrument writes. A well-formed
-  preset is untouched: on the 769 presets of a real card backup, normalising
-  changes only 11, all written by some other tool, all of them carrying a
+  preset is untouched: surveyed on 2026-08-31, of the 769 presets on a real
+  card backup normalising changed only 11, all written by some other tool, all
+  of them carrying a
   redundant `rangeTopNote` on the topmost range that the instrument itself
   drops when it re-saves.
 - **Velocity-keyed ranges are passed through, not edited.** Stock firmware
@@ -352,8 +364,11 @@ Three things follow from the model rather than from taste:
 ## New starts from a Deluge-authored template, not a built preset
 
 There is no code that "builds" a default preset. The New Synth button loads
-`src/assets/templates/Default Synth.XML` — the firmware's own init synth,
-captured with the `deluge-fixtures` skill from the same beta that wrote the
+`src/assets/templates/Default Synth.XML` — the blank synth the new-synth
+gesture creates, saved by real c1.3.0 hardware (the emulator's version of the
+same file is not what a Deluge writes; `src/assets/templates/SOURCES.md` has
+the story), held to the same round-trip bar as the fixtures that came from the
+`deluge-fixtures` skill and the same beta that wrote the
 fixtures — exactly as if the user had opened the file. That keeps the
 project's rule intact (presets are Deluge-authored, never hand-written): the
 round-trip baseline is the template itself, the changes dock and the
@@ -368,8 +383,9 @@ suggest when it comes to be saved (`guessPresetName`: the folder they share,
 else the folder most of them came from, else the stem they share, else the
 one file's stem with its note dropped). A name already on the card still
 only arms on the first click, so the offer is never an overwrite by itself.
-New Kit waits for the kit editor (#10); its template, the blank kit the
-new-kit gesture creates, is already captured alongside.
+New Kit loads `Default Kit.XML` the same way: the blank kit the new-kit
+gesture creates, captured alongside. The kit builder (#10) builds its rows on
+that template (`src/core/kit/build.ts`).
 
 ## A multi-sample import that reads names and asks, instead of guessing
 
@@ -390,9 +406,10 @@ root, and the folder offset stays visible and adjustable, because Salamander
 names middle C as C4 and would otherwise land a whole piano an octave out.
 Rows nothing places are **flagged, never dropped**, which is the firmware's
 worst behaviour here, and every row says where its answer came from. Measured
-against the card backup, the cascade puts 728 of 832 ranges on the root the
-device stored (`tests/corpus-roots.test.ts`, which skips when the backup isn't
-there); the shortfall is folders with neither a tag nor a note name, and the
+against the card backup (a 2026-08 survey), the cascade put 728 of 832
+ranges on the root the device stored; `tests/corpus-roots.test.ts` holds the
+line at more than 800 ranges and 85 % placed, and skips when the backup isn't
+there. The shortfall is folders with neither a tag nor a note name, and the
 test pins them by name.
 
 **One panel, no Build button.** The import had both at first — a review table
@@ -428,9 +445,10 @@ the zone end, `sample_holder_for_voice.cpp:170-203`), and the repeat mode a
 set implies. The review table shows the same `fitSamples` result the writer
 consumes, so what the user is shown and what the oscillator gets cannot drift
 apart. Boundaries are computed **only** at import — across the same 36 presets
-the midpoint rule holds for 716 of 783 adjacent pairs, and every clear miss is
-a preset a human touched, so a boundary that isn't the midpoint is a decision,
-not a defect.
+the midpoint rule held for 716 of 783 adjacent pairs in the same survey (the
+test asserts more than 90 % exact and 95 % within a semitone), and every clear
+miss is a preset a human touched, so a boundary that isn't the midpoint is a
+decision, not a defect.
 
 **Re-detecting the roots of a preset that already has them.** The same reading
 runs the other way round, on ranges that are already on an oscillator: read
@@ -475,8 +493,9 @@ the page shows only the parameters MIDI Follow can reach — the firmware's own
 default CC map, in the same blocks and the same knobs as the full editor. The
 subset is the honesty: what is on screen is exactly what the instrument can
 move, and a control follow cannot address is absent rather than inert. The
-header says in words whose file the edits are landing in, and nothing is
-committed until you save, as everywhere else here.
+help sheet says in words whose file the edits are landing in (it moved out of
+the header; see "Follow Mode's header is controls"), and nothing is committed
+until you save, as everywhere else here.
 
 **Sending is on, and aimed rather than switched off.** Listening is
 broadcast-safe — any number of tabs can mirror at once and the instrument's
@@ -668,12 +687,18 @@ set the firmware never reads the rate parameter — `getGlobalLFOPhaseIncrement`
 and `getLocalLFOPhaseIncrement` return the tempo-derived increment instead —
 and it refuses cables to it (`Sound::maySourcePatchToParam`,
 `GLOBAL_LFO_FREQ_1` → DISALLOWED), so the right-click cable menu goes too.
-This is the one place the editor greys a control rather than removing it, and
-the exception is deliberate: the value is still in the file and still
+This is one of two places the editor greys a control rather than removing
+it, and the exception is deliberate: the value is still in the file and still
 round-trips, and the difference between "there is no such control" and "this
 control is not being read right now" is exactly what the user needs to know.
 Removing it would leave the sync setting looking like it had eaten the rate.
 A knob that turns and changes nothing is the worst of the three.
+
+The other is the Randomiser panel's **Arp Only** row (bass, chord, glide
+probabilities), dimmed with the note "arp is off" while the arpeggiator is
+off. Same reasoning, one difference: these knobs stay live, because the
+natural order of work is to set the odds and then switch the arp on, and the
+row says in words why nothing is audible yet.
 
 **Pulse width is drawn because its name misleads.** On the Deluge it is not a
 square-wave control and, for the shapes that are not squares, not a duty cycle:
@@ -723,7 +748,7 @@ line that the CCs change nothing while the slot is off.
 The mode used to explain itself in a paragraph wedged under its own controls.
 On a wide screen that was one long line nobody read; on a narrow one it pushed
 the controls down. The text was not wrong, it was in the way. It now lives
-behind **MIDI Follow Help** at a size worth reading, and the header carries
+behind the header's **Help** button at a size worth reading, and the header carries
 only what you operate: the listening channel, Send and its channel beside it,
 the kit target, and the last CC heard. The applied and sent counters went with
 the paragraph — they were a comfort readout, not information anyone acts on.
@@ -893,17 +918,28 @@ seeds at four intensities against both firmware lineages).
 
 The editor's Randomize and the firmware's own **Randomiser** panel are
 different things — the latter is the arpeggiator's per-note probability and
-spread menu — and they never share wording or colour.
+spread menu — and they never share wording or colour. That panel and the gold
+knob assignments are also the two blocks a roll never touches
+(`RANDOM_SECTIONS`, `src/core/random/patch.ts`): neither is a sound, and a
+preset whose gold knobs move every roll is a preset you can't play.
+
+Every roll also names the preset (`src/core/random/names.ts`). A generator
+that leaves everything called UNNAMED makes a folder of rolls unusable, and
+the Deluge shows the file name and nothing else. The name is read back from
+the rolled sound through the same accessors the panels use, so "FM BELL" is
+an FM patch and "SAW SWELL" really has a slow attack.
 
 ## The bar's commands are menus; its modes are buttons
 
 The top bar had grown a button per feature — ten of them by issue #37, and
 the file name, the one thing on the bar that is *about* the preset, had no
 room left. They are folded into three dropdowns by verb: **New** (Synth, Kit,
-Randomize), **Open** (from this computer, from the Deluge), **Save**
-(download XML, download Zip when the preset references samples, to the
-Deluge). A desktop-style File menu row would have said the same thing at the
-cost of a second row of chrome.
+Randomize), **Open** (from this computer, from the Deluge, and the two sample
+library entries — on the Deluge, or on a card in a reader), **Save** (download
+XML, download Zip when the preset references samples, to the Deluge, and
+To Deluge – Overwrite once the preset has a card path). A desktop-style File
+menu row would have said the same thing at the cost of a second row of
+chrome.
 
 Two things stay out as buttons on purpose. **Follow Mode** and **Changes**
 are modes, not commands: one pulses while it is listening, the other carries
@@ -1008,3 +1044,57 @@ ops (c23730b9 #3775, 2025-06-03) are not used: `f_rename` already moves
 across folders on one card, and a c1.3.0 nightly from before June 2025
 lacks the newer ops while carrying the same version string.
 
+
+## Bulk SysEx runs two requests deep, and only when the firmware says so
+
+A card transfer is hundreds of small requests, each waiting a USB round trip.
+Overlapping them is the obvious speed-up and it is *unsafe* on shipped
+firmware: the Deluge's USB send ring (`ConnectedUSBMIDIDevice::bufferMessage`)
+silently dropped single events on overflow, so an overlapped reply came back
+complete, well-framed and wrong — measured on hardware, cyface/DelugeFirmware#43.
+Fixed firmware reserves ring space for the whole reply and drops the whole
+message instead, which the retry ladder sees as a timeout, and it advertises
+its safe in-flight count as `pipe` in the `^session` grant.
+
+So `src/core/sysex/client.ts` pipelines at `min(pipe, 2)` and a grant with no
+`pipe` field — every unfixed firmware — stays strictly serial. `MAX_PIPELINE`
+is 2, not the firmware's number, because two is where the measured gain
+(30–36 %) flattens and the msgId space is only seven wide per session. It
+looks like a bug — the client ignores most of what the firmware offers — and
+is the opposite: the cap is the part that was verified.
+
+## Every section at once, dealt into measured columns
+
+The overview is not CSS multicolumn. Panels are rendered, measured, and dealt
+into contiguous balanced stacks (`src/ui/masonry.ts`), so the column count
+tracks the window continuously instead of snapping at multicolumn's 262 px
+floor, and there are never more columns than panels, so none sits empty. The
+same measure drives Follow Mode's page.
+
+## A modulation source is picked on the knob, not in a matrix
+
+Right-click (long-press on touch) on any patchable control opens the source
+picker (`src/ui/CablePicker.svelte`, issue #13). The cable is created at
+amount zero and the Cables panel lands on it — or, when that source →
+destination pair already exists, the existing row is revealed rather than
+duplicated, because the firmware's matrix holds one entry per pair. A knob
+the firmware is not reading (a synced LFO's rate) has no picker either, since
+`Sound::maySourcePatchToParam` refuses the cable.
+
+## Gold knobs are a panel of summaries
+
+The sixteen encoder assignments — eight mod-button pages, two knobs each,
+bottom knob first in the file — are rarely edited, so each slot is one line
+that expands in place to its selects (issues #23, #27). A slot the file does
+not carry shows the firmware's stock assignment as its default, and the first
+edit writes the full 16-entry array the way the firmware would
+(`ensureModKnobs`). The volume family is canonicalised the way the firmware
+re-saves it after `ensureKnobReferencesCorrectVolume` (sound.cpp:1317).
+
+## A `._` file is named, not parsed
+
+Finder drops an AppleDouble sidecar (`._NAME.XML`) beside every file it
+touches on a FAT card. It matches the file picker's filter and drag-and-drop
+bypasses the filter entirely, but it is binary. Loading one says what it is
+and which file to open instead, rather than surfacing the XML parser's
+confusion (issue #24). The card browsers hide dotfiles for the same reason.

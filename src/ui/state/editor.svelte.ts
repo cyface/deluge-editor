@@ -152,8 +152,8 @@ class Editor {
 
   /**
    * Start a preset from nothing (issue #25). The template is the firmware's
-   * own init synth — the bytes community 1.3.0 saved for the synth it builds
-   * when the card has none (see `src/assets/templates/SOURCES.md`) — loaded
+   * own blank synth — the bytes real c1.3.0 hardware saved for the synth the
+   * new-synth gesture builds (see `src/assets/templates/SOURCES.md`) — loaded
    * exactly as if the user had opened that file, so the round-trip baseline
    * and the changes dock work from the first click. The empty name keeps the
    * card panel's save flow from offering a name to overwrite.

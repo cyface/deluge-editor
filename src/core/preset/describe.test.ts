@@ -79,6 +79,15 @@ describe('describeChangeValue', () => {
     expect(describeChangeValue('sound/patchCables/patchCable[1]@destination', 'lpfFrequency')).toBe('LPF Freq')
   })
 
+  it('shows the arp on/off as the "Arp enabled" toggle does, old and new files alike', () => {
+    // `arpModeToString` writes off/arp; the menu (arpeggiator/mode.h) shows Off/On.
+    expect(describeChangeValue('sound/arpeggiator@arpMode', 'arp')).toBe('On')
+    expect(describeChangeValue('sound/arpeggiator@arpMode', 'off')).toBe('Off')
+    // `@mode` holds the same pair since community 1.1, the directions before it.
+    expect(describeChangeValue('sound/arpeggiator@mode', 'arp')).toBe('On')
+    expect(describeChangeValue('sound/arpeggiator@mode', 'both')).toBe('Up & Down')
+  })
+
   it('leaves anything unrecognised verbatim', () => {
     expect(describeChangeValue('sound@name', 'DREAM')).toBe('DREAM')
     expect(describeChangeValue('sound/osc1@retrigPhase', '-1')).toBe('-1')

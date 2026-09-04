@@ -11,7 +11,7 @@
  * only changes a path would slip past it, which is what "Rescan all" is for.
  */
 
-import { decodeXml, joinPath, type CardFS } from './fs'
+import { decodeXml, isNotFound, joinPath, type CardFS } from './fs'
 import { referencedPaths } from './refs'
 import { PRESET_ROOTS, type IndexedFile, type ReferenceIndex } from './usages'
 
@@ -26,7 +26,12 @@ export interface ScanProgress {
 
 const isXml = (name: string): boolean => /\.xml$/i.test(name)
 
-/** Every XML file under `root`, with its listing entry; a missing root is empty. */
+/**
+ * Every XML file under `root`, with its listing entry. A root the card does
+ * not have is empty; any other failure — a timeout, a disk error — is
+ * rethrown, because an index built without a root would vouch for deletes
+ * (`deleteProblem` counts usages) it knows nothing about.
+ */
 async function walk(fs: CardFS, root: string, onFolder: (path: string) => void): Promise<Omit<IndexedFile, 'refs'>[]> {
   const out: Omit<IndexedFile, 'refs'>[] = []
   const pending = [root]
@@ -36,9 +41,9 @@ async function walk(fs: CardFS, root: string, onFolder: (path: string) => void):
     let entries
     try {
       entries = await fs.list(dir)
-    } catch {
-      if (dir === root) return [] // a card without this root has nothing under it
-      throw new Error(`could not list ${dir}`)
+    } catch (e) {
+      if (dir === root && isNotFound(e)) return [] // a card without this root has nothing under it
+      throw e
     }
     for (const e of entries) {
       if (e.name.startsWith('.')) continue

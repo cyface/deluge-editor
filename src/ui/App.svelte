@@ -69,13 +69,28 @@
     run()
   }
   const kit = $derived(editor.preset?.tag === 'kit' ? editor.preset : undefined)
+
+  /**
+   * Escape closes the topmost thing, and only that: the confirm question first
+   * (it sits above everything), then the modal dialogs — the sample picker and
+   * folder import, which the card and library panels never open, so no two of
+   * them stack — and last the randomizer, a panel in the page.
+   */
+  function escape(): void {
+    if (confirm.pending) return confirm.cancel()
+    if (samplePick.open) return samplePick.cancel()
+    if (multisample.open) return multisample.cancel()
+    if (card.open) return card.close()
+    if (library.open) return library.close()
+    randomizer.open = false
+  }
 </script>
 
 <svelte:window
   ondragover={(e) => { e.preventDefault(); dragging = true }}
   ondragleave={() => (dragging = false)}
   ondrop={drop}
-  onkeydown={(e) => { if (e.key === 'Escape') { confirm.cancel(); if (multisample.open) multisample.cancel(); if (samplePick.open) samplePick.cancel(); if (card.open) card.close(); if (library.open) library.close(); randomizer.open = false } }}
+  onkeydown={(e) => { if (e.key === 'Escape') escape() }}
 />
 
 {#if multisample.open}<FolderImport />{/if}

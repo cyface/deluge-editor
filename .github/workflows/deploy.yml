@@ -1,14 +1,16 @@
-# Every push to main runs the full suite, then publishes dist/ to GitHub
-# Pages (https://cyface.github.io/deluge-editor/). The deploy is gated on the
-# tests, so the published editor is never one the round-trip tests didn't
-# bless — and the artifact is the very build the e2e smoke test ran against
-# (vite.config.ts uses a relative base, so root and subpath hosting are the
-# same build). Cloudflare (`pnpm deploy`) stays a separate, manual path.
+# Every push and pull request runs the full suite; a push to main then
+# publishes dist/ to GitHub Pages (https://cyface.github.io/deluge-editor/).
+# The deploy is gated on the tests, so the published editor is never one the
+# round-trip tests didn't bless — and the artifact is the very build the e2e
+# specs ran against (vite.config.ts uses a relative base, so root and subpath
+# hosting are the same build). Branches and PRs get the same test job without
+# the deploy, so the first run of a change is not the deploying run.
+# Cloudflare (`pnpm deploy`) stays a separate, manual path.
 name: Test and deploy
 
 on:
   push:
-    branches: [main]
+  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -16,10 +18,11 @@ permissions:
   pages: write
   id-token: write
 
-# One deploy at a time; a queued newer push supersedes, but never cancel a
-# deploy already in flight.
+# One run per branch at a time; a newer push to the same branch supersedes a
+# queued one. Deploys are serialised separately on the job below, and never
+# cancelled once in flight.
 concurrency:
-  group: pages
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -36,15 +39,26 @@ jobs:
       - run: pnpm test
       - run: pnpm check
       - run: pnpm exec playwright install --with-deps chromium
-      # Builds dist/ itself (playwright.config.ts webServer) and smokes it.
+      # Builds dist/ itself (playwright.config.ts webServer) and drives it.
       - run: pnpm test:e2e
-      - uses: actions/upload-pages-artifact@v4
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: test-results
+          if-no-files-found: ignore
+      - if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v4
         with:
           path: dist
 
   deploy:
     needs: build
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
+    concurrency:
+      group: pages
+      cancel-in-progress: false
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

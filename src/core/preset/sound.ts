@@ -192,7 +192,7 @@ export interface ModKnobAssign {
  * The full 16-entry `<modKnobs>` array, created in serializer position when
  * the file has none. The firmware keeps its constructor defaults for knobs a
  * file doesn't mention and always writes all 16 back (`Sound::writeToFile`,
- * sound.cpp:4260, upstream/community bef6d9df), so absent entries are filled
+ * sound.cpp:4223-4244, upstream/community bef6d9df), so absent entries are filled
  * with the stock assignments.
  */
 export function ensureModKnobs(sound: SoundElement): ModKnobElement[] {

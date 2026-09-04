@@ -9,12 +9,14 @@ import { supports } from '../../core/firmware/features'
 import { parseVersion } from '../../core/firmware/version'
 import { readWavInfo, type WavInfo } from '../../core/samples/wav'
 import {
+  DEFAULT_TIMEOUTS,
   IDENTITY_REQUEST,
   isDirectory,
   parseIdentityReply,
   SmsClient,
   type DirEntry,
 } from '../../core/sysex'
+import { errorText } from '../errtext'
 import { editor } from './editor.svelte'
 
 /** Deluge port 3 is the SysEx port; any Deluge port answers, port 3 is just quietest. */
@@ -42,6 +44,8 @@ class Card {
   portName = $state('')
   /** Firmware version from the universal device inquiry, e.g. "1.3.0". */
   identity = $state<string | null>(null)
+  /** The inquiry went unanswered for as long as a request gets; see `firmwareOk`. */
+  identityTimedOut = $state(false)
   path = $state('/SYNTHS')
   entries = $state<DirEntry[]>([])
   saveName = $state('')
@@ -88,13 +92,22 @@ class Card {
   private connecting: Promise<void> | null = null
 
   readonly supported = typeof navigator !== 'undefined' && 'requestMIDIAccess' in navigator
-  /** null until the device answered the inquiry; then whether its firmware has smSysex. */
-  readonly firmwareOk = $derived.by(() => {
-    if (this.identity === null) return null
+  /**
+   * null while the inquiry is unanswered; whether the firmware has smSysex
+   * once it answers; `'unknown'` when it has been silent for one request's
+   * worth of time, or answered with a version that doesn't parse. The panel
+   * says so in the unknown case, because a connected Deluge whose firmware
+   * can't be seen must not look like one whose firmware can: the controls
+   * then follow the file's version, not the instrument's (see
+   * `docs/decisions.md`, "The connected Deluge outranks the file's firmware
+   * attribute"). A late answer still wins — this is derived from `identity`.
+   */
+  readonly firmwareOk = $derived.by((): boolean | 'unknown' | null => {
+    if (this.identity === null) return this.identityTimedOut ? 'unknown' : null
     try {
       return supports(parseVersion(`c${this.identity}`), 'smSysex')
     } catch {
-      return null
+      return 'unknown'
     }
   })
 
@@ -174,6 +187,7 @@ class Card {
     this.status = 'connecting'
     this.error = null
     this.otherEditor = false
+    this.identityTimedOut = false
     try {
       const access = await navigator.requestMIDIAccess({ sysex: true })
       const output = pickPort([...access.outputs.values()])
@@ -219,14 +233,21 @@ class Card {
         this.error = 'Deluge disconnected — reconnect over USB and retry.'
       }
       output.send(IDENTITY_REQUEST)
+      // The inquiry is one frame with no retry ladder of its own; after one
+      // attempt's worth of silence the firmware is unknown and the panel
+      // says so, rather than letting the connection look fully read.
+      setTimeout(() => {
+        if (this.identity === null) this.identityTimedOut = true
+      }, DEFAULT_TIMEOUTS[0])
       await client.ping()
       this.status = 'connected'
       this.path = editor.preset?.tag === 'kit' ? '/KITS' : '/SYNTHS'
       this.saveName = editor.fileName || editor.suggestedFileName
       await this.refresh()
     } catch (e) {
+      if (sysexDebugWanted()) console.debug('[sysex]', 'connect failed:', e)
       this.status = 'error'
-      this.error = e instanceof Error ? e.message : String(e)
+      this.error = errorText(e)
     }
   }
 
@@ -259,7 +280,7 @@ class Card {
     }
     this.armedLoad = null
     await this.run(`Reading ${name}`, async () => {
-      const data = await this.client!.readFile(this.join(name), (d, t) => (this.progress = t ? d / t : 0))
+      const data = await this.need().readFile(this.join(name), (d, t) => (this.progress = t ? d / t : 0))
       const path = this.join(name)
       editor.load(new TextDecoder().decode(data), name)
       this.saveName = name
@@ -280,7 +301,7 @@ class Card {
 
   async save(): Promise<void> {
     let name = this.saveName.trim()
-    if (!name || !this.client || !editor.preset) return
+    if (!name || !this.connected || !editor.preset) return
     // A name without the extension would write fine but be invisible on the
     // instrument — the Deluge's preset browser lists only .XML files.
     if (!/\.xml$/i.test(name)) {
@@ -331,7 +352,9 @@ class Card {
     if (this.error) {
       const failed = this.error
       this.openPanel('save')
-      await this.refresh()
+      // A listing needs a connection; after a mid-write unplug the panel's
+      // error branch already says what happened.
+      if (this.connected) await this.refresh()
       this.error ??= failed
     }
   }
@@ -346,6 +369,11 @@ class Card {
     // error, `processing/source.cpp:105`), so the preset must never be the
     // thing that lands first. Every write is still verified by read-back;
     // the message just doesn't dwell on it.
+    // The client is taken before the sample copy and the connection checked
+    // again after it: a Deluge unplugged mid-copy nulls `this.client` from
+    // `onstatechange`, and a bare `this.client!` past that await surfaced
+    // as a property-of-null crash instead of a sentence.
+    const client = this.need()
     this.sampleRetarget?.(path)
     let copied = 0
     if (this.sampleSync) {
@@ -354,9 +382,10 @@ class Card {
         this.progress = p
       })
     }
+    if (!this.connected) throw new Error('The Deluge disconnected during the save')
     this.busy = `Writing ${name}`
     this.progress = 0
-    await this.client!.writeFile(path, new TextEncoder().encode(editor.output), (d, t) => (this.progress = d / t))
+    await client.writeFile(path, new TextEncoder().encode(editor.output), (d, t) => (this.progress = d / t))
     const written = copied ? `${name} and ${copied} sample${copied === 1 ? '' : 's'} written` : `${name} written`
     // The read-back proves the card holds what we sent — but only as of
     // now. With another editor on the same Deluge, its next `open` for
@@ -384,8 +413,14 @@ class Card {
     return this.status === 'connected' && this.client !== null
   }
 
+  /**
+   * The client, only while the connection is good. `connect()` has a client
+   * before its ping has answered, and a failed ping leaves one behind with
+   * `status = 'error'`; a client alone would let every panel keep issuing
+   * requests through the whole retry ladder at a Deluge that isn't there.
+   */
   private need(): SmsClient {
-    if (!this.client) throw new Error('not connected to a Deluge — click Connect first')
+    if (this.status !== 'connected' || !this.client) throw new Error('Not connected to the Deluge')
     return this.client
   }
 
@@ -439,7 +474,7 @@ class Card {
    * save-overwrite check above rightly no longer "sees" `._NAME.XML`.
    */
   private async list(): Promise<void> {
-    this.entries = (await this.client!.listDirectory(this.path))
+    this.entries = (await this.need().listDirectory(this.path))
       .filter((e) => !e.name.startsWith('.'))
       .toSorted((a, b) => Number(isDirectory(b)) - Number(isDirectory(a)) || a.name.localeCompare(b.name))
   }
@@ -452,7 +487,10 @@ class Card {
     try {
       await fn()
     } catch (e) {
-      this.error = e instanceof Error ? e.message : String(e)
+      // The raw error — FatFS name and all — goes to the trace; the panel
+      // gets the sentence.
+      if (sysexDebugWanted()) console.debug('[sysex]', `${label} failed:`, e)
+      this.error = errorText(e)
     } finally {
       this.busy = null
     }

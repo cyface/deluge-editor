@@ -15,24 +15,11 @@
   import { HELP } from './help'
   import Waveform from './controls/Waveform.svelte'
   import { audio } from './state/audio.svelte'
-  import { card } from './state/card.svelte'
   import { editor, isSoundRow } from './state/editor.svelte'
   import { kit as kitBuilder } from './state/kit.svelte'
   import { ranges as rangeEditor } from './state/ranges.svelte'
   import { samplePick } from './state/samplepick.svelte'
   import { samples as stash } from './state/samples.svelte'
-
-  // Keep the missing-on-card check current: re-runs when the connection,
-  // the kit, or any row's sample reference changes (checkMissing reads them
-  // before its first await). A fresh connection drops the listing cache —
-  // the card may have changed while we weren't looking.
-  let wasConnected = false
-  $effect(() => {
-    const connected = card.status === 'connected'
-    if (connected && !wasConnected) stash.invalidateCardListings()
-    wasConnected = connected
-    void stash.checkMissing()
-  })
 
   const PADS = ['--osc', '--at', '--flt', '--env1', '--lfo1', '--lfo2', '--fx', '--vel']
   function describe(r: DrumRow): string {
@@ -333,6 +320,7 @@
     </table>
   </div>
   {#if audio.error}<p class="err" role="alert">{audio.error}</p>{/if}
+  {#if stash.checkError}<p class="err" role="alert" data-testid="missing-check-error">Could not check the card for these samples: {stash.checkError}</p>{/if}
   {#if sel && !isSoundRow(sel)}
     <div class="fields">
       <NumberField label="Channel" name="row.channel" value={sel.attrs.channel} min={0} max={15} format={(n) => `ch ${n + 1}`} title={HELP['row.channel']} onchange={(v) => setAttr(sel, 'channel', String(v), MIDI_OUTPUT_ATTR_ORDER)} />

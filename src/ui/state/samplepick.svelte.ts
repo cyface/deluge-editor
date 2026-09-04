@@ -89,7 +89,6 @@ class SamplePick {
   for = $state<string | null>(null)
 
   busy = $state<string | null>(null)
-  progress = $state(0)
   error = $state<string | null>(null)
 
   /** On-device browse: current path, null when the card browser is closed. */
@@ -319,7 +318,6 @@ class SamplePick {
 
   private async run(label: string, fn: () => Promise<void>): Promise<void> {
     this.busy = label
-    this.progress = 0
     this.error = null
     try {
       await fn()

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { FakeDeluge, OTHER_CLIENT_TAG, type FakeOptions } from './fake-deluge'
-import { isDirectory, SmsClient, SysexError, type SmsClientOptions } from './client'
+import { isDirectory, SHORT_WRITE, SmsClient, SysexError, type SmsClientOptions } from './client'
 
 /** A client wired straight to a fake Deluge. Short timeouts: replies are synchronous. */
 function rig(fakeOpts: FakeOptions = {}, clientOpts: SmsClientOptions = {}): { client: SmsClient; fake: FakeDeluge } {
@@ -138,6 +138,19 @@ describe('SmsClient', () => {
     await client.writeFile('/SYNTHS/S.XML', data)
     expect(Array.from(fake.files.get('/SYNTHS/S.XML')!)).toEqual(Array.from(data))
     expect(fake.requests.filter((r) => 'write' in r).length).toBe(2)
+  })
+
+  it('a persistent short write is the transport eating bytes, not a card fault', async () => {
+    // The macOS 752-byte cliff: every chunk lands one byte short however
+    // often it is resent. That is not FR_DISK_ERR — the card is fine — so
+    // the error must not read "is an SD card inserted?".
+    const { client } = rig({ shortWriteAlways: 511 })
+    const err = await client.writeFile('/SYNTHS/S.XML', bytes(512)).catch((e: SysexError) => e)
+    expect(err).toBeInstanceOf(SysexError)
+    expect((err as SysexError).code).toBe(SHORT_WRITE)
+    expect((err as SysexError).fromCard).toBe(false)
+    expect((err as SysexError).message).not.toContain('FR_')
+    expect((err as SysexError).reason).toBe('the Deluge accepted fewer bytes than were sent')
   })
 
   it('read-back verification catches a corrupted card copy', async () => {

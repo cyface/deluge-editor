@@ -49,7 +49,7 @@ describe('serialize', () => {
     const sound = element('sound', {}, [element('osc2', { type: 'sample', loopMode: '0' })])
     expect(serialize([sound])).toContain('\t<osc2\n\t\ttype="sample"\n\t\tloopMode="0">\n\t</osc2>\n')
   })
-  it('writes a kit’s selectedDrumIndex as a text element after the last child, as Kit::writeToFile does', () => {
+  it('writes a kit’s selectedDrumIndex as a text element after the last child, as Kit::writeDataToFile does', () => {
     const kit = element('kit', { lpfMode: '24dB', selectedDrumIndex: '3' }, [element('soundSources')])
     expect(serialize([kit])).toBe(
       '<?xml version="1.0" encoding="UTF-8"?>\n' +

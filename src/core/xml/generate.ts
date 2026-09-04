@@ -51,8 +51,8 @@ const INLINE_ATTRS: Record<string, readonly string[]> = {
  * Values the firmware still writes as a *text element* in the attribute
  * format. The parser folds a leaf element into its parent's attributes; these
  * come back out as `<tag>value</tag>` after the last child, which is where the
- * firmware puts them: `Kit::writeToFile` (`src/deluge/model/instrument/kit.cpp`,
- * `beta` 3f898e95) writes `selectedDrumIndex` with `writeTag` after the
+ * firmware puts them: `Kit::writeDataToFile` (`src/deluge/model/instrument/kit.cpp`,
+ * `beta` e7bae539) writes `selectedDrumIndex` with `writeTag` after the
  * `soundSources` array ends.
  */
 const TEXT_TAGS: Record<string, readonly string[]> = {
@@ -76,7 +76,7 @@ function writeElement(el: XmlElement, parentTag: string, depth: number, out: str
     open += inline.includes(name) ? ` ${name}="${value}"` : `\n${indent}\t${name}="${value}"`
   }
   // A sample-type oscillator is never self-closed: `Sound::writeSourceToFile`
-  // (`src/deluge/processing/sound/sound.cpp`, `beta` 3f898e95) ends its SAMPLE
+  // (`src/deluge/processing/sound/sound.cpp`, `beta` e7bae539) ends its SAMPLE
   // branch with `writeClosingTag` even when there are no ranges to write.
   const explicitClose = trailing.length > 0 || el.attrs.type === 'sample'
   if (el.children.length === 0 && trailing.length === 0) {

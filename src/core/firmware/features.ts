@@ -22,7 +22,7 @@ export interface FeatureSupport {
  * How this was built (2026-08-30): the XML writers of the official source drop
  * (SynthstromAudible/DelugeFirmware branch `synthstrom-official`, 695b22af,
  * whose `storagemanager.cpp` writes `firmwareVersion="4.1.4-alpha"`) were
- * diffed against the same writers on `main` at 3f898e95 (the 2026-08-29 beta
+ * diffed against the same writers on `upstream/main` 3f898e95 (the 2026-08-29 beta
  * release, which writes `firmwareVersion="c1.3.0"`): `Sound::writeToFile`,
  * `Sound::writeParamsToFile`, `Sound::writeSourceToFile`,
  * `ModControllableAudio::write{Attributes,Tags,ParamAttributes,ParamTags}ToFile`,
@@ -169,9 +169,6 @@ export const FEATURES = {
       '276c5f88 2024-02-25 "Add setting to map MPE Aftertouch or Y, to velocity when doing arps"; ' +
       'arpMpeModSourceToString in src/deluge/util/functions.cpp.',
   },
-
-  // ---- community 1.2.0 (release_1_2_0) -----------------------------------
-
   /** `<sound maxVoices>`: per-preset polyphony limit. */
   maxVoices: {
     community: 'c1.1.0',
@@ -179,6 +176,22 @@ export const FEATURES = {
       '292ba646 #1824 "Feature/configure max voices" on main, cherry-picked to release/1.1 as 812c8aeb; ' +
       'Sound::writeToFile writes maxVoices at release_1_1_0 (sound.cpp line 3907), absent at release_1_0_1.',
   },
+  /**
+   * MIDI Follow Mode with feedback: a designated channel whose CCs address the
+   * active context's sound, and CCs sent back out when values change there.
+   * Not preset content — this gates the Follow button, not a control.
+   */
+  midiFollow: {
+    community: 'c1.1.0',
+    source:
+      'src/deluge/io/midi/midi_follow.cpp first exists at release_1_1_0 (release_1_0_1 has no such file ' +
+      'and no midiFollow reference anywhere in src/), already with ' +
+      'sendCCForMidiFollowFeedback; website/src/content/docs/features/midi_follow_mode.mdx is badged ' +
+      '"c1.1 Feature". No official build has the file at all (branch synthstrom-official).',
+  },
+
+  // ---- community 1.2.0 (release_1_2_0) -----------------------------------
+
   /** `<osc type="dx7" dx7patch="…" dx7enginemode dx7randomdetune>`. */
   dx7: {
     community: 'c1.2.0',
@@ -305,19 +318,6 @@ export const FEATURES = {
       '7759705a #2853 "Add SysEx protocol for file browsing and transfer between the Deluge & the ' +
       "'vuefinder' web application\" (2024-11-11), src/deluge/storage/smsysex.cpp; after release_1_2_1, " +
       'so community 1.3.0 only. Inbound SysEx spanning USB transfers also only works from the 1.3.0 fixes (#4633).',
-  },
-  /**
-   * MIDI Follow Mode with feedback: a designated channel whose CCs address the
-   * active context's sound, and CCs sent back out when values change there.
-   * Not preset content — this gates the Follow button, not a control.
-   */
-  midiFollow: {
-    community: 'c1.1.0',
-    source:
-      'src/deluge/io/midi/midi_follow.cpp first exists at release_1_1_0 (release_1_0_1 has no such file ' +
-      'and no midiFollow reference anywhere in src/), already with ' +
-      'sendCCForMidiFollowFeedback; website/src/content/docs/features/midi_follow_mode.mdx is badged ' +
-      '"c1.1 Feature". No official build has the file at all (branch synthstrom-official).',
   },
   /** `<arpeggiator kitArp>`: include this row in the kit-level arpeggiator. */
   kitArp: {

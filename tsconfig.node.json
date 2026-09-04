@@ -19,5 +19,9 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["vite.config.ts", "playwright.config.ts", "tests/e2e/**/*.ts"]
+  "include": ["vite.config.ts", "playwright.config.ts", "tests/e2e/**/*.ts"],
+  // The e2e init-script entry imports src/ (bundler-style imports, parameter
+  // properties) that this nodenext program cannot hold; svelte-check covers it
+  // through src/core/sysex/fake-deluge.test.ts, and esbuild bundles it.
+  "exclude": ["tests/e2e/fake-deluge.entry.ts"]
 }

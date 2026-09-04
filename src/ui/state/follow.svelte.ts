@@ -1,8 +1,9 @@
 /**
  * Follow Mode: mirror the Deluge's own knob moves into the editor.
  *
- * With MIDI Follow feedback enabled on the instrument
- * (`SETTINGS > MIDI > MIDI-Follow > Feedback > Channel`), the Deluge sends a
+ * With Midi-Follow feedback enabled on the instrument
+ * (Settings › MIDI › Midi-Follow › Channel › Channel A set to a channel, then
+ * Feedback › Channel set to Channel A), the Deluge sends a
  * CC whenever a value in the active context changes — a gold encoder, the
  * select encoder in a menu, a context switch. This store listens for those,
  * resolves each through the firmware's default CC map
@@ -25,6 +26,7 @@
 
 import { controlChange, followMap, parseControlChange } from '../../core/midi/follow'
 import {
+  type Advice,
   chooseSendTarget,
   followAdvice,
   parseFollowSettings,
@@ -35,7 +37,9 @@ import {
 import { SysexError } from '../../core/sysex'
 import { isKit } from '../../core/preset'
 import { KIT_FOLLOW_SLOTS, SOUND_FOLLOW_SLOTS, applyFollowCC, type FollowSlot } from '../../core/preset/follow'
+import { card } from './card.svelte'
 import { editor } from './editor.svelte'
+import { errorText } from '../errtext'
 
 /** What the follow CCs are being applied to. Mirrors the instrument's AFFECT ENTIRE. */
 export type FollowTarget = 'row' | 'bus'
@@ -122,7 +126,7 @@ class Follow {
    * Zone", neither of which is a number to send on. The file says outright.
    */
   settings = $state<FollowSettings | null>(null)
-  settingsAdvice = $state<string[]>([])
+  settingsAdvice = $state<Advice[]>([])
   settingsError = $state<string | null>(null)
   checking = $state(false)
   /**
@@ -436,7 +440,6 @@ class Follow {
     this.checking = true
     this.settingsError = null
     try {
-      const { card } = await import('./card.svelte')
       if (!(await card.ensureConnected())) {
         this.settingsError = card.error ?? 'Could not reach the Deluge over USB.'
         return
@@ -456,14 +459,13 @@ class Follow {
       try {
         const dev = await this.readSetting(card, 'MIDIDevices.XML')
         zones = parseMpeInputs(new TextDecoder().decode(dev))
-      } catch (e) {
+      } catch {
         // Absent is an answer: the firmware writes the file only when there is
         // something worth writing, so its absence means every cable is on its
         // built-in defaults, which `cableZones` supplies. Any other failure is
-        // not an answer, and leaves the defaults in play too — they are the
+        // not an answer, but leaves the defaults in play too — they are the
         // best available guess either way, and the advice says which port it
-        // is relying on.
-        void (e instanceof SysexError && (e.code === FR_NO_FILE || e.code === FR_NO_PATH))
+        // is relying on. So both outcomes end the same way.
         zones = undefined
       }
       this.settings = parsed
@@ -475,8 +477,7 @@ class Follow {
       // The port is half the answer, so re-pick the output now that it is known.
       this.attach()
     } catch (e) {
-      this.settingsError =
-        e instanceof Error ? e.message : 'Could not read SETTINGS/MIDIFollow.XML from the card.'
+      this.settingsError = `Could not read the Deluge’s settings: ${errorText(e)}`
     } finally {
       this.checking = false
     }

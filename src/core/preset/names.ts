@@ -5,7 +5,9 @@
  * short codes for chips.
  */
 
+import { LOOP_MODE } from './multisample'
 import type {
+  ArpMode,
   ArpMpeSource,
   ArpNoteMode,
   ArpOctaveMode,
@@ -163,6 +165,14 @@ export const PATCH_SOURCE_NAMES: Record<PatchSource, string> = {
 
 export const POLARITY_NAMES: Record<Polarity, string> = { bipolar: 'Bipolar', unipolar: 'Unipolar' }
 
+/**
+ * The arp's on/off (`arpModeToString`, util/functions.cpp): the menu is a
+ * toggle titled "Arp enabled" whose options are `STRING_FOR_OFF` / `STRING_FOR_ON`
+ * (gui/menu_item/arpeggiator/mode.h `getOptions`, gui/ui/menus.cpp
+ * `arpModeMenu`, l10n/g_english.cpp "Off" / "On"; DelugeFirmware `beta`).
+ */
+export const ARP_MODE_NAMES: Record<ArpMode, string> = { off: 'Off', arp: 'On' }
+
 export const OLD_ARP_MODE_NAMES: Record<OldArpMode, string> = {
   off: 'Off',
   up: 'Up',
@@ -190,8 +200,13 @@ export const ARP_OCTAVE_MODE_NAMES: Record<ArpOctaveMode, string> = {
 }
 export const ARP_MPE_NAMES: Record<ArpMpeSource, string> = { off: 'Off', y: 'MPE Y', z: 'Aftertouch' }
 
-/** `SampleRepeatMode` (src/definitions_cxx.hpp): CUT, ONCE, LOOP, STRETCH. */
-export const LOOP_MODE_NAMES: Record<string, string> = { '0': 'Cut', '1': 'Once', '2': 'Loop', '3': 'Stretch' }
+/** `SampleRepeatMode` (src/definitions_cxx.hpp): CUT, ONCE, LOOP, STRETCH — keyed by `LOOP_MODE`'s stored values. */
+export const LOOP_MODE_NAMES: Record<string, string> = {
+  [LOOP_MODE.cut]: 'Cut',
+  [LOOP_MODE.once]: 'Once',
+  [LOOP_MODE.loop]: 'Loop',
+  [LOOP_MODE.stretch]: 'Stretch',
+}
 
 /** `VoicePriority` (src/definitions_cxx.hpp): LOW, MEDIUM, HIGH. */
 export const VOICE_PRIORITY_NAMES: Record<string, string> = { '0': 'Low', '1': 'Medium', '2': 'High' }

@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * Follow Mode's page: only the parameters MIDI Follow can actually reach.
+   * Follow Mode's page: only the parameters Midi-Follow can actually reach.
    *
    * The subset is not a curation — it is the firmware's own default CC map for
    * the selected firmware (`src/core/midi/follow.ts`), laid out in the same
@@ -281,7 +281,7 @@
   <div class="row">
     <span class="tag" class:live={follow.status === 'listening'}>{follow.status === 'listening' ? 'Following' : follow.status === 'error' ? 'Not listening' : 'Off'}</span>
     <label class="pick" title={HELP['follow.channel']}>
-      Channel
+      Listen on
       <select data-testid="follow-channel" bind:value={follow.channel}>
         {#each channels as c (c)}<option value={c}>{c === 0 ? 'Any' : c}</option>{/each}
       </select>
@@ -290,7 +290,7 @@
     <!-- The other direction, and the one that can do harm: this writes into
          the sound the instrument has live (docs/decisions.md). It sits beside
          the listening channel because the two channels are the thing to get
-         right, and a CC that misses MIDI-Follow is still a CC the instrument
+         right, and a CC that misses Midi-Follow is still a CC the instrument
          acts on. -->
     <button
       type="button"
@@ -299,11 +299,11 @@
       data-testid="follow-send"
       aria-pressed={follow.sending}
       disabled={follow.sendPort === null}
-      title={follow.sendPort === null ? 'No Deluge MIDI output found. Sending goes only to a port that names itself a Deluge, so a CC cannot land on some other instrument.' : HELP['follow.send']}
+      title={follow.sendPort === null ? 'No Deluge MIDI output found. Sending goes only to a port named Deluge, so a CC cannot land on another instrument.' : HELP['follow.send']}
       onclick={() => (follow.sending = !follow.sending)}
     >Send</button>
     <label class="pick" title={HELP['follow.sendChannel']}>
-      on ch
+      Send on
       <!-- Heard is the default and the only setting that is right whatever the
            instrument's follow channel is set to, an MPE zone included. -->
       <select data-testid="follow-send-channel" disabled={!follow.sending} bind:value={follow.sendChannel}>
@@ -323,7 +323,7 @@
       </div>
     {/if}
     <span class="last" data-testid="follow-last">{lastLine}</span>
-    <button type="button" class="helpbtn" data-testid="follow-help-button" onclick={() => (helpOpen = true)}>MIDI Follow Help</button>
+    <button type="button" class="helpbtn" data-testid="follow-help-button" onclick={() => (helpOpen = true)}>Help</button>
   </div>
   {#if follow.error}
     <p class="err" role="alert" data-testid="follow-error">{follow.error}</p>
@@ -332,12 +332,12 @@
          is behind the help button, where it is not in the way. -->
     <p class="sendwarn" data-testid="follow-send-warning">
       {#if follow.outChannel === null}
-        Waiting to hear the Deluge before sending. Turn a gold encoder on the instrument, and the channel
-        its feedback arrives on becomes the channel sends go out on.
+        Waiting to hear the Deluge before sending. Open a clip or turn a knob on the Deluge, and the
+        channel its feedback arrives on becomes the channel sends go out on.
       {:else}
         Sending on {follow.sendPort} channel {follow.outChannel} — this changes the sound the Deluge has
         live.{#if !follow.deviceChecked} Read the Deluge’s settings from the help sheet if it does not
-        respond: which of its USB ports a CC goes out on decides whether MIDI-Follow accepts it.{/if}
+        respond: which of its USB ports a CC goes out on decides whether Midi-Follow accepts it.{/if}
       {/if}
     </p>
   {/if}
@@ -471,14 +471,14 @@
   .row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
   .tag { font-family: var(--cond); font-size: 11px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); }
   .tag.live { color: #9ed492; }
-  .tag.live::before { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #67c45c; box-shadow: 0 0 6px #67c45c; margin-right: 7px; vertical-align: 1px; animation: pulse 1.6s ease-in-out infinite; }
+  .tag.live::before { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 6px var(--ok); margin-right: 7px; vertical-align: 1px; animation: pulse 1.6s ease-in-out infinite; }
   @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
   .pick { font-family: var(--cond); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; }
   .pick select { background: #141210; border: 1px solid var(--edge-hi); border-radius: 3px; color: var(--text); font-family: var(--mono); font-size: 10.5px; padding: 2px 4px; }
   .target { display: inline-flex; border: 1px solid var(--edge-hi); border-radius: 3px; overflow: hidden; }
   .target button { background: #141210; border: 0; color: var(--muted); font-family: var(--cond); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; padding: 3px 9px; cursor: pointer; }
   .target button + button { border-left: 1px solid var(--edge-hi); }
-  .target button.on { background: #2b2317; color: #f2c67b; }
+  .target button.on { background: var(--brass-face); color: var(--brass-hi); }
   .last { font-family: var(--mono); font-size: 10.5px; color: var(--muted); margin-left: auto; }
   .rule { width: 1px; height: 17px; background: var(--edge-hi); }
   .sendbtn { height: 22px; padding: 0 10px; border-radius: 3px; border: 1px solid var(--edge-hi); background: #141210; color: var(--muted); font-family: var(--cond); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; cursor: pointer; }

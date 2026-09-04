@@ -131,9 +131,9 @@
     {#each rings as r, i (i)}
       <path d={r.d} fill="none" stroke={r.color} stroke-width="2.2" stroke-linecap="round" opacity=".95"><title>{r.title}</title></path>
     {/each}
-    <path d={arc(17.5, A_MIN, angle)} fill="none" stroke="#d4a34d" stroke-width="4" stroke-linecap="round" />
-    <circle cx="24" cy="24" r="12.6" fill={gold ? '#2b2317' : '#181511'} stroke={gold ? '#5c4a24' : '#332c22'} />
-    <line x1="24" y1="14" x2="24" y2="24" stroke={gold ? '#f2c67b' : '#e6d6b4'} stroke-width="2" stroke-linecap="round" transform="rotate({angle.toFixed(2)} 24 24)" />
+    <path d={arc(17.5, A_MIN, angle)} fill="none" stroke="var(--brass)" stroke-width="4" stroke-linecap="round" />
+    <circle cx="24" cy="24" r="12.6" fill={gold ? 'var(--brass-face)' : '#181511'} stroke={gold ? '#5c4a24' : '#332c22'} />
+    <line x1="24" y1="14" x2="24" y2="24" stroke={gold ? 'var(--brass-hi)' : '#e6d6b4'} stroke-width="2" stroke-linecap="round" transform="rotate({angle.toFixed(2)} 24 24)" />
   </svg>
   <div class="lbl">{label}</div>
   <div class="val">{shown}</div>

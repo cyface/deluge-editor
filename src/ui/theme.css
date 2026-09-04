@@ -5,11 +5,11 @@
      (section rules, hints, table headers) at ~3.5:1 — quiet but legible. */
   --ink: #0b0a09; --panel: #121110; --panel2: #191714; --edge: #2b2620; --edge-hi: #3c3529;
   --brass: #d4a34d; --brass-hi: #f2c67b; --brass-dim: #7a5f2b; --brass-face: #2b2317;
-  --oled: #dff0e4; --oled-dim: #4f6d59; --oled-bg: #050706;
+  --oled: #dff0e4; --oled-bg: #050706;
   --text: #cfc8bd; --muted: #a19788; --faint: #756d61;
   --wood-1: #4a2712; --wood-2: #8a5230; --wood-3: #a9663d; --wood-4: #6b3d22;
   --hpf: #4fc8e8;
-  --osc: #e8563f; --flt: #ee7d33; --env: #93d152; --lfo: #3fc9c2; --mod: #6d90e8; --fx: #b06ce8; --arp: #e85f9c; --mst: #d4a34d;
+  --osc: #e8563f; --flt: #ee7d33; --env: #93d152; --mod: #6d90e8; --fx: #b06ce8; --arp: #e85f9c; --mst: #d4a34d;
   --lfo1: #3fc9c2; --lfo2: #4fa8e8; --env1: #93d152; --env2: #c9e05a; --vel: #e85f9c; --note: #b06ce8;
   --at: #e8863f; --rnd: #8a8f9c; --sc: #e8563f;
   --ok: #67c45c; --warn: #e8b13f; --bad: #e8563f;
@@ -18,6 +18,9 @@
   --mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
   --pixel: 'Silkscreen', var(--mono);
   --cheek: 17px; --gut: 15px;
+  /* Modal dialogs sit above the sticky top bar (40), the Changes dock and the
+     menus (60); the one confirm question (90) and the cheeks (80) stay above them. */
+  --z-modal: 70;
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
@@ -108,7 +111,6 @@ button { font-family: inherit; }
 .seg button.on { background: linear-gradient(180deg, #3d2f15, #251c0e); border-color: var(--brass-dim); color: var(--brass-hi); }
 .seg button.idle { opacity: .45; }
 .seg button i { position: absolute; top: 3px; right: 3px; width: 5px; height: 5px; border-radius: 50%; background: var(--d); }
-.seg button sup { font-size: 7.5px; letter-spacing: .04em; color: var(--faint); margin-left: 2px; vertical-align: super; }
 
 .graph { margin: 8px 0 0 4px; background: #08090a; border: 1px solid var(--edge); border-radius: 3px; position: relative; touch-action: none; }
 .graph svg { display: block; width: 100%; }

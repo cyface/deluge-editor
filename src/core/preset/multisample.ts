@@ -9,12 +9,12 @@
  * is the firmware's:
  *
  * - boundaries at the midpoint between adjacent roots
- *   (`SampleBrowser::importFolderAsMultisamples`, `sample_browser.cpp:1791-1805`,
+ *   (`SampleBrowser::importFolderAsMultisamples`, `sample_browser.cpp:1640`,
  *   upstream/community bef6d9df);
  * - the zone a freshly selected sample gets, loop points and all
  *   (`SampleHolderForVoice::sampleBeenSet`, `sample_holder_for_voice.cpp:170-203`);
  * - repeat mode inferred from the set's loop points and average length
- *   (`sample_browser.cpp:1863-1882`).
+ *   (`sample_browser.cpp:1810-1863`).
  *
  * Boundaries are computed **only** here, when an import is built. Nothing
  * recomputes them on load: across the presets on Tim's card the midpoint rule
@@ -43,7 +43,7 @@ export interface ImportSample {
   ms?: number
 }
 
-/** `loopMode` as the file stores it: `LOOP_MODE_NAMES` in `names.ts`. */
+/** `loopMode` as the file stores it (`SampleRepeatMode`); `LOOP_MODE_NAMES` in `names.ts` is keyed by these. */
 export const LOOP_MODE = { cut: '0', once: '1', loop: '2', stretch: '3' } as const
 
 export interface ImportResult {

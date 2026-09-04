@@ -16,7 +16,7 @@ was written by Tim's real Deluge hardware, also on a c1.3.0 beta build
 | File | How the firmware made it | Loaded by |
 |---|---|---|
 | `Default Synth.XML` | new-synth gesture in a clip ("NEW SYNTH CREATED", `InstrumentClipMinder::createNewInstrument` → `Sound::setupAsBlankSynth`), saved from real hardware as `Newtest.XML` | `editor.newSynth()` (New Synth) |
-| `Default Kit.XML` | empty `KITS/`: SHIFT+KIT built a new blank kit (`InstrumentClipView::handleInstrumentChange` → `createNewInstrument`, "NEW KIT CREATED"), saved as `KIT1.XML` | nothing yet — waiting for the kit editor (issue #10) |
+| `Default Kit.XML` | empty `KITS/`: SHIFT+KIT built a new blank kit (`InstrumentClipView::handleInstrumentChange` → `createNewInstrument`, "NEW KIT CREATED"), saved as `KIT1.XML` | `editor.newKit()` (New Kit), and `core/kit/build.ts` builds rows onto it |
 
 Both templates are in the round-trip suite (`tests/roundtrip.test.ts` globs
 this folder), so they are held to the same byte-for-byte bar as the fixtures.

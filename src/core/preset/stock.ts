@@ -6,7 +6,7 @@
  * Everything here is read from firmware source, not derived from fixtures:
  *
  * - Mod (gold) knob layout: `Sound::Sound()` constructor,
- *   `src/deluge/processing/sound/sound.cpp` (tag `beta`, e7bae53); identical
+ *   `src/deluge/processing/sound/sound.cpp` (`beta` e7bae539); identical
  *   in official 4.1.4 (`synthstrom-official` branch, `src/sound.cpp`), so one
  *   table serves every supported firmware. XML names via
  *   `params::paramNameForFile` (`src/deluge/modulation/params/param.cpp`);

@@ -8,6 +8,7 @@
 
 import { describe, expect, it } from 'vitest'
 import {
+  type Advice,
   feedbackSlot,
   followAdvice,
   hasLowerZone,
@@ -17,6 +18,9 @@ import {
   parseMpeInputs,
   usbInputZones,
 } from './followsettings'
+
+/** Every advice line as one string, for tests about what is said rather than where. */
+const text = (lines: Advice[]) => lines.map((l) => l.text).join(' ')
 
 const file = (a: string, b = '256', c = '256', feedback = 'a', filter = 'Off') => `<?xml version="1.0" encoding="UTF-8"?>
 <defaults>
@@ -101,8 +105,8 @@ describe('reading the instrument’s follow channels', () => {
 describe('what the settings mean for this editor', () => {
   it('says which MIDI channel the mirroring will arrive on', () => {
     const lines = followAdvice(parseFollowSettings(file('17')))
-    expect(lines[0]).toContain('MPE lower zone')
-    expect(lines[0]).toContain('MIDI channel 1')
+    expect(lines[0].text).toContain('MPE lower zone')
+    expect(lines[0].text).toContain('MIDI channel 1')
   })
 
   /*
@@ -112,7 +116,7 @@ describe('what the settings mean for this editor', () => {
    */
   it('names the port an MPE follow channel needs', () => {
     const lines = followAdvice(parseFollowSettings(file('17')))
-    expect(lines.join(' ')).toContain('Deluge Port 2, MIDI channel 1')
+    expect(text(lines)).toContain('Deluge Port 2, MIDI channel 1')
   })
 
   /*
@@ -121,24 +125,30 @@ describe('what the settings mean for this editor', () => {
    */
   it('keeps both directions on the feedback slot when it works', () => {
     const lines = followAdvice(parseFollowSettings(file('17', '3')))
-    expect(lines.join(' ')).toContain('Sending: channel A is MPE lower zone')
+    expect(text(lines)).toContain('Sending: Channel A is MPE lower zone')
   })
 
   it('says when feedback is off at all', () => {
-    expect(followAdvice(parseFollowSettings(file('1', '256', '256', 'none')))[0]).toContain('feedback is off')
+    const first = followAdvice(parseFollowSettings(file('1', '256', '256', 'none')))[0]
+    expect(first.text).toContain('feedback is off')
+    expect(first.level).toBe('warn')
   })
 
   it('says which port and channel a send will be accepted on', () => {
-    expect(followAdvice(parseFollowSettings(file('9')))[1]).toContain('Deluge Port 1, MIDI channel 9')
+    const second = followAdvice(parseFollowSettings(file('9')))[1]
+    expect(second.text).toContain('Deluge Port 1, MIDI channel 9')
+    expect(second.level).toBe('info')
   })
 
   it('names the one-second filter, which makes a drag look dead', () => {
     const lines = followAdvice(parseFollowSettings(file('1', '256', '256', 'a', 'On')))
-    expect(lines.join(' ')).toContain('within a second')
+    const filter = lines.find((l) => l.text.includes('Filter Responses'))
+    expect(filter?.text).toContain('within the last second')
+    expect(filter?.level).toBe('warn')
   })
 
   it('says nothing about the filter when it is off', () => {
-    expect(followAdvice(parseFollowSettings(file('1'))).join(' ')).not.toContain('within a second')
+    expect(text(followAdvice(parseFollowSettings(file('1'))))).not.toContain('Filter Responses')
   })
 })
 
@@ -200,7 +210,7 @@ describe('an MPE follow channel, and which USB cable it needs', () => {
   })
 
   it('says which port the editor has to use, and why', () => {
-    const joined = followAdvice(settings).join(' ')
+    const joined = text(followAdvice(settings))
     expect(joined).toContain('Deluge Port 2, MIDI channel 1')
     expect(joined).toContain('Only that USB cable has MPE zones')
   })
@@ -240,6 +250,8 @@ describe('an MPE follow channel, and which USB cable it needs', () => {
   it('says nothing will be accepted when no slot can match anywhere', () => {
     const none = parseFollowSettings(file('256'))
     expect(chooseSendTarget(none)).toBe(null)
-    expect(followAdvice(none).join(' ')).toContain('none of A, B or C is assigned')
+    const lines = followAdvice(none)
+    expect(text(lines)).toContain('none of Channel A, B or C is assigned')
+    expect(lines.every((l) => l.level === 'warn')).toBe(true)
   })
 })

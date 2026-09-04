@@ -15,6 +15,7 @@ import { shareZip, type ShareSample } from '../../core/kit/share'
 import { isKit, drumRows, type KitElement, type SoundElement } from '../../core/preset'
 import { bufferReader, readWavInfo } from '../../core/samples/wav'
 import { isDirectory } from '../../core/sysex'
+import { errorText } from '../errtext'
 import { card } from './card.svelte'
 import { editor } from './editor.svelte'
 import { samples } from './samples.svelte'
@@ -237,7 +238,7 @@ class KitBuilder {
     try {
       await fn()
     } catch (e) {
-      this.error = e instanceof Error ? e.message : String(e)
+      this.error = errorText(e)
     } finally {
       this.busy = null
     }

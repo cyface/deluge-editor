@@ -13,7 +13,7 @@
  *
  * The file is `MidiFollow::writeDefaultsToFile`
  * (`src/deluge/io/midi/midi_follow.cpp`, SynthstromAudible/DelugeFirmware
- * upstream/community bef6d9df):
+ * `beta` e7bae539):
  *
  *   <defaults>
  *     <cc_mappings>…</cc_mappings>
@@ -134,7 +134,6 @@ export interface MpeZones {
 }
 
 export const hasLowerZone = (z: MpeZones): boolean => z.lowerLast !== 0
-export const hasUpperZone = (z: MpeZones): boolean => z.upperFirst !== 15
 
 /** Input zones per cable, keyed by the tag the firmware writes for that cable. */
 export function parseMpeInputs(xml: string): Record<string, MpeZones> {
@@ -274,39 +273,6 @@ export function chooseSendTarget(s: FollowSettings, byCable?: Record<string, Mpe
 }
 
 /**
- * Whether this slot can actually accept a CC sent from here.
- *
- * A plain channel always can. A zone can only when the *input* port has that
- * zone configured, because `LearnedMIDI::checkMatch` compares the slot's
- * `channelOrZone` against `MIDIPort::channelToZone(incoming)`, and that
- * returns a zone only for a port that has one. Unknown when the zones could
- * not be read.
- */
-export function slotAccepts(c: FollowChannelSetting, mpe?: MpeZones): boolean | null {
-  if (c.kind === 'unassigned') return false
-  if (c.kind === 'channel') return true
-  if (mpe === undefined) return null
-  return c.kind === 'mpeLower' ? hasLowerZone(mpe) : hasUpperZone(mpe)
-}
-
-/**
- * The channel to send on: the first slot that will actually accept a CC.
- *
- * A plain channel is preferred over a zone even when both would work, because
- * `checkMatch` returns CHANNEL for it outright while a zone has to be the
- * master channel to count — `midiCCReceivedForSelectedOrActiveClip` only
- * passes MPE_MASTER and CHANNEL through to the parameters, and drops
- * MPE_MEMBER. Null when nothing can accept, which is a real answer and not a
- * missing one: sending is impossible until the instrument is changed.
- */
-export function sendableChannel(s: FollowSettings, mpe?: MpeZones): number | null {
-  const plain = s.channels.find((c) => c.kind === 'channel')
-  if (plain?.channel != null) return plain.channel
-  const zone = s.channels.find((c) => slotAccepts(c, mpe) === true)
-  return zone?.channel ?? null
-}
-
-/**
  * What this configuration means for the editor.
  *
  * Listening and sending are answered separately because they fail separately.
@@ -315,45 +281,65 @@ export function sendableChannel(s: FollowSettings, mpe?: MpeZones): number | nul
  * regardless. Sending has to satisfy `LearnedMIDI::checkMatch` on the one
  * cable it goes out on, and the three cables are not configured alike.
  */
-export function followAdvice(s: FollowSettings, byCable?: Record<string, MpeZones>): string[] {
-  const out: string[] = []
+/**
+ * One line of advice. `warn` is a configuration that stops something working
+ * and names the menu item to change; `info` states what the configuration
+ * means. The level travels with the text so the sheet colours a line by what
+ * it is, not by what it happens to say.
+ */
+export interface Advice {
+  level: 'info' | 'warn'
+  text: string
+}
+
+/**
+ * Menu paths are written as the OLED shows them at community 1.3.0
+ * (`STRING_FOR_FOLLOW_TITLE` "Midi-Follow", `STRING_FOR_FOLLOW_FEEDBACK`
+ * "Feedback", `STRING_FOR_FOLLOW_FEEDBACK_FILTER` "Filter Responses",
+ * `l10n/english.json` at the `beta` tag). A 7-segment Deluge abbreviates the
+ * title to FOLO.
+ */
+export function followAdvice(s: FollowSettings, byCable?: Record<string, MpeZones>): Advice[] {
+  const out: Advice[] = []
+  const info = (text: string) => out.push({ level: 'info', text })
+  const warn = (text: string) => out.push({ level: 'warn', text })
   const fb = feedbackSlot(s)
 
   if (s.feedback === 'none' || fb === undefined) {
-    out.push('Mirroring: MIDI-Follow feedback is off, so nothing will arrive here. Set SETTINGS > MIDI > MIDI-Follow > Feedback > Channel to A, B or C.')
+    warn('Listening: Midi-Follow feedback is off, so nothing will arrive here. Set Settings › MIDI › Midi-Follow › Feedback › Channel to Channel A, B or C.')
   } else if (fb.kind === 'unassigned') {
-    out.push(`Mirroring: feedback is routed through channel ${fb.slot.toUpperCase()}, which is unassigned, so nothing will be sent.`)
+    warn(`Listening: feedback is routed through Channel ${fb.slot.toUpperCase()}, which is unassigned, so nothing will be sent. Give it a channel under Midi-Follow › Channel.`)
   } else {
-    out.push(`Mirroring: feedback comes from channel ${fb.slot.toUpperCase()}, which is ${fb.label}, so it arrives on MIDI channel ${fb.channel}.`)
+    info(`Listening: feedback comes from Channel ${fb.slot.toUpperCase()}, which is ${fb.label}, so it arrives on MIDI channel ${fb.channel}.`)
   }
 
   const target = chooseSendTarget(s, byCable)
   const assigned = s.channels.filter((c) => c.kind !== 'unassigned')
 
   if (target !== null) {
-    out.push(
-      `Sending: channel ${target.slot.toUpperCase()} is ${target.label}, so a CC has to go out on Deluge Port ${target.port}, MIDI channel ${target.channel}. The editor is using that.`,
+    info(
+      `Sending: Channel ${target.slot.toUpperCase()} is ${target.label}, so a CC has to go out on Deluge Port ${target.port}, MIDI channel ${target.channel}. The editor is using that.`,
     )
     if (target.label.startsWith('MPE')) {
-      out.push(
+      warn(
         `Port ${target.port} is the one that matters here. Only that USB cable has MPE zones set up, so it is the only one where MIDI channel ${target.channel} counts as the zone this follow channel is set to. Sending the same CC on another port would be ignored.`,
       )
     }
   } else if (assigned.length === 0) {
-    out.push('Sending: none of A, B or C is assigned, so the Deluge will accept nothing sent from here.')
+    warn('Sending: none of Channel A, B or C is assigned, so the Deluge will accept nothing sent from here.')
   } else {
-    out.push(
-      `Sending: nothing will be accepted on any port. ${assigned.map((c) => `Channel ${c.slot.toUpperCase()} is ${c.label}`).join('; ')}. Assign a follow channel that one of the three USB cables can match, under SETTINGS > MIDI > MIDI-Follow > Channel.`,
+    warn(
+      `Sending: nothing will be accepted on any port. ${assigned.map((c) => `Channel ${c.slot.toUpperCase()} is ${c.label}`).join('; ')}. Assign a follow channel that one of the three USB cables can match, under Settings › MIDI › Midi-Follow › Channel.`,
     )
   }
 
   const bound = s.channels.filter((c) => c.kind !== 'unassigned' && c.device !== null)
   if (bound.length) {
-    out.push(`Channel ${bound.map((c) => c.slot.toUpperCase()).join(', ')} is bound to one MIDI device, so only that device is followed.`)
+    info(`Channel ${bound.map((c) => c.slot.toUpperCase()).join(', ')} is bound to one MIDI device, so only that device is followed.`)
   }
 
   if (s.feedbackFilter) {
-    out.push('The feedback filter is on, so the Deluge ignores an incoming CC within a second of having sent that same CC. A knob dragged here will move the instrument once and then go quiet until it settles.')
+    warn('Filter Responses is on under Feedback, so the Deluge ignores any CC it sent itself within the last second: a knob dragged here moves the sound once and then goes quiet for a second. Turn it off for two-way editing.')
   }
 
   return out

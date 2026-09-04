@@ -170,7 +170,7 @@
     />
   </Menu>
   {#if follow.available}
-    <!-- Firmware-gated like every other control: MIDI Follow does not exist
+    <!-- Firmware-gated like every other control: Midi-Follow does not exist
          below community 1.1.0 and on no official build, so the button is
          absent there rather than disabled (docs/decisions.md). -->
     <!-- Unlike the commands this one does not need a preset first: the mode
@@ -182,7 +182,7 @@
       class="btn"
       class:on={follow.on}
       data-testid="follow-button"
-      title="Mirror the Deluge’s own knob moves: shows only the parameters MIDI Follow can reach, and moves them as the instrument reports them. Starts a new synth if nothing is loaded."
+      title="Listen to the Deluge: shows only the parameters Midi-Follow can reach, and moves them as the Deluge reports a knob turn, a menu edit or a clip opening. Starts a new synth if nothing is loaded."
       onclick={() => { if (!editor.preset) editor.newSynth(); void follow.toggle() }}
     >
       {#if follow.status === 'listening'}<span class="dot pulse"></span>{/if}Follow Mode
@@ -209,7 +209,7 @@
   .pill { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 6px 0 10px; border-radius: 12px; border: 1px solid #2f4a2c; background: #0e1410; flex: none; }
   /* Locked to the connected device: same face as the select, but it is just text. */
   .pill .fw { color: #a9d9a1; font-family: var(--cond); font-size: 12px; letter-spacing: .09em; text-transform: uppercase; }
-  .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #67c45c; box-shadow: 0 0 6px #67c45c; flex: none; }
+  .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 6px var(--ok); flex: none; }
   .btn .dot { margin-right: 6px; vertical-align: 1px; }
   /* A transfer is running (even with the dialog closed), or Follow is listening: amber, pulsing. */
   .dot.pulse { background: #e8b06a; box-shadow: 0 0 6px #e8b06a; animation: cardbusy 1s ease-in-out infinite; }

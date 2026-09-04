@@ -39,7 +39,6 @@ export function sourceHint(s: PatchSource): string {
   return hints[s] ?? ''
 }
 
-
 /**
  * What feeds a modulator, for its tooltip in the flow strip. The MIDI facts
  * are the firmware's routing in `MelodicInstrument::receivedCC`,

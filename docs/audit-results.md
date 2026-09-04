@@ -20,6 +20,69 @@ Sections: [1 Fix first](#1-fix-first) · [2 Docs](#2-documentation) ·
 
 ---
 
+## Status
+
+Updated as work lands. Line numbers in the sections below are still as of
+`4074028`; the tree has moved since.
+
+**Done (2026-09-04, this pass), all with `pnpm test`, `pnpm check` and
+`pnpm test:e2e` clean:**
+
+- §1 items 1–9, 11, 12 — every bug except the two fakes (item 10, see §8).
+  - 1: `CardError` + `isNotFound` in `library/fs.ts`; `library/sms.ts` maps
+    every `SysexError`; `scan.ts` treats only a not-found root as empty;
+    `samples.svelte.ts` no longer caches a failed listing as absent and
+    surfaces `checkError`; `localcard.ts` throws coded errors.
+  - 2: `card.need()` requires `status === 'connected'`; `write` holds the
+    client across the await and reports a mid-save disconnect in words.
+  - 3: `localcard.ts` reads every write back and throws `verify` on a
+    mismatch, rename-by-copy included; `localcard.test.ts` added.
+  - 4: `--z-modal` token; the two dialogs use it; Escape closes only the
+    topmost dialog in a fixed order.
+  - 5: see §3 below.
+  - 6: `src/ui/errtext.ts` `errorText(e)`; `SysexError` carries a `reason`
+    without the FatFS name and client-side codes `NO_REPLY`/`SHORT_WRITE`/
+    `SHORT_READ` below the FatFS range; the ladder's give-up is a
+    `SysexError`, not a raw msgId string; every store catch goes through it.
+  - 7: the identity inquiry times out after one attempt; `firmwareOk` gains
+    `'unknown'` and the card panel says the controls follow the file.
+  - 8: `ARP_MODE_NAMES` (Off/On, cited); `arpeggiator@mode` had the same
+    fall-through for `arp` and is fixed too.
+  - 9: the unison tooltip says the middle copy stays in tune only for an odd
+    count; the ±25 cents figure was right and is now cited
+    (`kMaxUnisonDetune = 50`, one unit = one cent of total spread).
+  - 11: one `$effect.root` in `samples.svelte.ts` keyed on a `$derived` of
+    the sorted reference list, with a generation counter; the two component
+    effects are gone.
+  - 12: README rewritten with §3.
+- §3 in full: `FollowHelp.svelte` is the proposed copy in the proposed order;
+  `followAdvice` returns `{ level, text }` and names menus as the OLED does
+  ("Listening:", Channel A, Feedback › Filter Responses); the header reads
+  "Listen on" / "Send on" and its help button is "Help"; the three
+  `follow.*` tooltips, the Follow Mode button title, the empty-state line and
+  `README.md` are the proposed text. Menu spelling is `Midi-Follow` (the
+  `beta` tag, what a 1.3.0 user reads). `follow.svelte.ts` imports `card`
+  statically (there was no cycle) and its settings error goes through
+  `errorText`.
+- §2 "wrong or stale": all fixed except one that was not stale — the
+  velocity fixture *is* read by `src/core/preset/ranges.test.ts:500,536`, so
+  `SOURCES.md` and `fixture-capture.md` stand. Corpus figures are now dated
+  survey figures beside the thresholds the test asserts.
+- §2 "undocumented": README gained paragraphs for Save's four exits and the
+  two-click arm, the confirm dialog, the kit builder and Rows table, cables on
+  right-click, the Gold Knobs panel, tooltips, roll naming, the `._` sidecar
+  and why the Follow Mode button is absent on official firmware; the
+  decisions log gained entries for pipelining, the grouped changes dock,
+  masonry, the cable picker, gold knobs, the sidecar, roll naming and the
+  randomizer's exclusions, plus the Arp Only row as the second deliberate
+  greyed control. §2 "minor wording": done.
+
+**Not started:** §1 item 10 / §8 (the two fakes, fixture captures, table
+tests, CI), §4 copy pass, §5 UI components, §6 state layer, §7 core, §9 dead
+code, §10 citations. §11 steps 4–9.
+
+---
+
 ## 1. Fix first
 
 Real bugs or user-facing wrongness, in rough order of harm.

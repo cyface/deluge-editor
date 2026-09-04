@@ -27,7 +27,6 @@ export type Lane = 'src' | 'chain' | 'mod'
 export interface Group {
   id: string
   name: string
-  short: string
   /** CSS custom property holding the block colour. */
   color: string
   lane: Lane
@@ -70,7 +69,6 @@ export const GROUPS: readonly Group[] = [
   {
     id: 'osc',
     name: 'Oscillators',
-    short: 'OSC',
     color: '--osc',
     lane: 'src',
     icon: IC.saw,
@@ -94,7 +92,6 @@ export const GROUPS: readonly Group[] = [
   {
     id: 'voice',
     name: 'Voice',
-    short: 'VCE',
     color: '--osc',
     lane: 'chain',
     icon: IC.stack,
@@ -107,7 +104,6 @@ export const GROUPS: readonly Group[] = [
   {
     id: 'filters',
     name: 'Filters',
-    short: 'FLT',
     color: '--flt',
     lane: 'chain',
     icon: IC.filter,
@@ -125,7 +121,6 @@ export const GROUPS: readonly Group[] = [
   {
     id: 'modfx',
     name: 'Mod FX',
-    short: 'MFX',
     color: '--fx',
     lane: 'chain',
     icon: IC.chorus,
@@ -139,7 +134,6 @@ export const GROUPS: readonly Group[] = [
   {
     id: 'dist',
     name: 'Distortion',
-    short: 'DST',
     color: '--fx',
     lane: 'chain',
     icon: IC.crush,
@@ -158,7 +152,6 @@ export const GROUPS: readonly Group[] = [
   {
     id: 'delay',
     name: 'Delay & Reverb',
-    short: 'DLY',
     color: '--fx',
     lane: 'chain',
     icon: IC.delay,
@@ -174,7 +167,6 @@ export const GROUPS: readonly Group[] = [
   {
     id: 'out',
     name: 'Output',
-    short: 'OUT',
     color: '--mst',
     lane: 'chain',
     icon: IC.out,
@@ -192,7 +184,6 @@ export const GROUPS: readonly Group[] = [
   {
     id: 'mods',
     name: 'Envelopes & LFOs',
-    short: 'ENV',
     color: '--env',
     lane: 'mod',
     icon: IC.env,
@@ -212,7 +203,6 @@ export const GROUPS: readonly Group[] = [
   {
     id: 'cables',
     name: 'Mod Matrix',
-    short: 'MTX',
     color: '--mod',
     lane: 'mod',
     icon: IC.matrix,
@@ -226,7 +216,6 @@ export const GROUPS: readonly Group[] = [
   {
     id: 'arp',
     name: 'Arpeggiator',
-    short: 'ARP',
     color: '--arp',
     lane: 'mod',
     icon: IC.arp,
@@ -245,7 +234,6 @@ export const GROUPS: readonly Group[] = [
   {
     id: 'random',
     name: 'Randomiser',
-    short: 'RND',
     color: '--arp',
     lane: 'mod',
     icon: IC.dice,
@@ -268,7 +256,6 @@ export const GROUPS: readonly Group[] = [
   {
     id: 'gold',
     name: 'Gold Knobs',
-    short: 'GLD',
     color: '--mst',
     lane: 'mod',
     icon: IC.gold,
@@ -290,7 +277,6 @@ export const GROUPS: readonly Group[] = [
 export const KIT_GROUP: Group = {
   id: 'kit',
   name: 'Kit Bus',
-  short: 'KIT',
   color: '--mst',
   lane: 'chain',
   icon: IC.kit,
@@ -298,9 +284,6 @@ export const KIT_GROUP: Group = {
   summary: () => 'whole-kit filters, FX, sidechain',
   value: () => 'kit',
 }
-
-export const groupById = (id: string): Group | undefined =>
-  id === 'kit' ? KIT_GROUP : GROUPS.find((g) => g.id === id)
 
 const OWNER = new Map<string, Group>()
 for (const g of GROUPS) for (const p of g.owns) OWNER.set(p, g)

@@ -46,6 +46,7 @@ import {
 } from '../../core/library'
 import { retargetSampleFiles } from '../../core/preset'
 import { readWavInfo, type WavInfo } from '../../core/samples/wav'
+import { errorText } from '../errtext'
 import { localFS, pickCardRoot } from '../localcard'
 import { audio } from './audio.svelte'
 import { card } from './card.svelte'
@@ -155,7 +156,7 @@ class Library {
     } catch (e) {
       this.switchTo('mounted')
       this.open = true
-      this.error = e instanceof Error ? e.message : String(e)
+      this.error = errorText(e)
       return
     }
     if (!root) return // cancelled: nothing changes, the panel stays as it was
@@ -451,7 +452,7 @@ class Library {
     try {
       await fn()
     } catch (e) {
-      this.error = e instanceof Error ? e.message : String(e)
+      this.error = errorText(e)
     } finally {
       this.busy = null
       this.scan = null

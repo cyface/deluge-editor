@@ -21,7 +21,6 @@ import {
   PATCH_SOURCES,
   UNPATCHED_SHARED_PARAMS,
   UNPATCHED_SOUND_PARAMS,
-  POLARITY_NAMES,
   POLYPHONY_NAMES,
   SYNTH_MODE_NAMES,
   VOICE_PRIORITY_NAMES,
@@ -69,7 +68,6 @@ export const polyphonyOptions = (): Option[] => fromRecord(POLYPHONY_NAMES)
 export const synthModeOptions = (): Option[] => fromRecord(SYNTH_MODE_NAMES)
 export const voicePriorityOptions = (): Option[] => fromRecord(VOICE_PRIORITY_NAMES)
 export const loopModeOptions = (): Option[] => fromRecord(LOOP_MODE_NAMES)
-export const polarityOptions = (): Option[] => fromRecord(POLARITY_NAMES)
 export const syncLevelOptions = (): Option[] => [...SYNC_LEVELS]
 export const syncTypeOptions = (): Option[] => [...SYNC_TYPES]
 export const oldArpModeOptions = (): Option[] => fromRecord(OLD_ARP_MODE_NAMES)

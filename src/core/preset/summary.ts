@@ -247,7 +247,7 @@ export function summariseKit(kit: KitElement): Summary {
     ? `${cap(bits.join(', '))}: ${list(names.slice(0, 6))}${names.length > 6 ? ' and more' : ''}.`
     : `${cap(bits.join(', '))}.`
   const chips = [`${rows.length} ROWS`]
-  const reverb = kit.attrs && child(kit, 'defaultParams')?.attrs.reverbAmount
+  const reverb = child(kit, 'defaultParams')?.attrs.reverbAmount
   if (reverb && standardToMenu(hexToInt(reverb)) > 8) chips.push('VERB')
   return { sentence, chips }
 }

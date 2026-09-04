@@ -10,7 +10,7 @@ Public at github.com/cyface/deluge-editor, MIT. Work is tracked as GitHub
 issues in dependency order (`gh issue list`).
 
 - `src/core/` — framework-free TypeScript (params, xml, preset, sysex,
-  firmware, samples, kit, midi). No Svelte or DOM imports beyond `DOMParser`;
+  firmware, samples, kit, midi, library, random). No Svelte or DOM imports beyond `DOMParser`;
   tests run in Node via happy-dom. `xml/` is the ordered element tree and its
   parser/writer; `preset/` is the typed view over it (enum string tables,
   param names, element shapes); `samples/` reads WAV headers over any ranged
@@ -36,7 +36,7 @@ issues in dependency order (`gh issue list`).
 ```sh
 pnpm test    # vitest, once      pnpm check   # svelte-check + tsc
 pnpm build   # static bundle     pnpm dev     # vite
-pnpm test:e2e  # Playwright smoke test (tests/e2e/), builds and previews first
+pnpm test:e2e  # Playwright end-to-end specs (tests/e2e/), builds and previews first
 ```
 
 ## Rules that are easy to get wrong

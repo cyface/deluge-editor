@@ -24,6 +24,7 @@ import {
 } from '../params/scale'
 import type { FlatXML } from '../xml/flatten'
 import {
+  ARP_MODE_NAMES,
   ARP_MPE_NAMES,
   ARP_NOTE_MODE_NAMES,
   ARP_OCTAVE_MODE_NAMES,
@@ -212,6 +213,12 @@ export function describeElementPath(path: string, ...maps: Array<FlatXML | null 
 
 const HEX = /^0x[0-9A-Fa-f]{1,8}$/
 
+/**
+ * `arpeggiator@mode` held the old direction names before community 1.1 and
+ * holds the on/off pair since (`enums.ts`); a diff can show either.
+ */
+const ANY_ARP_MODE_NAMES: Record<string, string> = { ...OLD_ARP_MODE_NAMES, ...ARP_MODE_NAMES }
+
 /** The enum name table for this attribute, if it has one. */
 function enumTable(seg: string | undefined, attr: string): Record<string, string> | undefined {
   if (attr === 'type' && seg?.startsWith('osc')) return OSC_TYPE_NAMES
@@ -223,8 +230,8 @@ function enumTable(seg: string | undefined, attr: string): Record<string, string
   if (attr === 'polarity') return POLARITY_NAMES
   if (attr === 'voicePriority') return VOICE_PRIORITY_NAMES
   if (attr === 'loopMode') return LOOP_MODE_NAMES
-  if (attr === 'mode' && seg === 'arpeggiator') return OLD_ARP_MODE_NAMES
-  if (attr === 'arpMode' && seg === 'arpeggiator') return OLD_ARP_MODE_NAMES
+  if (attr === 'mode' && seg === 'arpeggiator') return ANY_ARP_MODE_NAMES
+  if (attr === 'arpMode' && seg === 'arpeggiator') return ARP_MODE_NAMES
   if (attr === 'noteMode') return ARP_NOTE_MODE_NAMES
   if (attr === 'octaveMode') return ARP_OCTAVE_MODE_NAMES
   if (attr === 'mpeVelocity') return ARP_MPE_NAMES

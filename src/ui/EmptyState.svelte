@@ -12,7 +12,7 @@
     <!-- Follow Mode needs no file of its own: it starts one. Worth saying
          here, because the mode is the fastest way in for someone whose sound
          is already on the instrument. -->
-    <p class="lead alt">Or click <b>Follow Mode</b> to start a synth and have the Deluge's own knob moves fill it in as you turn them.</p>
+    <p class="lead alt">Or click <b>Follow Mode</b> to start a synth and have the Deluge fill it in: open a clip on the instrument and every mapped value arrives, then each knob turn as you make it.</p>
   {/if}
 </div>
 

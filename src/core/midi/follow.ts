@@ -41,7 +41,6 @@ export const KNOB_POS_OFFSET = 64
  * `writeDefaultMappingsToFile` makes when the firmware writes
  * `SETTINGS/MIDIFollow.XML`.
  *
-/*
  * Two notes on entries that look wrong:
  *
  * - **CC 30 is osc B's wavetable position, as in c1.1–c1.2.** The lookup-table

@@ -86,19 +86,47 @@ export interface ReadHandle {
   close(): Promise<void>
 }
 
+/**
+ * Conditions the client diagnoses itself, below the FatFS range so they can
+ * never be mistaken for a code the card reported. A short write used to be
+ * filed as FR_DISK_ERR and read as "is an SD card inserted?" — wrong twice
+ * over on the macOS 752-byte cliff, where the card is fine and the host
+ * ate the byte.
+ */
+export const NO_REPLY = -1
+export const SHORT_WRITE = -2
+export const SHORT_READ = -3
+
+const CLIENT_REASONS: Record<number, string> = {
+  [NO_REPLY]: 'no reply from the Deluge',
+  [SHORT_WRITE]: 'the Deluge accepted fewer bytes than were sent',
+  [SHORT_READ]: 'the file shrank while it was being read',
+}
+
 export class SysexError extends Error {
+  /**
+   * What went wrong, as a lower-case clause with no FatFS name in it — the
+   * screen text is built from this (`src/ui/errtext.ts`); `message` keeps
+   * the name for the log.
+   */
+  readonly reason: string
+
   constructor(
     public readonly op: string,
     public readonly path: string,
-    /** FatFS FRESULT, or -1 when no reply ever came. */
+    /** FatFS FRESULT the card reported, or one of the negative client-side codes above. */
     public readonly code: number,
   ) {
-    super(
-      code === -1
-        ? `${op} ${path}: no reply from the Deluge`
-        : `${op} ${path}: ${fresultMessage(code)} (${fresultName(code)})`,
-    )
+    const reason = code < 0 ? CLIENT_REASONS[code] ?? 'the request failed' : fresultMessage(code)
+    const what = path ? `${op} ${path}` : op
+    super(code < 0 ? `${what}: ${reason}` : `${what}: ${reason} (${fresultName(code)})`)
     this.name = 'SysexError'
+    this.reason = reason
+  }
+
+  /** Whether `code` is a FatFS result the card reported, as opposed to a condition diagnosed here. */
+  get fromCard(): boolean {
+    return this.code >= 0
   }
 }
 
@@ -170,9 +198,17 @@ const MAX_DIR_LINES = 25
  */
 const MAX_PIPELINE = 2
 
+/**
+ * The retry ladder (see `timeouts`). Exported so the one request that runs
+ * outside this client — the universal device inquiry the UI sends before
+ * `ping()` — can wait as long as one attempt here does before calling the
+ * firmware unknown.
+ */
+export const DEFAULT_TIMEOUTS: readonly number[] = [2000, 2000, 4000, 10000]
+
 /** Every option but `tag`, whose default is drawn per client (`newTag`). */
 const DEFAULTS: Required<Omit<SmsClientOptions, 'tag'>> = {
-  timeouts: [2000, 2000, 4000, 10000],
+  timeouts: [...DEFAULT_TIMEOUTS],
   writeChunk: 512,
   readChunk: 1024,
   writeAttempts: 5,
@@ -281,7 +317,7 @@ export class SmsClient {
 
   async ping(): Promise<void> {
     const r = await this.request({ ping: {} })
-    if (!('^ping' in r.json)) throw new SysexError('ping', '', -1)
+    if (!('^ping' in r.json)) throw new SysexError('ping', '', NO_REPLY)
   }
 
   /**
@@ -339,7 +375,7 @@ export class SmsClient {
       onProgress?.(Math.min(done, size), size)
     })
     await this.close(path, fid)
-    if (short || done < size) throw new SysexError('read', path, 9 /* FR_INVALID_OBJECT: file shrank mid-read */)
+    if (short || done < size) throw new SysexError('read', path, SHORT_READ)
     return out
   }
 
@@ -361,7 +397,7 @@ export class SmsClient {
         written = body.size as number
         if (written !== chunk.length) this.opts.debug(`short write at ${offset}: ${written}/${chunk.length} committed`)
       }
-      if (written !== chunk.length) throw new SysexError('write', path, 1 /* FR_DISK_ERR: persistent short write */)
+      if (written !== chunk.length) throw new SysexError('write', path, SHORT_WRITE)
       done += chunk.length
       onProgress?.(done, total)
     })
@@ -408,7 +444,7 @@ export class SmsClient {
     for (;;) {
       const r = await this.request({ dir: { path, offset: all.length, lines: MAX_DIR_LINES } })
       const body = r.json['^dir'] as { list?: DirEntry[]; err?: number } | undefined
-      if (!body) throw new SysexError('dir', path, -1)
+      if (!body) throw new SysexError('dir', path, NO_REPLY)
       const err = body.err ?? 0
       if (err !== 0 && all.length === 0) throw new SysexError('dir', path, err)
       const page = body.list ?? []
@@ -463,7 +499,7 @@ export class SmsClient {
 
   private body(op: string, path: string, r: SysexReply, key: string): Record<string, unknown> {
     const body = r.json[key] as Record<string, unknown> | undefined
-    if (!body) throw new SysexError(op, path, -1)
+    if (!body) throw new SysexError(op, path, NO_REPLY)
     const err = (body.err as number | undefined) ?? 0
     if (err !== 0) throw new SysexError(op, path, err)
     return body
@@ -484,7 +520,6 @@ export class SmsClient {
       return true
     }
     const started = Date.now()
-    let lastError: Error | null = null
     let attempt = 0
     for (const timeout of this.opts.timeouts) {
       attempt++
@@ -501,12 +536,15 @@ export class SmsClient {
         const reply = await this.exchange(msgId, frame, timeout, matches)
         this.opts.debug(`${op} ${frame.length}B → ${Date.now() - started}ms${attempt > 1 ? ` (attempt ${attempt})` : ''}`)
         return reply
-      } catch (e) {
-        lastError = e as Error
+      } catch {
+        // That rung timed out; the next one resends under a fresh msgId.
       }
     }
+    // The ms and attempt count live in the trace; the error itself is the
+    // same "no reply" every silent request gets, with the path when the
+    // command named one (fid-addressed ops don't).
     this.opts.debug(`${op} gave up after ${Date.now() - started}ms and ${attempt} attempts`)
-    throw lastError ?? new Error('SysEx request failed')
+    throw new SysexError(op, typeof args.path === 'string' ? args.path : '', NO_REPLY)
   }
 
   /**

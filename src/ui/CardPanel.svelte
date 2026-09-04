@@ -36,6 +36,14 @@
     {:else if card.status === 'connected'}
       {#if card.firmwareOk === false}
         <p class="err">This Deluge runs firmware {card.identity}, which predates the card protocol — it needs community 1.3.0 or later.</p>
+      {:else if card.firmwareOk === 'unknown'}
+        <!-- The identity inquiry went unanswered (or answered unreadably), so
+             the top-bar selector never locked to the device: the controls are
+             still gated by the file's firmware attribute, and that is worth
+             saying rather than letting the connection look fully read. -->
+        <p class="caution" data-testid="card-firmware-unknown">
+          Could not read this Deluge's firmware version — the controls follow the version in the file.
+        </p>
       {/if}
       {#if card.otherEditor}
         <!--

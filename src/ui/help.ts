@@ -240,7 +240,11 @@ export const HELP: Record<string, string> = {
   'sound.transpose': 'Tuning offset for the whole sound, in semitones.',
   'sound.voicePriority': 'Who loses a voice when the Deluge runs out. High is culled last, Low first — it outranks how old the note is.',
   'unison.num': 'How many copies of the oscillators each note plays.',
-  'unison.detune': 'How far the unison copies are spread in pitch. One copy always stays at the played pitch; at 50 the spread is about ±25 cents.',
+  // Sound::setupUnisonDetuners, sound.cpp:2984: the value is the whole spread
+  // in cents (42949672 per cent, the centAdjustTableSmall step), 0–50
+  // (kMaxUnisonDetune), centred on the played pitch; only an odd count keeps
+  // its middle copy undetuned (`numUnison & 1`, line 2993).
+  'unison.detune': 'How far the unison copies are spread in pitch, in cents, centred on the played pitch — at 50 the outer copies sit ±25 cents. With an odd count the middle copy stays in tune.',
   'unison.spread': 'How far the unison copies are spread across the stereo field.',
 
   // --- Filters -------------------------------------------------------------
@@ -334,12 +338,13 @@ export const HELP: Record<string, string> = {
   'gold.secondSource': 'A second source modulating the depth of the cable this encoder controls.',
 
   // --- Follow Mode ---------------------------------------------------------
-  // io/midi/midi_follow.cpp; the channel is set under MIDI-Follow > Channel.
-  'follow.channel': 'The channel the Deluge sends its feedback on, set under MIDI-Follow. Any accepts every channel, which is the quickest way to find out which one it is using.',
+  // io/midi/midi_follow.cpp; the feedback channel is Settings › MIDI › Midi-Follow › Feedback › Channel,
+  // which names one of the slots under Midi-Follow › Channel (l10n/english.json STRING_FOR_FOLLOW_*).
+  'follow.channel': 'The channel to listen on. Any takes every channel, which is right unless another device sends CCs on the same port. The Deluge’s feedback channel is Settings › MIDI › Midi-Follow › Feedback › Channel.',
   'follow.target': 'Which half of a kit clip the CCs reach, mirroring AFFECT ENTIRE on the instrument: the kit bus, or the selected row’s own sound.',
-  // MidiTakeover::calculateKnobPos; midiTakeover defaults to JUMP.
-  'follow.send': 'Send moves made here back to the Deluge, changing its active sound. Values land exactly only with MIDI-Follow takeover on JUMP, its default.',
-  'follow.sendChannel': 'The channel to send on. Heard uses whichever channel the instrument’s own feedback arrives on, which is right for a plain follow channel and for an MPE zone alike.',
+  // MidiTakeover::calculateKnobPos; midiTakeover defaults to Jump. The menu is MIDI › Takeover (menus.cpp midiTakeoverMenu).
+  'follow.send': 'Play moves made here back at the Deluge, into the sound it has live. Values land exactly only with Settings › MIDI › Takeover on Jump, its default.',
+  'follow.sendChannel': 'The channel to send on. Heard is the channel the Deluge’s own feedback arrived on, which is right whether its follow channel is a number or an MPE zone.',
 }
 
 /** Help for a panel header, by group id. */

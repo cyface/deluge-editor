@@ -1,7 +1,7 @@
 /**
  * Note codes as the Deluge names them.
  *
- * `noteCodeToString` (`util/functions.cpp:1710`, upstream/community bef6d9df)
+ * `noteCodeToString` (`util/functions.cpp:1917`, upstream/community bef6d9df)
  * computes `octave = noteCode / 12 - 2`, so note 60 is **C3**, not C4: the
  * Deluge follows the Yamaha convention. A root or key range shown in the
  * editor has to read the same as the one on the instrument's screen, so

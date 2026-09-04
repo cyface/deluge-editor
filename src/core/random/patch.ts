@@ -288,9 +288,9 @@ function rollVoice(ctx: Ctx): void {
 
   const u = ensureChild(sound, 'unison', SOUND_CHILD_ORDER)
   // `kMaxNumVoicesUnison = 8` and `kMaxUnisonDetune`/`kMaxUnisonStereoSpread`
-  // = 50 (`src/definitions_cxx.hpp:272, 807, 808`). Stacking all eight is a
-  // CPU bill as much as a sound, so a roll stops well below the ceiling
-  // unless it is a wild one.
+  // = 50 (`src/definitions_cxx.hpp:288, 769, 770`, upstream/community
+  // bef6d9df). Stacking all eight is a CPU bill as much as a sound, so a roll
+  // stops well below the ceiling unless it is a wild one.
   const voices = rng.chance(0.45 + amount * 0.25) ? span(rng, 2, 2 + Math.round(6 * amount)) : 1
   setAttr(u, 'num', String(voices), UNISON_ATTR_ORDER)
   setAttr(u, 'detune', String(voices > 1 ? span(rng, 3, 8 + 22 * amount) : 8), UNISON_ATTR_ORDER)

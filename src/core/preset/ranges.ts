@@ -186,7 +186,7 @@ export function sampleRanges(osc: OscElement): SampleRange[] {
  * A wavetable oscillator's ranges. These carry only `rangeTopNote` and
  * `fileName` — no zone, transpose or cents, which stay on the `<osc>` and
  * apply to every range (`sound.cpp:3695-3735`; the reader skips those tags
- * when `oscType == WAVETABLE`, `sound.cpp:3527`).
+ * when `oscType == WAVETABLE`, `sound.cpp:3495`).
  */
 export function wavetableRanges(osc: OscElement): WavetableRange[] {
   const set = child(osc, 'wavetableRanges')
@@ -292,7 +292,7 @@ export function rangeIndexAt(ranges: readonly { topNote?: number }[], note: numb
  * The highest note a *bounded* range can store: `MultiRange::topNote` is an
  * `int16_t` (`storage/multi_range/multi_range.h`) whose top value is the
  * unbounded sentinel. Nothing reachable from an editor comes near it — the
- * instrument keeps a bounded top note in 1..126 (`multi_range.cpp:116-151`) —
+ * instrument keeps a bounded top note in 1..126 (`gui/menu_item/multi_range.cpp:68-151`) —
  * it is only where a repair of a malformed file clamps.
  */
 const MAX_STORED_TOP_NOTE = UNBOUNDED_TOP_NOTE - 1
@@ -421,7 +421,7 @@ export function normalizeRanges(osc: OscElement): void {
       return
     }
     // Keep the range at least a note wide and on the keyboard — the bounds
-    // the instrument's own editor enforces (multi_range.cpp:116-151) — so a
+    // the instrument's own editor enforces (gui/menu_item/multi_range.cpp:68-151) — so a
     // repaired range is one that can actually sound.
     const ceiling = Math.min(MAX_STORED_TOP_NOTE, Math.max(floor + 1, HIGHEST_NOTE - 1))
     const top = Math.max(floor + 1, Math.min(sortKey(host), ceiling))
@@ -447,7 +447,7 @@ function orderedHosts(osc: OscElement): RangeHost[] {
  * Move the split point below the range above `index`.
  *
  * Clamped to the bounds the instrument's own encoder enforces
- * (`MultiRange::selectEncoderAction`, multi_range.cpp:116-151): above the
+ * (`MultiRange::selectEncoderAction`, gui/menu_item/multi_range.cpp:68-151): above the
  * range below, below the range above, and inside 1..126 so both the bottom
  * and the topmost range keep at least one note. Returns the note actually
  * written, or `undefined` for the topmost range, whose top is unbounded and
@@ -542,7 +542,7 @@ function newRangeElement(spec: NewRange, osc: OscElement): SampleRangeElement {
  * Split the range at `index`, putting a new one above or below it.
  *
  * This is the instrument's own insert (`MultiRange::selectEncoderAction` with
- * shift held, multi_range.cpp:167-226): the range being split runs from the
+ * shift held, gui/menu_item/multi_range.cpp:165-226): the range being split runs from the
  * one below's top note plus one (or note 0 at the bottom) to its own top note
  * (or 127 at the top), and the two ranges divide it at the midpoint — the new
  * one taking the upper half when inserted above, the lower half when
@@ -629,7 +629,7 @@ export function addRange(osc: OscElement, spec: NewRange): boolean {
 
 /**
  * Delete a range; the one below it takes over the space, as on the
- * instrument (`MultiRange::deletePress`, multi_range.cpp:300-329). Deleting
+ * instrument (`MultiRange::deletePress`, gui/menu_item/multi_range.cpp:282-329). Deleting
  * the bottom range needs no adjustment — the new bottom already catches
  * everything beneath it — deleting the top one makes the range below the new
  * unbounded top, and deleting one in the middle moves the split below it up

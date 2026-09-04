@@ -104,7 +104,7 @@
 </div>
 
 <style>
-  .veil { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; background: rgba(6,5,4,.72); }
+  .veil { position: fixed; inset: 0; z-index: var(--z-modal); display: grid; place-items: center; background: rgba(6,5,4,.72); }
   .ask {
     width: min(520px, calc(100vw - 40px)); background: linear-gradient(180deg, var(--panel2), var(--panel));
     border: 1px solid var(--edge-hi); border-radius: 5px; padding: 12px 14px 14px; box-shadow: 0 18px 50px rgba(0,0,0,.5);

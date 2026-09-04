@@ -2,8 +2,53 @@
  * The card as the library code sees it: six operations over paths in the
  * SysEx protocol's form (`/SAMPLES/Drums/Kick.wav`, leading slash). The
  * editor's Web MIDI store adapts `SmsClient` to this; tests adapt the fake
- * Deluge. Nothing here knows about MIDI.
+ * Deluge. Nothing here knows about MIDI beyond recognising its error type.
  */
+
+import { SysexError } from '../sysex'
+
+/**
+ * Why a card operation failed, as far as the two backends can tell apart.
+ * `notFound` is the one code callers act on — a root that isn't there is an
+ * empty root, a folder that isn't there has no samples — so it must never be
+ * inferred from anything else: a timed-out listing or a disk error is `io`,
+ * and reporting it as absence would let a delete through on an index that
+ * is missing a whole root (`move.ts` `deleteProblem`).
+ */
+export type CardErrorCode =
+  | 'notFound' // FatFS FR_NO_FILE / FR_NO_PATH, or no such entry on a mounted card
+  | 'exists' // FR_EXIST: the destination name is taken
+  | 'notAFile' // a read of a folder
+  | 'verify' // the bytes read back after a write differ from what was sent
+  | 'io' // anything else: disk error, timeout, no reply
+
+export class CardError extends Error {
+  constructor(
+    public readonly code: CardErrorCode,
+    message: string,
+    options?: { cause?: unknown },
+  ) {
+    super(message, options)
+    this.name = 'CardError'
+  }
+}
+
+const FR_NO_FILE = 4
+const FR_NO_PATH = 5
+const FR_EXIST = 8
+
+/** The `CardErrorCode` for a FatFS result code. */
+export const cardErrorCode = (fresult: number): CardErrorCode =>
+  fresult === FR_NO_FILE || fresult === FR_NO_PATH ? 'notFound' : fresult === FR_EXIST ? 'exists' : 'io'
+
+/**
+ * Whether `e` says the path is not on the card — a `CardError` from either
+ * backend, or a raw `SysexError` from a client used directly (the card store's
+ * `listPath`). Anything else, a timeout included, is not absence.
+ */
+export const isNotFound = (e: unknown): boolean =>
+  (e instanceof CardError && e.code === 'notFound') ||
+  (e instanceof SysexError && (e.code === FR_NO_FILE || e.code === FR_NO_PATH))
 
 export interface CardEntry {
   name: string

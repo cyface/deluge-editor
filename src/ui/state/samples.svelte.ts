@@ -14,6 +14,8 @@
  * behave the same way.
  */
 
+import { untrack } from 'svelte'
+import { isNotFound } from '../../core/library'
 import { referencedSampleFiles, retargetSampleFiles } from '../../core/preset'
 import { card } from './card.svelte'
 import { editor } from './editor.svelte'
@@ -30,13 +32,30 @@ class SampleStash {
    * warning.
    */
   missing = $state<Set<string>>(new Set())
+  /**
+   * Why the last missing-on-card check could not finish — a listing that
+   * timed out or hit a disk error. Files in a folder that could not be
+   * listed are left out of `missing`: not knowing is not the same as absent.
+   */
+  checkError = $state<string | null>(null)
   /** dir → lowercase file names, cached so edits don't re-list over SysEx. */
   private cardListings = new Map<string, Set<string>>()
+  /** Counts checkMissing() runs, so an older run's answer never lands over a newer one's. */
+  private checkGen = 0
 
   /** Every sample file the current preset references (deduplicated, in file order). */
   files(): string[] {
     return editor.preset ? referencedSampleFiles(editor.preset) : []
   }
+
+  /**
+   * The referenced files as one sorted string: the same string as long as
+   * the preset names the same files, whatever else in it changes. Walking
+   * the tree makes every attribute a dependency of this derived, but only a
+   * change to the result reaches the effect below — a knob tick does not
+   * re-run the card check (audit §1.11).
+   */
+  readonly fileKey = $derived(this.files().toSorted().join('\n'))
 
   /** Those of them whose bytes this session holds, and so could be written. */
   readonly pushable = $derived.by<string[]>(() => this.files().filter((f) => this.bytes.has(f)))
@@ -59,25 +78,35 @@ class SampleStash {
    * compare case-insensitively.
    */
   async checkMissing(): Promise<void> {
+    const gen = ++this.checkGen
     const files = this.files()
     if (!card.connected || files.length === 0) {
       if (this.missing.size) this.missing = new Set()
+      this.checkError = null
       return
     }
+    let error: string | null = null
     for (const dir of new Set(files.map((f) => `/${f.slice(0, f.lastIndexOf('/'))}`))) {
       if (this.cardListings.has(dir)) continue
       try {
         this.cardListings.set(dir, new Set((await card.listPath(dir)).map((e) => e.name.toLowerCase())))
-      } catch {
-        this.cardListings.set(dir, new Set()) // no such folder: everything in it is missing
+      } catch (e) {
+        // Only "no such folder" means everything in it is missing. A timeout
+        // or a disk error says nothing about the files, so the folder stays
+        // unlisted (and will be asked about again) and the failure is shown.
+        if (isNotFound(e)) this.cardListings.set(dir, new Set())
+        else error ??= e instanceof Error ? e.message : String(e)
       }
+      if (gen !== this.checkGen) return // a newer check owns the answer
     }
     const missing = new Set<string>()
     for (const f of files) {
       const cut = f.lastIndexOf('/')
-      if (!this.cardListings.get(`/${f.slice(0, cut)}`)?.has(f.slice(cut + 1).toLowerCase())) missing.add(f)
+      const listing = this.cardListings.get(`/${f.slice(0, cut)}`)
+      if (listing && !listing.has(f.slice(cut + 1).toLowerCase())) missing.add(f)
     }
     this.missing = missing
+    this.checkError = error
   }
 
   /** The card changed under us (connect, writes): listings are stale. */
@@ -135,8 +164,8 @@ class SampleStash {
     for (const dir of dirs) {
       try {
         for (const e of await card.listPath(dir)) existing.set(`${dir}/${e.name}`.toLowerCase(), e.size)
-      } catch {
-        // the folder does not exist yet; open-for-write creates it
+      } catch (e) {
+        if (!isNotFound(e)) throw e // the folder does not exist yet; open-for-write creates it
       }
     }
     const want = files.filter((f) => existing.get(`/${f}`.toLowerCase()) !== this.bytes.get(f)!.length)
@@ -161,3 +190,19 @@ export const samples = new SampleStash()
 // folder path and brings them along (card.save()).
 card.sampleRetarget = (savePath) => samples.retargetToSavePath(savePath)
 card.sampleSync = (onStatus) => samples.syncMissingToCard(onStatus)
+
+// The one place the missing-on-card check is kept current: when the
+// connection comes or goes, or the preset names a different set of files
+// (`fileKey`). A fresh connection drops the listing cache — the card may
+// have changed while we weren't looking. The check itself walks the tree
+// again, so it runs untracked or every attribute would be a dependency.
+$effect.root(() => {
+  let wasConnected = false
+  $effect(() => {
+    const connected = card.status === 'connected'
+    void samples.fileKey
+    if (connected && !wasConnected) samples.invalidateCardListings()
+    wasConnected = connected
+    untrack(() => void samples.checkMissing())
+  })
+})

@@ -20,21 +20,10 @@
   import NumberField from './controls/NumberField.svelte'
   import { HELP } from './help'
   import { audio } from './state/audio.svelte'
-  import { card } from './state/card.svelte'
   import { editor } from './state/editor.svelte'
   import { multisample, type RangeRootFrom } from './state/multisample.svelte'
   import { ranges as ed } from './state/ranges.svelte'
   import { samples as stash } from './state/samples.svelte'
-
-  // Keep the missing-on-card check current, the way the kit rows do: a range
-  // pointing at a file the card doesn't have loads silently on the Deluge.
-  let wasConnected = false
-  $effect(() => {
-    const connected = card.status === 'connected'
-    if (connected && !wasConnected) stash.invalidateCardListings()
-    wasConnected = connected
-    void stash.checkMissing()
-  })
 
   const osc = $derived(ed.osc)
   const list = $derived(ed.ranges)
@@ -405,7 +394,7 @@
   <!-- The import's modal owns these while it is open; the rest of the time
        (a re-detect, a shift, a left-out file that won't fit) this is where
        they land. -->
-  {#if !multisample.open && (multisample.busy || multisample.error || multisample.notice)}
+  {#if !multisample.open && (multisample.busy || multisample.error || multisample.notice || stash.checkError)}
     <div class="status" data-testid="range-status">
       {#if multisample.busy}
         <p class="busy">{multisample.busy}… {Math.round(multisample.progress * 100)}%</p>
@@ -413,6 +402,8 @@
         <p class="err" role="alert" data-testid="range-error">{multisample.error}</p>
       {:else if multisample.notice}
         <p class="okline" data-testid="range-notice">{multisample.notice}</p>
+      {:else if stash.checkError}
+        <p class="err" role="alert" data-testid="missing-check-error">Could not check the card for these samples: {stash.checkError}</p>
       {/if}
     </div>
   {/if}

@@ -8,7 +8,7 @@
  * Source: `Sound::writeToFile`, `Sound::writeSourceToFile`,
  * `Sound::writeParamsToFile`, `ModControllableAudio::writeAttributesToFile`
  * / `writeTagsToFile`, `PatchCableSet::writePatchCablesToFile`,
- * `ArpeggiatorSettings::writeCommonParamsToFile`, `Kit::writeToFile`
+ * `ArpeggiatorSettings::writeCommonParamsToFile`, `Kit::writeDataToFile`
  * (SynthstromAudible/DelugeFirmware upstream/main 3f898e95), confirmed
  * against the `community-c1.3.0-beta-3f898e9` fixtures. Older builds order a
  * few children differently (`tests/fixtures/SOURCES.md`); the reader is a

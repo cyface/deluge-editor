@@ -28,3 +28,6 @@ playwright-report
 # Python bytecode from the fixture-capture skill
 __pycache__/
 *.pyc
+
+# built by `pnpm test:e2e` (pretest:e2e) from tests/e2e/fake-deluge.entry.ts
+tests/e2e/fake-deluge.js
