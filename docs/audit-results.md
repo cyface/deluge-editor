@@ -182,8 +182,8 @@ Updated as work lands. Line numbers in the sections below are still as of
   importers). `sources.ts` no longer re-exports the gate tables; FlowStrip
   imports them from core. `kit.svelte.ts` uses `saveBlob`.
 
-**Everything in §11 is done.** Open follow-ups: the held-back 3.1.1 fixture
-(licensing); `follow.checking`/`audio.loading` outside `Activity`; `ranges`
+**Everything in §11 is done.** The 3.1.1 fixture is in (redistribution
+confirmed). Open follow-ups: `follow.checking`/`audio.loading` outside `Activity`; `ranges`
 keeps `open(which)`; `pulse.ts` osc type and `gateAllows` stay `string`;
 `DirEntry`/`CardEntry` differ; `summariseSound` unsplit.
 

@@ -143,12 +143,9 @@ Originals: `SYNTHS/Famous/KRAF/MODE/BASS.XML` and `LEAD.XML`.
 | `Attribute Format Baseline.XML` | the 4.x attribute format as written before `hpfMode`/`filterRoute`/`maxVoices` existed, `<compressor>` instead of `<sidechain>`; saw/saw poly, 5 cables |
 | `AnalogSaw Patch Cables.XML` | same format, `analogSaw` oscillators, 9 patch cables |
 
-## `official-3.1.1/` — real hardware, official 3.1.1 (not yet in the repo)
+## `official-3.1.1/` — real hardware, official 3.1.1
 
-Held back pending a licensing check: the candidate is a preset from a
-third-party pack, and it is not committed until its terms allow
-redistribution. `tests/enums.test.ts` already carries the allowance the folder
-will need. The candidate is one preset from Tim's card (`SYNTHS/Muted IO/Dream.XML`,
+One preset from a third-party pack on Tim's card (`SYNTHS/Muted IO/Dream.XML`,
 1969 timestamp, `firmwareVersion="3.1.1"`,
 `earliestCompatibleFirmware="3.1.0-beta"`). It is the only pre-3.2 attribute-
 format file on this machine and is here for one idiom: before 3.2 a cable's
@@ -156,7 +153,8 @@ depth was itself patched with `destination="range"`, paired with
 `rangeAdjustable="1"` on the cable it deepens. `src/core/preset/summary.test.ts`
 ("a pre-3.2 range destination") describes that shape from this file;
 `tests/enums.test.ts` allows `range` for this folder only. The pack is another
-sound designer's content — its terms decide whether it can be published here.
+sound designer's content; Tim confirmed on 2026-09-04 that this one file may be
+redistributed here.
 
 | File | Original name on the card | Covers |
 |---|---|---|
