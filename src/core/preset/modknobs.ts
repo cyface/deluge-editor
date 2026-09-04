@@ -13,7 +13,9 @@
  */
 
 import type { PatchSource } from './enums'
+import { paramLabel } from './names'
 import type { ParamName } from './params'
+import type { ModKnobElement } from './types'
 
 /** One knob's assignment: a param, or a patch cable's strength (param + source(s)). */
 export interface ModKnobAssign {
@@ -47,3 +49,30 @@ export const STOCK_MOD_KNOBS: readonly StockModKnob[] = [
   { controlsParam: 'bitcrushAmount' },
   { controlsParam: 'sampleRateReduction' },
 ]
+
+/**
+ * The volume family is one knob target the firmware disambiguates by source:
+ * `Sound::ensureKnobReferencesCorrectVolume` (`processing/sound/sound.cpp:1317`,
+ * `beta` e7bae539) rewrites a knob on `LOCAL_VOLUME`, `GLOBAL_VOLUME_POST_FX`
+ * or `GLOBAL_VOLUME_POST_REVERB_SEND` to `volumePostFX` when it is a plain
+ * param, `volumePostReverbSend` when its source is the sidechain, and
+ * `volume` for any other source. So a select shows the one canonical name and
+ * `setModKnob` writes the string the source calls for.
+ */
+export const canonicalKnobParam = (p: string | undefined): string | undefined =>
+  p === 'volume' || p === 'volumePostReverbSend' ? 'volumePostFX' : p
+
+/**
+ * One line for gold-knob slot `i`: the parameter's label, ` via <source>` when
+ * the knob turns a cable's depth, and ` · 2nd <source>` for a second source.
+ * A slot the file doesn't carry (`k` undefined) reads as its stock assignment.
+ * `sourceLabel` names a source the way the caller's selects do, so a source
+ * the firmware gate hides still shows its raw string rather than vanishing.
+ */
+export function modKnobSummary(k: ModKnobElement | undefined, i: number, sourceLabel: (s: string) => string): string {
+  const stock = STOCK_MOD_KNOBS[i]
+  const param = paramLabel(canonicalKnobParam(k?.attrs.controlsParam ?? stock.controlsParam) ?? '')
+  const src = k ? k.attrs.patchAmountFromSource : stock.patchAmountFromSource
+  const second = k?.attrs.patchAmountFromSecondSource
+  return param + (src ? ` via ${sourceLabel(src)}` : '') + (second ? ` · 2nd ${sourceLabel(second)}` : '')
+}

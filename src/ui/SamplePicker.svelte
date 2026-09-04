@@ -14,7 +14,7 @@
   import { samplePick as pick } from './state/samplepick.svelte'
 
   let fileInput: HTMLInputElement | undefined = $state()
-  const isWav = (name: string) => /\.wav$/i.test(name)
+  import { isWav } from './state/wavfiles'
 
   async function chooseLocal(e: Event) {
     const [file] = takeFiles(e)
@@ -39,24 +39,24 @@
       data-testid="sample-source-card"
       disabled={!card.supported || !!pick.busy}
       title={card.supported ? 'Browse SAMPLES/ on the Deluge (connects first if needed)' : 'Web MIDI needs Chrome or Edge'}
-      onclick={() => pick.browseCard()}
+      onclick={() => pick.browser.open()}
     >On the Deluge…</button>
     <button type="button" class="btn" data-testid="sample-cancel" onclick={() => pick.cancel()}>Cancel</button>
   </div>
 
-  {#if pick.cardPath !== null}
+  {#if pick.browser.path !== null}
     <div class="browse">
       <CardBrowser
-        path={pick.cardPath}
+        path={pick.browser.path}
         root="/SAMPLES"
-        entries={pick.cardEntries}
+        entries={pick.browser.entries}
         busy={!!pick.busy}
         selected={pick.selected}
         pickable={isWav}
         testid="sample-card-browser"
         boxed
         listHeight="210px"
-        onUp={() => pick.cardUp()}
+        onUp={() => pick.browser.up()}
         onOpen={(name) => void pick.chooseCard({ name, dir: true })}
         onPick={(name) => void pick.chooseCard({ name, dir: false })}
         onPickDouble={() => void pick.useSelected()}

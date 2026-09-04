@@ -7,12 +7,13 @@
    * so segment lengths compare across envelopes and every handle can move
    * both directions. Sketch only; the firmware's stages are table lookups.
    */
+  import { ENV_SKETCH_TOTAL, envelopeGeometry } from '../../core/params/envelope'
   import type { SoundElement } from '../../core/preset'
   import { envelope, envelopeMenu, setEnvelopeMenu } from '../../core/preset/sound'
   interface Props { sound: SoundElement; selected: number; available: number[] }
   let { sound, selected, available }: Props = $props()
   const H = 74, pad = 4
-  const TOTAL = 80 + 90 + 70 + 90 // max ta + td + hold + tr
+  const TOTAL = ENV_SKETCH_TOTAL // attack + decay + hold + release at full stretch (`src/core/params/envelope.ts`)
 
   /** The box's rendered width; 300 until the binding measures it. */
   let width = $state(300)
@@ -27,9 +28,7 @@
     const D = envelopeMenu(sound, n, 'decay') ?? 20
     const S = envelopeMenu(sound, n, 'sustain') ?? 25
     const R = envelopeMenu(sound, n, 'release') ?? 20
-    const ta = (A / 50) * 80, td = (D / 50) * 90, ts = 70, tr = (R / 50) * 90
-    const x1 = pad + ta * sc, x2 = x1 + td * sc, x3 = x2 + ts * sc, x4 = x3 + tr * sc
-    return { A, D, S, R, x1, x2, x3, x4 }
+    return envelopeGeometry({ A, D, S, R }, sc, pad)
   }
   function path(n: 1 | 2 | 3 | 4): string | null {
     if (!envelope(sound, n)) return null

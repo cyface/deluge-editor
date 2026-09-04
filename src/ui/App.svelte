@@ -78,7 +78,7 @@
    * one keypress never closes two things.
    */
   function escape(): void {
-    if (confirm.pending) return confirm.cancel()
+    if (confirm.open) return confirm.cancel()
     randomizer.open = false
   }
 
@@ -123,6 +123,9 @@
   <TopBar />
   {#if editor.error}
     <p class="error" role="alert">{editor.error}</p>
+  {/if}
+  {#if confirm.error}
+    <p class="error" role="alert" data-testid="confirm-error">{confirm.error}</p>
   {/if}
   <!-- A verified save closes the card dialog, so its confirmation lands here
        — green for "written and verified", amber when another editor on the

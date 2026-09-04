@@ -12,7 +12,8 @@
    * Rarely edited, so each slot is a one-line summary that expands in place
    * to the selects (issue #27).
    */
-  import { STOCK_MOD_KNOBS, paramLabel, type SoundElement } from '../../core/preset'
+  import { STOCK_MOD_KNOBS, type SoundElement } from '../../core/preset'
+  import { canonicalKnobParam, modKnobSummary } from '../../core/preset/modknobs'
   import { modKnobs, setModKnob, type ModKnobAssign } from '../../core/preset/sound'
   import type { ModKnobElement } from '../../core/preset/types'
   import Select from '../controls/Select.svelte'
@@ -26,10 +27,9 @@
   const paramOpts = $derived(knobParamOptions(editor.supports))
   const sourceOpts = $derived([{ value: '', label: 'Direct' }, ...sourceOptions(editor.supports)])
   // The volume family is one knob target the firmware disambiguates by source
-  // (ensureKnobReferencesCorrectVolume, sound.cpp:1317); the select shows the
-  // canonical name and setModKnob writes the right string for the source.
-  const canon = (p: string | undefined) =>
-    p === 'volume' || p === 'volumePostReverbSend' ? 'volumePostFX' : p
+  // (`canonicalKnobParam`); the select shows the canonical name and setModKnob
+  // writes the right string for the source.
+  const canon = canonicalKnobParam
 
   const knob = (i: number): ModKnobElement | undefined => knobs[i]
   const stock = (i: number) => STOCK_MOD_KNOBS[i]
@@ -42,12 +42,7 @@
   // A source the gate hides (or an unknown one) still shows its raw string,
   // same rule as Select.svelte: the control tells the truth.
   const sourceLabel = (s: string) => sourceOpts.find((o) => o.value === s)?.label ?? s
-  const summary = (k: ModKnobElement | undefined, i: number) => {
-    const param = paramLabel(canon(k?.attrs.controlsParam ?? stock(i).controlsParam) ?? '')
-    const src = k ? k.attrs.patchAmountFromSource : stock(i).patchAmountFromSource
-    const second = k?.attrs.patchAmountFromSecondSource
-    return param + (src ? ` via ${sourceLabel(src)}` : '') + (second ? ` · 2nd ${sourceLabel(second)}` : '')
-  }
+  const summary = (k: ModKnobElement | undefined, i: number) => modKnobSummary(k, i, sourceLabel)
 
   function assign(i: number, patch: Partial<ModKnobAssign>): void {
     const k = knob(i)

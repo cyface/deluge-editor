@@ -114,6 +114,20 @@ Consequences:
 - `syncLevel` names (`16th`, `1-bar`) follow `syncValueToString` for the file
   value, which is absolute; `syncType` is written as the enum value 0/10/19.
 
+One deliberate departure, in spelling only: pan. The instrument's 7-segment
+display prints the magnitude with the side after it — `25L`, `12R`, and a
+bare `0` at centre (`Pan::drawValue`, `gui/menu_item/patched_param/pan.cpp:30-43`,
+`beta` e7bae539) — and the OLED draws a signed number over a bar, negative
+left. The editor's knob, its change list and the kit table put the letter
+first and name the centre: `L25`, `R12`, `CTR` (`HexKnob.svelte`,
+`src/core/preset/describe.ts`; the kit table's narrower column says `C`).
+Why: beside a knob, a trailing letter or a minus sign reads as an amount
+before it reads as a side, and `-25` next to a 0–50 scale looks like "less"
+rather than "left". The number itself is the Deluge's (`panToMenu`), and
+typing any spelling — `L12`, `12L`, `-12`, `C` — is accepted (`parsePan`,
+`src/core/params/scale.ts`), so nothing a user reads off the instrument is
+refused.
+
 ## The selected firmware defaults to the file's, else to 4.1.4
 
 The controls are gated for the version in the top-bar pill. It starts as the

@@ -53,6 +53,26 @@ export function menuToPan(m: number): number {
   return m * 42949672 * 2
 }
 
+/**
+ * A typed pan as a menu value, −25..25, or `undefined` for nothing readable.
+ *
+ * The instrument spells pan two ways: the 7-segment prints the magnitude with
+ * the side after it — `25L`, `12R`, a bare `0` at centre (`Pan::drawValue`,
+ * `gui/menu_item/patched_param/pan.cpp:30-43`, `beta` e7bae539) — and the
+ * OLED draws a signed number, negative left. The editor's knob and change list
+ * put the letter first and name the centre (`L25`, `R12`, `CTR`; see
+ * `preset/describe.ts` and "Numbers are shown as the Deluge shows them" in
+ * `docs/decisions.md`). So every spelling is accepted: `C`/`CTR`, `L12`, `12L`,
+ * `-12`, a bare `L` or `R` for hard left or right. Out of range clamps.
+ */
+export function parsePan(text: string): number | undefined {
+  const raw = text.trim().toUpperCase().replace(/^(\d+)\s*([LR])$/, '$2$1') // 12L → L12
+  if (raw === '') return undefined
+  const side = /^([LR])\s*(\d*)$/.exec(raw)
+  const n = raw === 'C' || raw === 'CTR' ? 0 : side ? (side[1] === 'L' ? -1 : 1) * (side[2] ? Number(side[2]) : 25) : Math.round(Number(raw))
+  return Number.isFinite(n) ? clamp(n, -25, 25) : undefined
+}
+
 // ---- patch cable amount -5000..5000 (shown as -50.00..50.00) --------------
 // PatchCableStrength::readCurrentValue / writeCurrentValue
 // (`gui/menu_item/patch_cable_strength.cpp`): "the internal values are stored

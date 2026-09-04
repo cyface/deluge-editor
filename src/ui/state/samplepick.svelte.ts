@@ -45,13 +45,16 @@ import {
   tuningForSamplePitch,
 } from '../../core/preset/ranges'
 import type { OscElement, Preset } from '../../core/preset/types'
+import { joinPath, xmlPath } from '../../core/library'
 import { parseNoteName } from '../../core/samples/roots'
 import { bufferReader, readWavInfo, type WavInfo } from '../../core/samples/wav'
-import { isDirectory } from '../../core/sysex'
 import { setAttr } from '../../core/xml/edit'
+import { Activity } from './activity.svelte'
 import { card } from './card.svelte'
+import { CardBrowser, type BrowseEntry } from './cardbrowser.svelte'
 import { editor } from './editor.svelte'
 import { samples } from './samples.svelte'
+import { cleanFolder, isWav } from './wavfiles'
 
 /** Where the chosen sample goes. */
 export type PickTarget =
@@ -76,41 +79,31 @@ export interface PickOptions {
    * dialog, where every WAV in it becomes a new row. Given the card path and
    * the entries listed there; the dialog closes once it has been handed over.
    */
-  onFolder?: (path: string, entries: { name: string; dir: boolean }[]) => Promise<void> | void
+  onFolder?: (path: string, entries: readonly BrowseEntry[]) => Promise<void> | void
 }
 
-const isWav = (name: string): boolean => /\.wav$/i.test(name)
-
-/** A folder name FAT and the firmware are happy with, or `fallback` if nothing is left. */
-const cleanFolder = (name: string, fallback: string): string => name.replace(/[\\/:*?"<>|]/g, '').trim() || fallback
-
-class SamplePick {
+class SamplePick extends Activity {
   /** What the dialog is choosing for, e.g. a row name; null when it is closed. */
   for = $state<string | null>(null)
 
-  busy = $state<string | null>(null)
-  error = $state<string | null>(null)
-
-  /** On-device browse: current path, null when the card browser is closed. */
-  cardPath = $state<string | null>(null)
-  cardEntries = $state<{ name: string; dir: boolean }[]>([])
+  /** The on-device browser, on this dialog's busy line; a fresh listing drops the pick. */
+  readonly browser = new CardBrowser(this, { onListed: () => (this.selected = null) })
   /** The WAV picked out in the browsed folder, waiting on Select; null when none is. */
   selected = $state<string | null>(null)
 
-  private source: OscElement | null = null
+  /** The oscillator the sample is for. */
+  private osc: OscElement | null = null
   private target: PickTarget = { mode: 'only' }
   private onDone: ((index: number) => void) | null = null
   private onFolder: PickOptions['onFolder'] | null = null
   /** The preset the dialog was opened over; loading another closes it. */
-  private opened: Preset | null = null
-  /** Where the card browser was left, so the next pick starts there. */
-  private lastPath = '/SAMPLES'
+  private opened = $state.raw<Preset | null>(null)
 
   readonly open = $derived(this.for !== null && editor.preset === this.opened)
   /** Whether the whole folder is on offer — only a kit row's dialog asks for it. */
   offersFolder = $state(false)
   /** Whether the browsed folder holds any WAV to take. */
-  readonly folderHasWavs = $derived(this.cardEntries.some((e) => !e.dir && isWav(e.name)))
+  readonly folderHasWavs = $derived(this.browser.hasWavs)
 
   /**
    * Ask where the sample is. The oscillator already exists: only a sample
@@ -118,7 +111,7 @@ class SamplePick {
    * question dismissed leaves nothing behind.
    */
   start(osc: OscElement, options: PickOptions): void {
-    this.source = osc
+    this.osc = osc
     this.target = options.target ?? { mode: 'only' }
     this.onDone = options.onDone ?? null
     this.onFolder = options.onFolder ?? null
@@ -126,22 +119,20 @@ class SamplePick {
     this.opened = editor.preset
     this.for = options.label
     this.error = null
-    this.cardPath = null
-    this.cardEntries = []
+    this.browser.close()
     this.selected = null
-    // Already talking to a Deluge: show the card straight away rather than
-    // making the choice twice.
-    if (card.connected) void this.browseCard(this.lastPath)
+    // Already talking to a Deluge: show the card straight away, where the
+    // last pick left it, rather than making the choice twice.
+    if (card.connected) void this.browser.open(this.browser.last)
   }
 
   cancel(): void {
     this.for = null
-    this.source = null
+    this.osc = null
     this.onDone = null
     this.onFolder = null
     this.offersFolder = false
-    this.cardPath = null
-    this.cardEntries = []
+    this.browser.close()
     this.selected = null
   }
 
@@ -170,52 +161,19 @@ class SamplePick {
     })
   }
 
-  /**
-   * Open (or navigate) the on-device browser, connecting first if the editor
-   * isn't talking to a Deluge yet — the button is the gesture.
-   */
-  async browseCard(path = '/SAMPLES'): Promise<void> {
-    if (!card.connected) {
-      this.busy = 'Connecting to the Deluge'
-      this.error = null
-      const ok = await card.ensureConnected()
-      this.busy = null
-      if (!ok) {
-        this.error = card.error ?? 'could not reach the Deluge'
-        return
-      }
-    }
-    await this.run(`Reading ${path}`, async () => {
-      const entries = await card.listPath(path)
-      this.cardPath = path
-      this.lastPath = path
-      this.cardEntries = entries.map((e) => ({ name: e.name, dir: isDirectory(e) }))
-      this.selected = null
-    })
-  }
-
-  cardUp(): void {
-    if (!this.cardPath || this.cardPath === '/SAMPLES') return
-    void this.browseCard(this.cardPath.slice(0, this.cardPath.lastIndexOf('/')) || '/SAMPLES')
-  }
-
   /** A click in the card browser: enter a folder, or pick a file out for Select. */
-  async chooseCard(entry: { name: string; dir: boolean }): Promise<void> {
-    const path = this.cardPath
-    if (!path) return
-    if (entry.dir) {
-      await this.browseCard(`${path === '/' ? '' : path}/${entry.name}`)
-      return
-    }
-    if (isWav(entry.name)) this.selected = entry.name
+  chooseCard(entry: BrowseEntry): void {
+    if (this.browser.path === null) return
+    if (entry.dir) this.browser.enter(entry.name)
+    else if (isWav(entry.name)) this.selected = entry.name
   }
 
   /** Select: take the picked-out file. Header only — the audio stays on the card. */
   async useSelected(): Promise<void> {
-    const path = this.cardPath
+    const path = this.browser.path
     const name = this.selected
     if (!path || !name) return
-    const full = `${path === '/' ? '' : path}/${name}`
+    const full = joinPath(path, name)
     await this.run(`Reading ${name}`, async () => {
       this.assign(full, await card.wavInfo(full, { tags: true }))
     })
@@ -227,10 +185,10 @@ class SamplePick {
    * not one file for the source this was opened for.
    */
   async useFolder(): Promise<void> {
-    const path = this.cardPath
+    const path = this.browser.path
     const onFolder = this.onFolder
     if (!path || !onFolder || !this.folderHasWavs) return
-    const entries = this.cardEntries
+    const entries = this.browser.entries
     this.cancel()
     await onFolder(path, entries)
   }
@@ -242,12 +200,12 @@ class SamplePick {
    * synth the tuning follows the note the sample was recorded at.
    */
   private assign(fileName: string, info: WavInfo | undefined): boolean {
-    if (!this.source || editor.preset !== this.opened) {
+    if (!this.osc || editor.preset !== this.opened) {
       this.error = 'the preset this was for is no longer loaded'
       return false
     }
-    const osc = this.source
-    const name = fileName.replace(/^\/+/, '')
+    const osc = this.osc
+    const name = xmlPath(fileName)
     const sample = {
       fileName: name,
       root: 0,
@@ -296,7 +254,7 @@ class SamplePick {
 
     this.onDone?.(at)
     this.cancel()
-    void samples.checkMissing()
+    void samples.checkMissing(card)
     return true
   }
 
@@ -314,18 +272,6 @@ class SamplePick {
     const only = soundingOrder(sampleRanges(osc)).length === 1
     const { transpose, cents } = tuningForSamplePitch(root, only)
     setRangeTuning(osc, at, transpose, cents)
-  }
-
-  private async run(label: string, fn: () => Promise<void>): Promise<void> {
-    this.busy = label
-    this.error = null
-    try {
-      await fn()
-    } catch (e) {
-      this.error = e instanceof Error ? e.message : String(e)
-    } finally {
-      this.busy = null
-    }
   }
 }
 

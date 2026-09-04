@@ -6,16 +6,12 @@
  * files returns null — the caller treats that as a preset-file drop.
  */
 
-export interface DroppedSample {
-  /** Path under the dropped folder: `Kick.wav`, `sub/Kick.wav`. */
-  relPath: string
-  file: File
-}
+import { isWav, type LocalSample } from './state/wavfiles'
 
 export interface DroppedSamples {
   /** The dropped folder's name; null when loose WAV files were dropped. */
   folder: string | null
-  files: DroppedSample[]
+  files: LocalSample[]
 }
 
 const readAllEntries = (dir: FileSystemDirectoryEntry): Promise<FileSystemEntry[]> =>
@@ -34,7 +30,7 @@ const readAllEntries = (dir: FileSystemDirectoryEntry): Promise<FileSystemEntry[
 const entryFile = (entry: FileSystemFileEntry): Promise<File> =>
   new Promise((resolve, reject) => entry.file(resolve, reject))
 
-async function walk(entry: FileSystemEntry, prefix: string, out: DroppedSample[]): Promise<void> {
+async function walk(entry: FileSystemEntry, prefix: string, out: LocalSample[]): Promise<void> {
   if (entry.isFile) {
     const file = await entryFile(entry as FileSystemFileEntry)
     out.push({ relPath: `${prefix}${entry.name}`, file })
@@ -50,10 +46,10 @@ export async function collectDroppedSamples(dt: DataTransfer): Promise<DroppedSa
     .map((item) => item.webkitGetAsEntry?.())
     .filter((e): e is FileSystemEntry => e !== null && e !== undefined)
   const dirs = entries.filter((e): e is FileSystemDirectoryEntry => e.isDirectory)
-  const looseWavs = entries.filter((e): e is FileSystemFileEntry => e.isFile && /\.wav$/i.test(e.name))
+  const looseWavs = entries.filter((e): e is FileSystemFileEntry => e.isFile && isWav(e.name))
   if (dirs.length === 0 && looseWavs.length === 0) return null
 
-  const files: DroppedSample[] = []
+  const files: LocalSample[] = []
   // The first folder names the kit's sample folder; its files sit at its
   // root, further folders keep their own name as a sub-path.
   for (const [i, dir] of dirs.entries()) {

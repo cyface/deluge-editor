@@ -108,3 +108,18 @@ export const pulseSyncRatio = (paramValue: number): number => {
   const pw = pulseWidthRendered(paramValue)
   return pw === 0 ? 1 : 1 + pw / TWO31
 }
+
+/**
+ * One cycle of the plain wave the pulse-width graph starts from, phase 0..1
+ * (any real; the fraction is used), in −1..1. A sketch of the oscillator
+ * types, not the tables: the analog shapes are drawn as their mathematical
+ * kin, and a wavetable's own frames are not read, so a saw stands in for it.
+ * Anything not named draws as a square.
+ */
+export function pulseBaseWave(oscType: string, p: number): number {
+  const q = p - Math.floor(p)
+  if (oscType === 'sine') return Math.sin(2 * Math.PI * q)
+  if (oscType === 'triangle') return q < 0.25 ? 4 * q : q < 0.75 ? 2 - 4 * q : 4 * q - 4
+  if (oscType === 'saw' || oscType === 'analogSaw' || oscType === 'wavetable') return 1 - 2 * q
+  return q < 0.5 ? 1 : -1
+}

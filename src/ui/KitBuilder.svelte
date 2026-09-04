@@ -16,7 +16,7 @@
   import { samples } from './state/samples.svelte'
 
   let folderInput: HTMLInputElement | undefined = $state()
-  const isWav = (name: string) => /\.wav$/i.test(name)
+  import { isWav } from './state/wavfiles'
 
   async function pickFolder(e: Event) {
     const picked = pickedFolder(takeFiles(e), 'Kit')
@@ -39,7 +39,7 @@
       title={card.supported
         ? 'Browse SAMPLES/ on the Deluge (connects first if needed)'
         : 'Web MIDI needs Chrome or Edge'}
-      onclick={() => kit.browseCard()}
+      onclick={() => kit.browser.open()}
     >From Deluge…</button>
     {#if pushCount > 0}
       <button
@@ -55,24 +55,24 @@
     {/if}
   </div>
 
-  {#if kit.cardPath !== null}
+  {#if kit.browser.path !== null}
     <div class="browse">
       <CardBrowser
-        path={kit.cardPath}
+        path={kit.browser.path}
         root="/SAMPLES"
-        entries={kit.cardEntries}
+        entries={kit.browser.entries}
         busy={!!kit.busy}
         pickable={isWav}
         testid="card-sample-browser"
         boxed
         listHeight="180px"
-        onUp={() => kit.cardUp()}
-        onOpen={(name) => kit.browseCard(`${kit.cardPath}/${name}`)}
+        onUp={() => kit.browser.up()}
+        onOpen={(name) => kit.browser.enter(name)}
       >
         {#snippet actions()}
-          <button type="button" class="btn small" onclick={() => kit.closeCardBrowser()} aria-label="Close">×</button>
+          <button type="button" class="btn small" onclick={() => kit.browser.close()} aria-label="Close">×</button>
         {/snippet}
-        <button type="button" class="btn" data-testid="add-card-folder" disabled={!!kit.busy || !kit.cardEntries.some((e) => !e.dir && isWav(e.name))} onclick={() => kit.addCardFolder()}>
+        <button type="button" class="btn" data-testid="add-card-folder" disabled={!!kit.busy || !kit.browser.hasWavs} onclick={() => kit.addCardFolder()}>
           Add the WAVs in this folder
         </button>
         <p class="hint">Samples stay on the Deluge.</p>
@@ -97,7 +97,7 @@
   <div class="fields">
     <div class="f"><label for="kit-author">Author</label><input id="kit-author" bind:value={kit.author} placeholder="your name" spellcheck="false" /></div>
     <div class="f"><label for="kit-license">Sample licensing</label><input id="kit-license" bind:value={kit.license} placeholder="e.g. CC0, own recordings" spellcheck="false" /></div>
-    <div class="f"><label for="kit-source">Sample source</label><input id="kit-source" bind:value={kit.source} placeholder="where the samples came from" spellcheck="false" /></div>
+    <div class="f"><label for="kit-source">Sample source</label><input id="kit-source" bind:value={kit.sampleSource} placeholder="where the samples came from" spellcheck="false" /></div>
   </div>
 </Panel>
 

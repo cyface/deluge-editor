@@ -147,3 +147,105 @@ export function lfoStartPhase(type: LfoType, scope: 'global' | 'voice'): number 
   if (type === 'sine') return 3221225472 / TWO32
   return 0
 }
+
+// ---- the shapes, as the graph draws them ------------------------------------
+
+/**
+ * A stable per-cycle random source for the three random shapes: the run
+ * redraws the same way every time, so a graph doesn't flicker on every
+ * keystroke. The offset only picks a stretch of it whose first few draws are
+ * spread across the range — one run of a random shape can honestly be six
+ * similar levels in a row, but that is the one run that says least about what
+ * the shape does. Each LFO gets its own stretch, so two ghosts don't trace the
+ * same run. Returns 0..1.
+ */
+export function lfoNoise(step: number, n: number): number {
+  const i = step + 205 + n * 977
+  let x = Math.imul(i + 0x9e3779b9, 0x85ebca6b)
+  x = Math.imul(x ^ (x >>> 13), 0xc2b2ae35)
+  return ((x ^ (x >>> 16)) >>> 0) / TWO32
+}
+
+/**
+ * The periodic shapes over one cycle of phase (any real; the fraction is
+ * used), in −1..1, as `LFO::render` produces them (`modulation/lfo.h:47-64`,
+ * `beta` e7bae539) from `util/waves.h`:
+ *
+ * - `sine` — `getSine(phase)`.
+ * - `square` — `getSquare(phase)` (`waves.h:33`): high for the first half.
+ * - `triangle` — `getTriangle(phase)` (`waves.h:53`): the negative extreme at
+ *   phase 0, the positive one at the half.
+ * - `saw` — `static_cast<int32_t>(phase)`: the raw uint32 phase read as an
+ *   int32, a ramp that wraps at the half.
+ *
+ * Anything else (the random shapes) is 0; those are `lfoRandomRun`.
+ */
+export function lfoWave(type: string, p: number): number {
+  const q = p - Math.floor(p)
+  if (type === 'sine') return Math.sin(2 * Math.PI * q)
+  if (type === 'square') return q < 0.5 ? 1 : -1
+  if (type === 'triangle') return q < 0.5 ? -1 + 4 * q : 3 - 4 * q
+  if (type === 'saw') return q < 0.5 ? 2 * q : 2 * q - 2
+  return 0
+}
+
+/**
+ * One run of a random shape across `runCycles` cycles, sampled at
+ * `points + 1` evenly spaced steps, in −1..1. The arithmetic is
+ * `LFO::render`'s (`modulation/lfo.h:66-109`, `beta` e7bae539), with
+ * `lfoNoise` standing in for the firmware's `CONG` generator:
+ *
+ * - `sah` — sample & hold takes a new level each time the phase wraps.
+ * - `rwalk` — random walk steps on from where it is by up to
+ *   `range = 2^32 / 20` (a twentieth of the swing, so a fortieth either way),
+ *   pulled back towards zero by a sixteenth of how far it has gone
+ *   (`holdValue / -16`).
+ * - `warbler` — the phase increment is doubled (`phaseIncrement *= 2`), so a
+ *   new target arrives twice per drawn cycle, and `LFO::warble`
+ *   (`lfo.h:111-121`) runs a second-order glide towards it: the speed, not the
+ *   value, is filtered (`speed += numSamples * (targetSpeed * (phaseIncrement
+ *   >> 8)) >> 32`) and reset to zero at each new target. That needs the real
+ *   phase increment, so `rate` is the 0–50 menu value the LFO is set to.
+ *
+ * `start` is where the cycle begins (`lfoStartPhase`), as a fraction.
+ */
+export function lfoRandomRun(n: number, type: string, runCycles: number, rate: number, start: number, points: number): number[] {
+  const ys: number[] = []
+  if (type === 'sah') {
+    for (let i = 0; i <= points; i++) ys.push(lfoNoise(Math.floor((i / points) * runCycles + start), n) * 2 - 1)
+    return ys
+  }
+  if (type === 'rwalk') {
+    const step = 1 / 20
+    let hold = step / 2 - lfoNoise(0, n) * step
+    let cyc = -1
+    for (let i = 0; i <= points; i++) {
+      const c = Math.floor((i / points) * runCycles + start)
+      if (c !== cyc) {
+        if (cyc >= 0) hold = Math.max(-1, Math.min(1, hold - hold / 16 + step / 2 - lfoNoise(c, n) * step))
+        cyc = c
+      }
+      ys.push(hold)
+    }
+    return ys
+  }
+  const increment = Math.max(1, lfoPhaseIncrement(menuToStandard(rate)))
+  const inc = increment * 2
+  const perStep = (runCycles / points) * (TWO32 / increment)
+  let hold = 0
+  let speed = 0
+  let target = lfoNoise(0, n) * 2 - 1
+  let phase = 0
+  for (let i = 0; i <= points; i++) {
+    const next = phase + (inc / TWO32) * perStep
+    if (Math.floor(next) !== Math.floor(phase)) {
+      target = lfoNoise(Math.floor(next) + 1, n) * 2 - 1
+      speed = 0
+    }
+    phase = next
+    speed += perStep * (target - hold) * (inc / TWO32 / 256)
+    hold = Math.max(-1, Math.min(1, hold + speed * perStep))
+    ys.push(hold)
+  }
+  return ys
+}

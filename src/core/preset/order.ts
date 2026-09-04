@@ -118,6 +118,14 @@ export const ENVELOPE_ATTR_ORDER = ['attack', 'decay', 'sustain', 'release'] as 
 export const EQUALIZER_ATTR_ORDER = ['bass', 'treble', 'bassFrequency', 'trebleFrequency'] as const
 export const CABLE_ATTR_ORDER = ['source', 'destination', 'polarity', 'amount'] as const
 export const MOD_KNOB_ATTR_ORDER = ['controlsParam', 'patchAmountFromSource', 'patchAmountFromSecondSource'] as const
+/**
+ * `ArpeggiatorSettings::writeCommonParamsToFile` (`src/deluge/modulation/arpeggiator.cpp:1847-1915`,
+ * `beta` e7bae539): the official three, then the community attributes through
+ * `kitArp`, then the randomizer lock's last-seen value and locked-result array
+ * for each of the nine probabilities and spreads, then `notePattern` — a
+ * pattern the firmware rolls per session (`generateNewNotePattern`), so it
+ * differs between two saves of the same file.
+ */
 export const ARP_ATTR_ORDER = [
   'mode',
   'syncLevel',
@@ -131,6 +139,45 @@ export const ARP_ATTR_ORDER = [
   'stepRepeat',
   'randomizerLock',
   'kitArp',
+  'lastLockedNoteProb', 'lockedNoteProbArray',
+  'lastLockedBassProb', 'lockedBassProbArray',
+  'lastLockedSwapProb', 'lockedSwapProbArray',
+  'lastLockedGlideProb', 'lockedGlideProbArray',
+  'lastLockedReverseProb', 'lockedReverseProbArray',
+  'lastLockedChordProb', 'lockedChordProbArray',
+  'lastLockedRatchetProb', 'lockedRatchetProbArray',
+  'lastLockedVelocitySpread', 'lockedVelocitySpreadArray',
+  'lastLockedGateSpread', 'lockedGateSpreadArray',
+  'lastLockedOctaveSpread', 'lockedOctaveSpreadArray',
+  'notePattern',
+] as const
+/**
+ * The `<arpeggiator>` a MIDI or gate drum row carries. A non-audio drum has
+ * no `<defaultParams>`, so `NonAudioDrum::writeArpeggiatorToFile`
+ * (`src/deluge/model/drum/non_audio_drum.cpp:87-95`, called from
+ * `MIDIDrum::writeToFile` and `GateDrum::writeToFile`) writes the common
+ * attributes above and then `ArpeggiatorSettings::writeNonAudioParamsToFile`
+ * (`arpeggiator.cpp:1918-1936`): `gate`, `rate` and the probabilities a sound
+ * row keeps in `<defaultParams>`, as plain integers.
+ */
+export const NON_AUDIO_ARP_ATTR_ORDER = [
+  ...ARP_ATTR_ORDER,
+  'gate',
+  'rate',
+  'noteProbability',
+  'bassProbability',
+  'swapProbability',
+  'glideProbability',
+  'reverseProbability',
+  'chordProbability',
+  'ratchetProbability',
+  'ratchetAmount',
+  'sequenceLength',
+  'chordPolyphony',
+  'rhythm',
+  'spreadVelocity',
+  'spreadGate',
+  'spreadOctave',
 ] as const
 export const DELAY_ATTR_ORDER = ['pingPong', 'analog', 'syncLevel', 'syncType'] as const
 export const SIDECHAIN_ATTR_ORDER = ['attack', 'release', 'syncLevel', 'syncType'] as const

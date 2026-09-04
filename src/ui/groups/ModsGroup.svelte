@@ -11,6 +11,7 @@
 
 <script lang="ts">
   import { LFO_SCOPE, type Feature } from '../../core/firmware/features'
+  import { canLfoSync, lfoRateIgnored } from '../../core/firmware/lfo'
   import { ENVELOPE_ATTR_ORDER, LFO_ATTR_ORDER, paramLabel, SOUND_CHILD_ORDER, SOUND_PARAM_ATTRS, type SoundElement } from '../../core/preset'
   import { cablesFrom, ensureEnvelope, ensureParams, envelope, lfo, params } from '../../core/preset/sound'
   import { ensureChild, setAttr } from '../../core/xml'
@@ -65,7 +66,7 @@
   const theLfo = $derived(lfo(sound, lfoSel as N))
   const ensureLfo = () => ensureChild(sound, `lfo${lfoSel as N}`, SOUND_CHILD_ORDER)
   const lfoRateAttr = $derived(`lfo${lfoSel}Rate` as (typeof SOUND_PARAM_ATTRS)[number])
-  const lfoSyncs = $derived(lfoSel === 1 || lfoSel === 3 || (lfoSel === 2 && editor.supports('lfo2Sync')) || (lfoSel === 4 && editor.supports('lfo4')))
+  const lfoSyncs = $derived(canLfoSync(editor.version, lfoSel as N))
   /**
    * With a sync level set, the firmware never looks at the rate parameter:
    * `Sound::getGlobalLFOPhaseIncrement` and `Voice::getLocalLFOPhaseIncrement`
@@ -73,7 +74,7 @@
    * refuses cables to it. The stored value stays and still round-trips; the
    * knob stops taking input.
    */
-  const lfoSynced = $derived(lfoSyncs && (theLfo?.attrs.syncLevel ?? '0') !== '0')
+  const lfoSynced = $derived(lfoRateIgnored(sound, lfoSel as N, editor.version))
   const SYNCED_NOTE = 'Disabled by tempo sync — the Deluge takes this LFO’s speed from the song, not from this value.'
 </script>
 

@@ -16,6 +16,7 @@ import {
   menuToSidechainRelease,
   menuToStandard,
   panToMenu,
+  parsePan,
   retrigToDegrees,
   sidechainAttackToMenu,
   sidechainReleaseToMenu,
@@ -130,5 +131,33 @@ describe('sync levels', () => {
   })
   it('the table agrees with the function', () => {
     for (const { value, label } of SYNC_LEVELS) expect(syncLevelName(value)).toBe(label)
+  })
+})
+
+describe('parsePan', () => {
+  it('reads the knob spelling, the 7-segment spelling and a signed number alike', () => {
+    expect(parsePan('C')).toBe(0)
+    expect(parsePan('CTR')).toBe(0)
+    expect(parsePan('L12')).toBe(-12)
+    expect(parsePan('12L')).toBe(-12)
+    expect(parsePan('-12')).toBe(-12)
+    expect(parsePan('R7')).toBe(7)
+    expect(parsePan('7 r')).toBe(7)
+    expect(parsePan(' 7 ')).toBe(7)
+    expect(parsePan('0')).toBe(0)
+  })
+  it('a bare side is hard over, and anything past 25 clamps', () => {
+    expect(parsePan('L')).toBe(-25)
+    expect(parsePan('r')).toBe(25)
+    expect(parsePan('L40')).toBe(-25)
+    expect(parsePan('99')).toBe(25)
+    expect(parsePan('-99')).toBe(-25)
+  })
+  it('rounds a fraction and refuses what it cannot read', () => {
+    expect(parsePan('3.6')).toBe(4)
+    expect(parsePan('')).toBeUndefined()
+    expect(parsePan('   ')).toBeUndefined()
+    expect(parsePan('left')).toBeUndefined()
+    expect(parsePan('L12R')).toBeUndefined()
   })
 })

@@ -1,4 +1,5 @@
 export * from './build'
 export * from './classify'
+export * from './rows'
 export * from './share'
 export * from './zip'

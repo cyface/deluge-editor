@@ -8,8 +8,11 @@ import {
   formatLfoRate,
   getExp,
   lfoMenuRateHz,
+  lfoNoise,
   lfoPhaseIncrement,
+  lfoRandomRun,
   lfoStartPhase,
+  lfoWave,
 } from './lfo'
 
 describe('expTableSmall', () => {
@@ -141,5 +144,61 @@ describe('lfoStartPhase', () => {
   it('leaves square at phase 0, which is its positive extreme', () => {
     expect(lfoStartPhase('square', 'voice')).toBe(0)
     expect(lfoStartPhase('square', 'global')).toBe(0)
+  })
+})
+
+// The shapes are pinned to what `LfoGraph.svelte` drew before they moved here
+// (values computed from that implementation at its 480-point resolution).
+const IDX = [0, 60, 120, 240, 360, 480]
+const pick = (ys: number[]) => IDX.map((i) => Number(ys[i].toFixed(6)))
+
+describe('lfoNoise', () => {
+  it('is a stable hash in 0..1, so a graph redraws the same run', () => {
+    expect([lfoNoise(0, 1), lfoNoise(5, 2), lfoNoise(100, 4)].map((v) => Number(v.toFixed(9)))).toEqual([
+      0.278073576, 0.705164165, 0.562896014,
+    ])
+    for (let s = 0; s < 200; s++) {
+      const v = lfoNoise(s, 3)
+      expect(v).toBeGreaterThanOrEqual(0)
+      expect(v).toBeLessThan(1)
+    }
+  })
+})
+
+describe('lfoWave', () => {
+  it('draws the four periodic shapes as LFO::render does, over any phase', () => {
+    const at = [0, 0.25, 0.5, 0.75, 1.25]
+    expect(at.map((p) => Number(lfoWave('sine', p).toFixed(6)))).toEqual([0, 1, 0, -1, 1])
+    expect(at.map((p) => lfoWave('square', p))).toEqual([1, 1, -1, -1, 1])
+    expect(at.map((p) => lfoWave('triangle', p))).toEqual([-1, 0, 1, 0, 0])
+    expect(at.map((p) => lfoWave('saw', p))).toEqual([0, 0.5, -1, -0.5, 0.5])
+  })
+  it('is flat for the random shapes, which are runs', () => {
+    expect(lfoWave('sah', 0.3)).toBe(0)
+    expect(lfoWave('rwalk', 0.3)).toBe(0)
+    expect(lfoWave('warbler', 0.3)).toBe(0)
+  })
+})
+
+describe('lfoRandomRun', () => {
+  it('returns points + 1 samples in −1..1', () => {
+    for (const t of ['sah', 'rwalk', 'warbler']) {
+      const ys = lfoRandomRun(1, t, 8, 25, 0, 480)
+      expect(ys).toHaveLength(481)
+      for (const y of ys) {
+        expect(y).toBeGreaterThanOrEqual(-1)
+        expect(y).toBeLessThanOrEqual(1)
+      }
+    }
+  })
+  it('sample & hold takes a new level each cycle', () => {
+    expect(pick(lfoRandomRun(1, 'sah', 8, 25, 0, 480))).toEqual([-0.443853, -0.718582, 0.385631, -0.663595, -0.064925, 0.97233])
+  })
+  it('random walk creeps by a fortieth at most, pulled back towards zero', () => {
+    expect(pick(lfoRandomRun(2, 'rwalk', 32, 25, 0, 480))).toEqual([-0.014382, -0.037998, -0.060107, -0.005732, 0.039362, 0.041529])
+  })
+  it('the warbler glides towards each target at the rate the LFO is set to', () => {
+    expect(pick(lfoRandomRun(3, 'warbler', 8, 25, 0, 480))).toEqual([0.038904, -0.923508, -0.421478, 0.437797, -0.103669, -0.845453])
+    expect(pick(lfoRandomRun(4, 'warbler', 8, 40, 0.5, 480))).toEqual([0.002707, -0.999703, -0.487538, 0.435639, 0.251869, -0.929157])
   })
 })

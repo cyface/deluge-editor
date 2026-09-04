@@ -5,28 +5,39 @@
  * so the dialog is the same wherever the question came from.
  */
 
+import { errorText } from '../errtext'
 import { editor } from './editor.svelte'
 
 export interface Question {
   question: string
   /** The button that says yes: Replace, Add, Discard. */
   verb: string
-  run: () => Promise<void> | void
+  /** The work; a store's `run()` result (whether it ran) is not the dialog's business. */
+  run: () => Promise<unknown> | void
 }
 
 class Confirm {
-  pending = $state<Question | null>(null)
+  pending = $state.raw<Question | null>(null)
+  /** Why the last yes could not be carried out — a `run` that threw rather than reporting through its own store. */
+  error = $state<string | null>(null)
+
+  readonly open = $derived(this.pending !== null)
 
   ask(q: Question): void {
     this.pending = q
+    this.error = null
   }
 
   /** The yes: the question is gone before the work runs, in case it asks another. */
-  go(): void {
+  async go(): Promise<void> {
     const q = this.pending
     if (!q) return
     this.pending = null
-    void q.run()
+    try {
+      await q.run()
+    } catch (e) {
+      this.error = errorText(e)
+    }
   }
 
   cancel(): void {

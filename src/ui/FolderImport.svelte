@@ -13,7 +13,7 @@
   import { multisample as ms } from './state/multisample.svelte'
 
   let folderInput: HTMLInputElement | undefined = $state()
-  const isWav = (name: string) => /\.wav$/i.test(name)
+  import { isWav } from './state/wavfiles'
 
   async function pickFolder(e: Event) {
     const picked = pickedFolder(takeFiles(e), 'Samples')
@@ -21,7 +21,7 @@
   }
 
   const label = $derived(ms.asking === 2 ? 'B' : 'A')
-  const hasWavs = $derived(ms.cardEntries.some((e) => !e.dir && isWav(e.name)))
+  const hasWavs = $derived(ms.browser.hasWavs)
 </script>
 
 <Dialog title="Build Osc {label} from a folder" ariaLabel="Build a multi-sample instrument" testid="folder-import" width={560} closeLabel="Cancel" onclose={() => ms.cancel()}>
@@ -41,24 +41,24 @@
       data-testid="ms-source-card"
       disabled={!card.supported || !!ms.busy}
       title={card.supported ? 'Browse SAMPLES/ on the Deluge (connects first if needed)' : 'Web MIDI needs Chrome or Edge'}
-      onclick={() => ms.browseCard()}
+      onclick={() => ms.browser.open()}
     >On the Deluge…</button>
     <button type="button" class="btn" data-testid="ms-cancel" onclick={() => ms.cancel()}>Cancel</button>
   </div>
 
-  {#if ms.cardPath !== null}
+  {#if ms.browser.path !== null}
     <div class="browse">
       <CardBrowser
-        path={ms.cardPath}
+        path={ms.browser.path}
         root="/SAMPLES"
-        entries={ms.cardEntries}
+        entries={ms.browser.entries}
         busy={!!ms.busy}
         pickable={isWav}
         testid="ms-card-browser"
         boxed
         listHeight="190px"
-        onUp={() => ms.cardUp()}
-        onOpen={(name) => ms.browseCard(`${ms.cardPath}/${name}`)}
+        onUp={() => ms.browser.up()}
+        onOpen={(name) => ms.browser.enter(name)}
       >
         <button type="button" class="btn go" data-testid="ms-take-card-folder" disabled={!!ms.busy || !hasWavs} onclick={() => ms.addCardFolder()}>
           Use This Folder

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { menuToHalf } from './scale'
 import {
+  pulseBaseWave,
   pulseDuty,
   pulseFamily,
   pulseSyncRatio,
@@ -115,5 +116,23 @@ describe('pulseSyncRatio', () => {
       expect(r).toBeGreaterThanOrEqual(last)
       last = r
     }
+  })
+})
+
+describe('pulseBaseWave', () => {
+  // Pinned to what `PulseGraph.svelte` drew before the wave moved here.
+  const at = [0, 0.125, 0.25, 0.5, 0.75, 1.5]
+  const of = (t: string) => at.map((p) => Number(pulseBaseWave(t, p).toFixed(6)))
+  it('draws sine and triangle from zero, the saws as a falling ramp', () => {
+    expect(of('sine')).toEqual([0, 0.707107, 1, 0, -1, 0])
+    expect(of('triangle')).toEqual([0, 0.5, 1, 0, -1, 0])
+    expect(of('saw')).toEqual([1, 0.75, 0.5, 0, -0.5, 0])
+    expect(of('analogSaw')).toEqual(of('saw'))
+    expect(of('wavetable')).toEqual(of('saw'))
+  })
+  it('draws everything else as a square, high for the first half', () => {
+    expect(of('square')).toEqual([1, 1, 1, -1, -1, -1])
+    expect(of('analogSquare')).toEqual(of('square'))
+    expect(of('dx7')).toEqual(of('square'))
   })
 })

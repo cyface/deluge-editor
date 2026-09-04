@@ -143,6 +143,16 @@ describe('localFS write', () => {
     expect(await fs.read('/KITS/Kit.XML')).toEqual(data)
   })
 
+  it('creates missing parent folders, as the firmware’s open-for-write does (the CardFS contract)', async () => {
+    const { fs } = await rig()
+    const data = new TextEncoder().encode('RIFFnew')
+    await fs.write('/SAMPLES/New Kit/Deeper/hat.wav', data)
+    expect((await fs.list('/SAMPLES/New Kit/Deeper')).map((e) => e.name)).toEqual(['hat.wav'])
+    expect(await fs.read('/SAMPLES/New Kit/Deeper/hat.wav')).toEqual(data)
+    // A trailing slash names the same folder.
+    expect((await fs.list('/SAMPLES/New Kit/')).map((e) => e.name)).toEqual(['Deeper'])
+  })
+
   it('refuses a write whose read-back differs, as the SysEx client does', async () => {
     const { fs, card } = await rig()
     card.corruptWrites = true

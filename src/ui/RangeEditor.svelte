@@ -16,7 +16,7 @@
    * beside the ranges is `RangeImport` and `RangeRedetect`.
    */
   import { noteName } from '../core/preset/notes'
-  import { removeRange, rootName, rootParts, setRangeRoot, setRangeTopNote, setRangeZone, type SampleRange } from '../core/preset/ranges'
+  import { baseName as base, loopPointText as loopFmt, rangesLocked, removeRange, rootName, rootParts, setRangeRoot, setRangeTopNote, setRangeZone, tuningText as tuning, zoneOf, zoneText } from '../core/preset/ranges'
   import RangeImport from './RangeImport.svelte'
   import RangeRedetect from './RangeRedetect.svelte'
   import KeyMap from './controls/KeyMap.svelte'
@@ -39,35 +39,13 @@
   const reversed = $derived(osc?.attrs.reversed === '1')
   const last = $derived(list.length - 1)
 
-  const base = (path: string | undefined): string => (path ?? '').split('/').pop() ?? ''
-  const tuning = (r: SampleRange): string =>
-    r.transpose === 0 && r.cents === 0 ? '—' : [r.transpose ? `${r.transpose > 0 ? '+' : ''}${r.transpose} st` : '', r.cents ? `${r.cents > 0 ? '+' : ''}${r.cents} ¢` : ''].filter(Boolean).join(' ')
-
-  const num = (v: string | undefined): number => Number(v ?? 0) || 0
-  const zoneOf = (r: SampleRange | undefined) => ({
-    startSamplePos: num(r?.zone?.attrs.startSamplePos),
-    endSamplePos: num(r?.zone?.attrs.endSamplePos),
-    startLoopPos: num(r?.zone?.attrs.startLoopPos),
-    endLoopPos: num(r?.zone?.attrs.endLoopPos),
-  })
   /**
-   * A zero loop point is not a position — it means the marker isn't set. The
-   * voice falls back to the zone's own start and end when it loops
-   * (`loopStart = holder->loopStartPos ? … : holder->startPos`, and the same
-   * for the end, `model/voice/voice.cpp:2138-2139`, upstream/community beta),
-   * and the serializer omits the attribute rather than writing 0
-   * (`sound.cpp:3650-3655`). So say so, instead of printing a marker at 0.
+   * Read-only when any write would refuse (`rangesLocked`): ranges keyed by
+   * velocity, or a `rangeTopNote`/`transpose`/`cents` this code cannot read.
+   * How a range is printed (`base`, `tuning`, `zoneText`, `loopFmt`) is
+   * `src/core/preset/rangeformat.ts`.
    */
-  const loopText = (start: number, end: number): string =>
-    `loop ${start || 'zone start'}–${end || 'zone end'}`
-  const zoneText = (r: SampleRange): string => {
-    const z = zoneOf(r)
-    if (!r.zone) return '—'
-    const play = `${z.startSamplePos}–${z.endSamplePos || 'end'}`
-    return z.startLoopPos || z.endLoopPos ? `${play} · ${loopText(z.startLoopPos, z.endLoopPos)}` : play
-  }
-  /** Zero in a loop field is the marker being off, not a position of zero. */
-  const loopFmt = (n: number): string => (n === 0 ? 'off' : String(n))
+  const editable = $derived(osc !== null && !rangesLocked(osc))
 
   /** Every zone write sends the whole zone: the writer omits the loop points when they are zero, as the firmware does. */
   function setZone(field: 'startSamplePos' | 'endSamplePos' | 'startLoopPos' | 'endLoopPos', v: number) {
@@ -96,7 +74,7 @@
   const summary = $derived(
     list.length === 0
       ? 'no sample yet'
-      : `${list.length} sample${list.length === 1 ? '' : 's'}${ed.editable ? ' · drag a split to move a boundary' : ''}`,
+      : `${list.length} sample${list.length === 1 ? '' : 's'}${editable ? ' · drag a split to move a boundary' : ''}`,
   )
 
   let table: HTMLTableElement | undefined = $state()
@@ -125,7 +103,7 @@
     <button type="button" class="x" aria-label="Close the range editor" onclick={() => ed.close()}>×</button>
   {/snippet}
 
-  {#if !ed.editable}
+  {#if !editable}
     <!-- Velocity layers are a fork-only feature (no `rangeTopVelocity` in stock
          firmware): shown, never rewritten, so the file passes through as it came. -->
     <Status kind="caution" testid="range-velocity">
@@ -140,7 +118,7 @@
       ranges={list}
       selected={sel}
       onselect={(i) => ed.select(i)}
-      onmove={ed.editable ? (i, note) => osc && setRangeTopNote(osc, i, note) : undefined}
+      onmove={editable ? (i, note) => osc && setRangeTopNote(osc, i, note) : undefined}
     />
   {/if}
 
@@ -201,7 +179,7 @@
               <td class="mono">{tuning(r)}</td>
               <td class="mono zone">{zoneText(r)}</td>
               <td class="acts">
-                {#if ed.editable}
+                {#if editable}
                   <button type="button" class="mini" title="Remove this range" aria-label="Remove range {i + 1}" data-testid="range-remove" onclick={() => remove(i)}>×</button>
                 {/if}
               </td>
@@ -222,7 +200,7 @@
     <p class="empty">This oscillator has no sample. Add one to start a multi-sample instrument.</p>
   {/if}
 
-  {#if current && ed.editable}
+  {#if current && editable}
     <div class="h3">Range {sel + 1}<span class="sub">{current.fileName ?? '(no file)'}</span></div>
     <div class="fields">
       <div class="f">
@@ -242,7 +220,7 @@
     </div>
   {/if}
 
-  {#if ed.editable}
+  {#if editable}
     <div class="acts row">
       <button type="button" class="btn small" data-testid="range-add" onclick={() => ed.startPick({ mode: 'add' })}>Add sample…</button>
       <!-- A whole folder at once, roots and boundaries worked out (issue #33). -->

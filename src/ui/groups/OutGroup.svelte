@@ -1,7 +1,7 @@
 <script lang="ts">
   import {
     AUDIO_COMPRESSOR_ATTR_ORDER, EQUALIZER_ATTR_ORDER, MIDI_OUTPUT_ATTR_ORDER, PARAMS_CHILD_ORDER,
-    SIDECHAIN_ATTR_ORDER, SOUND_CHILD_ORDER, SOUND_PARAM_ATTRS, STUTTER_ATTR_ORDER, type SoundElement,
+    SIDECHAIN_ATTR_ORDER, SOUND_CHILD_ORDER, SOUND_PARAM_ATTRS, STUTTER_ATTR_ORDER, midiOutputChannelLabel, type SoundElement,
   } from '../../core/preset'
   import { addCable, cableMenu, cables, ensureParams, params, setCableMenu } from '../../core/preset/sound'
   import {
@@ -42,7 +42,7 @@
   const ST = () => ensureChild(sound, 'stutter', SOUND_CHILD_ORDER)
   const midi = $derived(child(sound, 'midiOutput'))
   const MIDI = () => ensureChild(sound, 'midiOutput', SOUND_CHILD_ORDER)
-  const chan = (n: number) => (n === 255 ? 'none' : n === 254 ? 'MPE lower' : n === 253 ? 'MPE upper' : `ch ${n + 1}`)
+  const chan = midiOutputChannelLabel // 255 none, 16/17 the MPE zones (`src/core/preset/midiout.ts`)
 </script>
 
 <div class="knobrow">

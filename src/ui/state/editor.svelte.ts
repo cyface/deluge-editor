@@ -68,8 +68,8 @@ class Editor {
   firmware = $state<string>(FALLBACK_FIRMWARE)
   /** Firmware of the connected (or last-connected) Deluge; set by the card store, sticky after disconnect. */
   deviceFirmware = $state<string | null>(null)
-  /** Pinned flow blocks; empty means every section is expanded. */
-  focus = $state<string[]>([])
+  /** Pinned flow blocks; empty means every section is expanded. Always replaced, never pushed to. */
+  focus = $state.raw<string[]>([])
   /** Selected kit row (pad order). */
   row = $state(0)
   /** A patch source being inspected in the flow strip. */
@@ -228,6 +228,18 @@ class Editor {
     const restored = element(hit.tag)
     fillFromFlat(restored, prefix, this.flatSource) // filled before it joins the reactive tree
     hit.parent.children.push(restored)
+  }
+
+  /**
+   * A verified copy of `output` is on the card at `path`, under `name`: that
+   * copy is the new clean baseline. The Changes dock reads 0 against the file
+   * just written, open mode's discard guard won't arm over work that is
+   * already safe, and Save › To Deluge › Overwrite writes back to `path`.
+   */
+  markSaved(path: string, name: string): void {
+    this.source = this.output
+    this.fileName = name
+    this.cardPath = path
   }
 
   /** A Deluge answered the identity inquiry: select its firmware. The choice sticks after disconnect. */

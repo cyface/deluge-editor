@@ -21,6 +21,8 @@
    * → 20 Hz…20 kHz), not the firmware's filter model. Drag a point sideways
    * for cutoff and up for resonance; the knobs follow.
    */
+  import { filterCutoffHz, hpfMagnitude, lpfMagnitude, lpfQ } from '../../core/params/filter'
+
   interface Props { filters: FilterBinding }
   let { filters }: Props = $props()
 
@@ -40,28 +42,10 @@
   const hpfOn = $derived(hpfMode !== 'Off')
   const para = $derived(route === 'PARA')
 
-  const fc = (menu: number) => 20 * Math.pow(1000, menu / 50)
-  function lpfMag(fr: number): number {
-    if (!lpfOn) return 1
-    const q = 1 + (lpfRes / 50) * 11
-    const r = fr / fc(lpfFreq)
-    if (lpfMode.startsWith('SVF')) {
-      const den = Math.sqrt(Math.pow((r - 1 / r) * q, 2) + 1)
-      return lpfMode === 'SVF_Notch' ? Math.abs((r - 1 / r) * q) / den : 1 / den
-    }
-    const order = lpfMode === '12dB' ? 2 : 4
-    return (1 / Math.sqrt(1 + Math.pow(r, 2 * order))) * (1 + (q - 1) * Math.exp(-Math.pow(Math.log(r) * 3.2, 2)))
-  }
-  function hpfMag(fr: number): number {
-    if (!hpfOn) return 1
-    const q = 1 + (hpfRes / 50) * 8
-    const r = fr / fc(hpfFreq)
-    if (hpfMode.startsWith('SVF')) {
-      const den = Math.sqrt(Math.pow((r - 1 / r) * q, 2) + 1)
-      return hpfMode === 'SVF_Notch' ? Math.abs((r - 1 / r) * q) / den : 1 / den
-    }
-    return (Math.pow(r, 2) / Math.sqrt(1 + Math.pow(r, 4))) * (1 + (q - 1) * 0.4 * Math.exp(-Math.pow(Math.log(r) * 3.2, 2)))
-  }
+  // The curves are `src/core/params/filter.ts`; `Off` draws flat there.
+  const fc = filterCutoffHz
+  const lpfMag = (fr: number) => lpfMagnitude(fr, lpfMode, lpfFreq, lpfRes)
+  const hpfMag = (fr: number) => hpfMagnitude(fr, hpfMode, hpfFreq, hpfRes)
   // Vertical scale −70…+24 dB: a full-resonance ladder peak is ≈ +19 dB, so
   // it must fit inside the box — clamping it flat would misread as saturation.
   const DB_MIN = -70
@@ -89,7 +73,7 @@
   const yRes = (v: number) => H * 0.86 - (v / 50) * (H * 0.72)
   const caption = $derived.by(() => {
     const f = fc(lpfFreq)
-    const lp = lpfOn ? `LPF ${f < 1000 ? `${Math.round(f)} Hz` : `${(f / 1000).toFixed(1)} kHz`} · Q ${(1 + (lpfRes / 50) * 11).toFixed(1)}` : 'LPF bypassed'
+    const lp = lpfOn ? `LPF ${f < 1000 ? `${Math.round(f)} Hz` : `${(f / 1000).toFixed(1)} kHz`} · Q ${lpfQ(lpfRes).toFixed(1)}` : 'LPF bypassed'
     return hpfOn ? `${lp}   HPF ${Math.round(fc(hpfFreq))} Hz` : lp
   })
 

@@ -5,8 +5,10 @@
  * editor. One instance, like `editor`.
  */
 
+import { untrack } from 'svelte'
 import { supports } from '../../core/firmware/features'
 import { parseVersion } from '../../core/firmware/version'
+import { baseName, compareNatural, joinPath, parentOf, smsFS, type CardFS } from '../../core/library'
 import { readWavInfo, type WavInfo } from '../../core/samples/wav'
 import {
   DEFAULT_TIMEOUTS,
@@ -17,7 +19,10 @@ import {
   type DirEntry,
 } from '../../core/sysex'
 import { errorText } from '../errtext'
+import { Activity } from './activity.svelte'
 import { editor } from './editor.svelte'
+import { samples } from './samples.svelte'
+import { count } from './wavfiles'
 
 /** Deluge port 3 is the SysEx port; any Deluge port answers, port 3 is just quietest. */
 const portScore = (name: string): number =>
@@ -38,7 +43,10 @@ const sysexDebugWanted = (): boolean => {
   }
 }
 
-class Card {
+/** A path as the protocol wants it: one leading slash, no trailing one (`CardFS` contract, `fs.ts`). */
+const clean = (path: string): string => path.replace(/\/+$/, '') || '/'
+
+class Card extends Activity {
   open = $state(false)
   status = $state<'idle' | 'connecting' | 'connected' | 'error'>('idle')
   portName = $state('')
@@ -47,10 +55,8 @@ class Card {
   /** The inquiry went unanswered for as long as a request gets; see `firmwareOk`. */
   identityTimedOut = $state(false)
   path = $state('/SYNTHS')
-  entries = $state<DirEntry[]>([])
+  entries = $state.raw<DirEntry[]>([])
   saveName = $state('')
-  busy = $state<string | null>(null)
-  progress = $state(0)
   /**
    * The last verified save, in words. A save closes the panel, so this line is
    * shown by the page rather than by the panel that earned it (`App.svelte`)
@@ -59,9 +65,26 @@ class Card {
    */
   saved = $state<string | null>(null)
   private savedTimer: ReturnType<typeof setTimeout> | null = null
-  error = $state<string | null>(null)
   /** Path armed for overwrite: the first Save click on an existing name only arms. */
   armed = $state<string | null>(null)
+
+  /**
+   * A card transfer some other store is running over this connection — the
+   * sample library's move or scan — so the top bar's dot pulses through it
+   * whether or not that panel is open. Shown while this store is idle; this
+   * store's own job always wins, and the other store clearing its label
+   * cannot take a job of ours off the bar.
+   */
+  private external = $state<string | null>(null)
+  override get busy(): string | null {
+    return super.busy ?? this.external
+  }
+  override set busy(label: string | null) {
+    super.busy = label
+  }
+  showTransfer(label: string | null): void {
+    this.external = label
+  }
   /**
    * Another editor is talking to this Deluge — a second tab, another browser,
    * or any other app (issue #8). Web MIDI is not exclusive, so the client
@@ -71,21 +94,6 @@ class Card {
    * reassurance. Cleared when we reconnect.
    */
   otherEditor = $state(false)
-
-  /**
-   * Registered by the sample stash (src/ui/state/samples.svelte.ts): writes every
-   * locally held sample the current preset references that the card is
-   * missing, reporting progress; resolves to how many were written. Saving a
-   * preset without its samples would leave silent rows on the instrument.
-   */
-  sampleSync: ((onStatus: (label: string, progress: number) => void) => Promise<number>) | null = null
-
-  /**
-   * Registered by the sample stash: before a save, move the preset's locally
-   * sourced samples (and the references to them) under the folder matching
-   * the save path, so the card's layout follows the preset.
-   */
-  sampleRetarget: ((savePath: string) => void) | null = null
 
   private client: SmsClient | null = null
   /** The in-flight `ensureConnected` attempt, so simultaneous askers share it. */
@@ -164,6 +172,15 @@ class Card {
     this.saved = null
   }
 
+  protected override onStart(): void {
+    this.clearSaved()
+  }
+
+  /** The raw error — FatFS name and all — goes to the trace; the panel gets the sentence (`Activity`). */
+  protected override onFail(label: string, e: unknown): void {
+    if (sysexDebugWanted()) console.debug('[sysex]', `${label} failed:`, e)
+  }
+
   /**
    * Connect for a gesture that needs the card but didn't come from the top
    * bar — the sample browsers' "From Deluge…", which would otherwise sit
@@ -176,6 +193,11 @@ class Card {
     this.connecting ??= this.connect().finally(() => (this.connecting = null))
     await this.connecting
     return this.connected
+  }
+
+  /** `ensureConnected` for a job that cannot go on without the card: connected, or the reason as an error. */
+  async require(): Promise<void> {
+    if (!(await this.ensureConnected())) throw new Error(this.error ?? 'could not reach the Deluge')
   }
 
   async connect(): Promise<void> {
@@ -256,7 +278,7 @@ class Card {
   }
 
   async enter(name: string): Promise<void> {
-    this.path = this.path === '/' ? `/${name}` : `${this.path}/${name}`
+    this.path = joinPath(this.path, name)
     this.armedLoad = null
     this.armed = null
     await this.refresh()
@@ -264,8 +286,7 @@ class Card {
 
   async up(): Promise<void> {
     if (this.path === '/') return
-    const cut = this.path.lastIndexOf('/')
-    this.path = cut === 0 ? '/' : this.path.slice(0, cut)
+    this.path = parentOf(this.path)
     this.armedLoad = null
     this.armed = null
     await this.refresh()
@@ -340,9 +361,8 @@ class Card {
       this.openPanel('save')
       return
     }
-    const cut = path.lastIndexOf('/')
-    const name = path.slice(cut + 1)
-    this.path = cut === 0 ? '/' : path.slice(0, cut)
+    const name = baseName(path)
+    this.path = parentOf(path)
     this.saveName = name
     this.armed = null
     await this.run(`Writing ${name}`, async () => {
@@ -374,34 +394,40 @@ class Card {
     // `onstatechange`, and a bare `this.client!` past that await surfaced
     // as a property-of-null crash instead of a sentence.
     const client = this.need()
-    this.sampleRetarget?.(path)
-    let copied = 0
-    if (this.sampleSync) {
-      copied = await this.sampleSync((label, p) => {
-        if (label) this.busy = label
-        this.progress = p
-      })
-    }
+    samples.retargetToSavePath(path)
+    const copied = await samples.syncMissingToCard(this, (label, p) => this.step(label, p))
     if (!this.connected) throw new Error('The Deluge disconnected during the save')
-    this.busy = `Writing ${name}`
-    this.progress = 0
+    this.step(`Writing ${name}`, 0)
     await client.writeFile(path, new TextEncoder().encode(editor.output), (d, t) => (this.progress = d / t))
-    const written = copied ? `${name} and ${copied} sample${copied === 1 ? '' : 's'} written` : `${name} written`
+    const written = copied ? `${name} and ${count(copied, 'sample')} written` : `${name} written`
     // The read-back proves the card holds what we sent — but only as of
     // now. With another editor on the same Deluge, its next `open` for
     // write truncates whatever it names, so a verified save is not a
     // durable one (issue #8).
     this.announce(this.otherEditor ? `${written} — another editor is also on this Deluge and could overwrite it` : written)
-    // The verified card copy is the new clean baseline: the Changes dock
-    // reads 0 against the file just written, and open mode's discard
-    // guard won't arm over work that is already safe.
-    editor.source = editor.output
-    editor.fileName = name
-    editor.cardPath = path
+    editor.markSaved(path, name)
+  }
+
+  /**
+   * The builders' push button (`kit`, `multisample`): copy every locally held
+   * sample the preset references that the card is missing, on the caller's
+   * own busy line. The click is the gesture, so it connects for it.
+   */
+  async pushSamples(activity: Activity): Promise<void> {
+    if (samples.pushable.length === 0) return
+    await activity.run('Connecting to the Deluge', async () => {
+      await this.require()
+      activity.step('Checking the card')
+      const n = await samples.syncMissingToCard(this, (label, p) => activity.step(label, p))
+      // A push runs for as long as the samples are big; another editor on the
+      // same Deluge can truncate any of them the moment it saves (issue #8).
+      const risky = this.otherEditor ? ' — another editor is also on this Deluge and could overwrite them' : ''
+      activity.notice = n === 0 ? 'every sample is already on the card' : `${count(n, 'sample')} written${risky}`
+    })
   }
 
   private join(name: string): string {
-    return this.path === '/' ? `/${name}` : `${this.path}/${name}`
+    return joinPath(this.path, name)
   }
 
   // ---- sample access for the builders (kit.svelte.ts, multisample.svelte.ts) ----
@@ -424,11 +450,20 @@ class Card {
     return this.client
   }
 
-  /** List a directory without touching the preset panel's path or entries. */
+  /**
+   * List a directory without touching the preset panel's path or entries:
+   * folders first, then names in natural order (`compareNatural`, as the
+   * sample library sorts), so one folder reads the same in every panel.
+   * Hidden entries are dropped here, at the store: the card is FAT32 and a
+   * Mac writes its droppings straight to it — `._*` AppleDouble sidecars
+   * (binary, yet ending in `.XML`), `.DS_Store`, `.Spotlight-V100` — none of
+   * which are presets. `listDirectory()` stays an honest transport, and the
+   * save-overwrite check rightly no longer "sees" `._NAME.XML`.
+   */
   async listPath(path: string): Promise<DirEntry[]> {
-    return (await this.need().listDirectory(path))
+    return (await this.need().listDirectory(clean(path)))
       .filter((e) => !e.name.startsWith('.'))
-      .toSorted((a, b) => Number(isDirectory(b)) - Number(isDirectory(a)) || a.name.localeCompare(b.name))
+      .toSorted((a, b) => Number(isDirectory(b)) - Number(isDirectory(a)) || compareNatural(a.name, b.name))
   }
 
   /**
@@ -438,7 +473,7 @@ class Card {
    * kit builder doesn't.
    */
   async wavInfo(path: string, opts?: { tags?: boolean }): Promise<WavInfo> {
-    const handle = await this.need().openRead(path)
+    const handle = await this.need().openRead(clean(path))
     try {
       return await readWavInfo((offset, length) => handle.read(offset, length), opts)
     } finally {
@@ -452,49 +487,52 @@ class Card {
    * preset XML keeps the byte-for-byte verify (save() above).
    */
   async writeSampleFile(path: string, data: Uint8Array, onProgress?: (done: number, total: number) => void): Promise<void> {
-    await this.need().writeFile(path, data, onProgress, 'sampled')
-  }
-
-  /** The connected client itself, for the sample library's file operations (`state/library.svelte.ts`). */
-  sms(): SmsClient {
-    return this.need()
-  }
-
-  /** Read a whole sample file off the card (audio preview). */
-  async readSampleFile(path: string, onProgress?: (done: number, total: number) => void): Promise<Uint8Array> {
-    return this.need().readFile(path, onProgress)
+    await this.need().writeFile(clean(path), data, onProgress, 'sampled')
   }
 
   /**
-   * The listing without `saved`/`busy` bookkeeping (refresh() adds that).
-   * Hidden entries are dropped here, at the store: the card is FAT32 and a
-   * Mac writes its droppings straight to it — `._*` AppleDouble sidecars
-   * (binary, yet ending in `.XML`), `.DS_Store`, `.Spotlight-V100` — none of
-   * which are presets. `listDirectory()` stays an honest transport, and the
-   * save-overwrite check above rightly no longer "sees" `._NAME.XML`.
+   * The card as a `CardFS`, for the sample library (`state/library.svelte.ts`):
+   * the SysEx backend behind the contract in `fs.ts`, with a trailing slash
+   * dropped before the protocol sees it, as the reader backend drops it.
    */
-  private async list(): Promise<void> {
-    this.entries = (await this.need().listDirectory(this.path))
-      .filter((e) => !e.name.startsWith('.'))
-      .toSorted((a, b) => Number(isDirectory(b)) - Number(isDirectory(a)) || a.name.localeCompare(b.name))
+  fs(): CardFS {
+    const raw = smsFS(this.need())
+    return {
+      list: (p) => raw.list(clean(p)),
+      read: (p, onProgress) => raw.read(clean(p), onProgress),
+      reader: (p) => raw.reader(clean(p)),
+      write: (p, data, onProgress) => raw.write(clean(p), data, onProgress),
+      rename: (from, to) => raw.rename(clean(from), clean(to)),
+      remove: (p) => raw.remove(clean(p)),
+      mkdir: (p) => raw.mkdir(clean(p)),
+    }
   }
 
-  private async run(label: string, fn: () => Promise<void>): Promise<void> {
-    this.busy = label
-    this.progress = 0
-    this.clearSaved()
-    this.error = null
-    try {
-      await fn()
-    } catch (e) {
-      // The raw error — FatFS name and all — goes to the trace; the panel
-      // gets the sentence.
-      if (sysexDebugWanted()) console.debug('[sysex]', `${label} failed:`, e)
-      this.error = errorText(e)
-    } finally {
-      this.busy = null
-    }
+  /** Read a whole file off the card — a sample for preview, a `SETTINGS/*.XML`. */
+  async readFile(path: string, onProgress?: (done: number, total: number) => void): Promise<Uint8Array> {
+    return this.need().readFile(clean(path), onProgress)
+  }
+
+  /** The panel's listing: `refresh()` adds the busy line. */
+  private async list(): Promise<void> {
+    this.entries = await this.listPath(this.path)
   }
 }
 
 export const card = new Card()
+
+// The one place the missing-on-card check is kept current: when the
+// connection comes or goes, or the preset names a different set of files
+// (`samples.fileKey`). A fresh connection drops the listing cache — the card
+// may have changed while we weren't looking. The check itself walks the
+// tree again, so it runs untracked or every attribute would be a dependency.
+$effect.root(() => {
+  let wasConnected = false
+  $effect(() => {
+    const connected = card.status === 'connected'
+    void samples.fileKey
+    if (connected && !wasConnected) samples.invalidateCardListings()
+    wasConnected = connected
+    untrack(() => void samples.checkMissing(card))
+  })
+})

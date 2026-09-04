@@ -91,10 +91,7 @@ describe('name tables', () => {
 describe('paramLabel', () => {
   it('labels every parameter a cable, a knob or <defaultParams> can name', () => {
     const raw = [...new Set([...PARAM_NAMES, ...SOUND_PARAM_ATTRS, ...KIT_PARAM_ATTRS])].filter((p) => paramLabel(p) === p)
-    // The four `…PitchAdjust` attributes (`Sound::writeParamsToFile` writes
-    // them only when set) have no label yet and show raw. Shrink this list
-    // when `names.ts` gains them; nothing else may join it.
-    expect(raw).toEqual(['oscAPitchAdjust', 'oscBPitchAdjust', 'mod1PitchAdjust', 'mod2PitchAdjust'])
+    expect(raw).toEqual([])
   })
 
   it('falls back to the raw name for anything else', () => {
@@ -107,6 +104,11 @@ describe('paramLabel', () => {
     expect(paramLabel('oscAPulseWidth')).toBe(paramLabel('oscAPhaseWidth'))
     expect(paramLabel('bitCrush')).toBe(paramLabel('bitcrushAmount'))
     expect(paramLabel('arpeggiatorRate')).toBe(paramLabel('arpRate'))
+    // The pitch params: `oscAPitch` on a cable, `oscAPitchAdjust` in <defaultParams>.
+    expect(paramLabel('oscAPitchAdjust')).toBe(paramLabel('oscAPitch'))
+    expect(paramLabel('oscBPitchAdjust')).toBe(paramLabel('oscBPitch'))
+    expect(paramLabel('mod1PitchAdjust')).toBe(paramLabel('modulator1Pitch'))
+    expect(paramLabel('mod2PitchAdjust')).toBe(paramLabel('modulator2Pitch'))
     expect(paramLabel('arpeggiatorGate')).toBe(paramLabel('arpGate'))
     expect(paramLabel('modulator1Amount')).toBe(paramLabel('modulator1Volume'))
     expect(paramLabel('volume')).toBe(paramLabel('volumePostFX'))

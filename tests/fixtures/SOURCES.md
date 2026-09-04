@@ -32,15 +32,46 @@ The factory inputs are Synthstrom's sound design; only the XML structure is of
 interest here and the count is kept small. Sample-based inputs were pointed at
 neutrally named copies of their WAVs before capture (see
 `docs/fixture-capture.md`), so the paths the firmware wrote carry no library
-or artist names. Two things to know when comparing captures:
+or artist names. Things to know when comparing captures:
 
 - `notePattern` under `<arpeggiator>` is a random pattern the firmware
   generates per session, so two captures of the same input differ there.
-- This beta orders `<delay>`/`<sidechain>` after `<midiOutput>` and writes
-  patch-cable `amount` before `polarity`; the c1.3.0 build that wrote Tim's
-  hardware files (below) put `<delay>`/`<sidechain>` before `<defaultParams>`
-  and `polarity` first. Same version string, different serialiser — the
-  editor must not assume element order from `firmwareVersion`.
+- The version string does not fix the layout. The fixtures show four
+  serialiser layouts, two of them both stamped `c1.3.0`; `firmwareVersion`
+  tells none of them apart. `src/core/preset/order.test.ts` spells each
+  variance out as a named alternative table and requires every alternative
+  to be one some fixture actually uses:
+  - **This beta** (`community-c1.3.0-beta-*`, and `community-c1.3.0/Kit Row
+    Sound.XML`, which a beta build wrote): `<sound>` children run
+    `<defaultParams>`, `<arpeggiator>`, `<midiOutput>`, then `<delay>` and
+    `<sidechain>`; a cable's `polarity` comes before its `amount`; the
+    arpeggiator's `syncLevel` before `numOctaves`; the sidechain's `attack`/
+    `release` before its sync; and in `<defaultParams>` `arpeggiatorGate`
+    follows `compressorThreshold`, with the morphs and `waveFold` after it.
+    This is the layout `order.ts` writes by.
+  - **Tim's hardware c1.3.0 build** (`community-c1.3.0/Sine AnalogSaw Patch
+    Cables.XML`, `Wavetable DX7 OscSync Warbler.XML`): `<delay>`/`<sidechain>`
+    before `<defaultParams>`; `amount` before `polarity`; the sidechain's
+    `syncLevel`/`syncType` before `attack`/`release`; `arpeggiatorGate` first
+    in `<defaultParams>`, each morph beside its filter and `waveFold` after
+    `modFXFeedback` ("sound children, delay/sidechain before defaultParams",
+    "cable, amount before polarity", "sidechain, sync before attack/release",
+    "defaultParams, arpeggiatorGate first and morphs beside their filters").
+  - **Community 1.2.1** (`community-c1.2.1-release_1_2_1/`): the beta's
+    child order without `<midiOutput>` and no `polarity` yet, but the
+    arpeggiator's `numOctaves` before `syncLevel`, and `arpeggiatorGate` first
+    with the morphs and `waveFold` after `compressorThreshold` ("arpeggiator,
+    numOctaves before syncLevel", "defaultParams, arpeggiatorGate first and
+    morphs after compressorThreshold").
+  - **Official 3.x/4.x** (`official-4.0.1/`): `lpfMode` before `modFXType` on
+    `<sound>`; `<delay>`/`<compressor>` before `<defaultParams>`; sidechain
+    sync first; `numOctaves` before `syncLevel`; `arpeggiatorGate` first and
+    no morphs at all ("sound attrs, lpfMode before modFXType" plus the
+    hardware-build alternatives above).
+
+  A loaded file keeps its own order (`tests/roundtrip.test.ts`); the tables
+  only decide where an attribute the editor *adds* lands. The editor must not
+  infer either order from `firmwareVersion`.
 
 ## `community-c1.3.0-beta-6e5f2b2/` — DelugEmu, community beta 1.3.0 (2026-09-04)
 

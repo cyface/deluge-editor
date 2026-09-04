@@ -5,8 +5,9 @@
  * needs). A card of songs that takes minutes to index at SysEx speed takes
  * seconds from a reader.
  *
- * Paths are the protocol's (`/SAMPLES/Drums/Kick.wav`); each segment is
- * looked up exactly first and then case-insensitively, because a FAT card
+ * Paths are the protocol's (`/SAMPLES/Drums/Kick.wav`; a trailing slash is
+ * dropped, per the `CardFS` contract in `src/core/library/fs.ts`); each
+ * segment is looked up exactly first and then case-insensitively, because a FAT card
  * matches names either way and the XML may spell a folder differently
  * from the disk. Renames use the handle's `move()` where the browser has
  * it (Chrome 111+, files only) and fall back to copy-then-remove — which is
@@ -72,10 +73,11 @@ async function childOf(dir: DirHandle, name: string): Promise<FileHandle | DirHa
   return null
 }
 
-async function dirAt(root: DirHandle, path: string): Promise<DirHandle> {
+/** The folder at `path`; with `create`, each missing segment is made on the way (a file in the way is still `notFound`). */
+async function dirAt(root: DirHandle, path: string, create = false): Promise<DirHandle> {
   let at = root
   for (const seg of segments(path)) {
-    const next = await childOf(at, seg)
+    const next = (await childOf(at, seg)) ?? (create ? await at.getDirectoryHandle(seg, { create: true }) : null)
     if (!next || next.kind !== 'directory') throw notFound(path)
     at = next
   }
@@ -182,8 +184,9 @@ export function localFS(root: DirHandle): CardFS {
       }
     },
     async write(path, data, onProgress?: CardProgress) {
+      // Parents are created, as the firmware's open-for-write creates them (the `CardFS` contract).
       const { dir, name } = split(path)
-      await writeWhole(await dirAt(root, dir), name, data, path)
+      await writeWhole(await dirAt(root, dir, true), name, data, path)
       onProgress?.(data.length, data.length)
     },
     async rename(from, to) {

@@ -23,7 +23,7 @@
    * three random shapes can only be one run of many, and are drawn as such.
    */
   import { LFO_SCOPE } from '../../core/firmware/features'
-  import { formatLfoRate, lfoPhaseIncrement, lfoStartPhase, SAMPLE_RATE } from '../../core/params/lfo'
+  import { formatLfoRate, lfoPhaseIncrement, lfoRandomRun, lfoStartPhase, lfoWave, SAMPLE_RATE } from '../../core/params/lfo'
   import { menuToStandard } from '../../core/params/scale'
   import { syncLevelName, SYNC_TYPES } from '../../core/params/sync'
   import { LFO_TYPE_NAMES, type SoundElement, type SoundParamAttr } from '../../core/preset'
@@ -120,95 +120,17 @@
     return bars === null ? hzOf(s.rate) * win : null
   }
 
-  /**
-   * A stable per-cycle random source: the run redraws the same way every time,
-   * so the graph doesn't flicker on every keystroke. The offset only picks a
-   * stretch of it whose first few draws are spread across the range — one run
-   * of a random shape can honestly be six similar levels in a row, but that is
-   * the one run that says least about what the shape does.
-   */
-  function noise(step: number, n: N): number {
-    // Each LFO gets its own stretch, so two ghosts don't trace the same run.
-    const i = step + 205 + n * 977
-    let x = Math.imul(i + 0x9e3779b9, 0x85ebca6b)
-    x = Math.imul(x ^ (x >>> 13), 0xc2b2ae35)
-    return ((x ^ (x >>> 16)) >>> 0) / 4294967296
-  }
-
-  /** The periodic shapes over one cycle of phase, as the firmware renders them. */
-  function wave(type: string, p: number): number {
-    const q = p - Math.floor(p)
-    if (type === 'sine') return Math.sin(2 * Math.PI * q)
-    // getSquare: high for the first half of the phase.
-    if (type === 'square') return q < 0.5 ? 1 : -1
-    // getTriangle: the negative extreme at phase 0, the positive one at the half.
-    if (type === 'triangle') return q < 0.5 ? -1 + 4 * q : 3 - 4 * q
-    // SAW reads the raw uint32 phase as an int32: a ramp that wraps at the half.
-    if (type === 'saw') return q < 0.5 ? 2 * q : 2 * q - 2
-    return 0
-  }
-
-  /**
-   * The three shapes that are not waves. Sample & hold jumps to a new level
-   * each cycle; random walk steps on from where it is, pulled back towards
-   * zero by a sixteenth of how far it has gone; the warbler runs the
-   * firmware's second-order glide towards each new target (`LFO::warble`),
-   * which needs the real phase increment and so is drawn at the rate this LFO
-   * is actually set to.
-   */
-  function randomRun(n: N, type: string, runCycles: number, rate: number, start: number): number[] {
-    const ys: number[] = []
-    if (type === 'sah') {
-      for (let i = 0; i <= N_POINTS; i++) ys.push(noise(Math.floor((i / N_POINTS) * runCycles + start), n) * 2 - 1)
-      return ys
-    }
-    if (type === 'rwalk') {
-      // range = 2^32/20, so one step spans at most a fortieth of the swing.
-      const step = 1 / 20
-      let hold = step / 2 - noise(0, n) * step
-      let cyc = -1
-      for (let i = 0; i <= N_POINTS; i++) {
-        const c = Math.floor((i / N_POINTS) * runCycles + start)
-        if (c !== cyc) {
-          if (cyc >= 0) hold = Math.max(-1, Math.min(1, hold - hold / 16 + step / 2 - noise(c, n) * step))
-          cyc = c
-        }
-        ys.push(hold)
-      }
-      return ys
-    }
-    // Warbler: phaseIncrement is doubled inside warble(), so a target arrives
-    // twice per drawn cycle, and speed is zeroed at each one.
-    const inc = Math.max(1, lfoPhaseIncrement(menuToStandard(rate))) * 2
-    const perStep = (runCycles / N_POINTS) * (4294967296 / Math.max(1, lfoPhaseIncrement(menuToStandard(rate))))
-    let hold = 0
-    let speed = 0
-    let target = noise(0, n) * 2 - 1
-    let phase = 0
-    for (let i = 0; i <= N_POINTS; i++) {
-      const next = phase + (inc / 4294967296) * perStep
-      if (Math.floor(next) !== Math.floor(phase)) {
-        target = noise(Math.floor(next) + 1, n) * 2 - 1
-        speed = 0
-      }
-      phase = next
-      speed += perStep * (target - hold) * (inc / 4294967296 / 256)
-      hold = Math.max(-1, Math.min(1, hold + speed * perStep))
-      ys.push(hold)
-    }
-    return ys
-  }
-
+  // The shapes — `lfoWave`, and one run of a random shape, `lfoRandomRun` — are `src/core/params/lfo.ts`.
   function pathFor(n: N): string | null {
     const runCycles = cyclesFor(n)
     if (runCycles === null || !(runCycles > 0)) return null
     const s = shapeOf(n)
     const start = lfoStartPhase(s.type, scopeOf(n))
     const isRandom = s.type === 'sah' || s.type === 'rwalk' || s.type === 'warbler'
-    const ys = isRandom ? randomRun(n, s.type, runCycles, s.rate, start) : null
+    const ys = isRandom ? lfoRandomRun(n, s.type, runCycles, s.rate, start, N_POINTS) : null
     let d = ''
     for (let i = 0; i <= N_POINTS; i++) {
-      const y = ys ? ys[i] : wave(s.type, (i / N_POINTS) * runCycles + start)
+      const y = ys ? ys[i] : lfoWave(s.type, (i / N_POINTS) * runCycles + start)
       d += `${i ? 'L' : 'M'}${((i / N_POINTS) * W).toFixed(1)} ${(MID - y * AMP).toFixed(1)} `
     }
     return d

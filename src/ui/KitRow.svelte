@@ -6,9 +6,10 @@
    * element through `core/preset`; the table owns the selection and the
    * drag, and hears about them through the callbacks.
    */
-  import { OSC_ATTR_ORDER, type DrumRow, type OscElement } from '../core/preset'
-  import { isVelocityKeyed, sampleRanges, soundingOrder } from '../core/preset/ranges'
-  import { osc, paramMenu, setParamMenu } from '../core/preset/sound'
+  import { rowDescription as describe, rowSampleFile as sampleFile, rowSampleOsc as sampleOsc, rowSourceAction as sourceAction } from '../core/kit/rows'
+  import { parsePan } from '../core/params/scale'
+  import { OSC_ATTR_ORDER, type DrumRow } from '../core/preset'
+  import { paramMenu, setParamMenu } from '../core/preset/sound'
   import { setAttr } from '../core/xml'
   import Select from './controls/Select.svelte'
   import Waveform from './controls/Waveform.svelte'
@@ -41,52 +42,7 @@
   const PADS = ['--osc', '--at', '--flt', '--env1', '--lfo1', '--lfo2', '--fx', '--vel']
   const DIRECTIONS = [{ value: '0', label: 'Fwd' }, { value: '1', label: 'Rev' }]
 
-  function describe(r: DrumRow): string {
-    if (r.tag === 'midiOutput') return `MIDI ch ${Number(r.attrs.channel ?? 0) + 1} · note ${r.attrs.note ?? '?'}`
-    if (r.tag === 'gateOutput') return `Gate ${Number(r.attrs.channel ?? 0) + 1}`
-    const o = osc(r, 1)
-    const t = o?.attrs.type ?? 'square' // Source ctor default survives load (source.cpp:41)
-    if (t === 'sample') {
-      // A multi-sample row says so: the first file alone reads as if the row
-      // held one sample (issue #29). The key map is in the oscillator panel.
-      // An empty `fileName=""` is how a blank row leaves the device (the
-      // template kit's U1), so it reads as no file rather than as nothing.
-      const files = o ? sampleRanges(o).map((s) => s.fileName || '(no file)') : []
-      if (files.length === 0) return '(no file)'
-      return files.length === 1 ? files[0] : `${files.length} samples · ${files[0]}`
-    }
-    return `${r.attrs.mode ?? 'subtractive'} · ${t}`
-  }
-
-  /** The oscillator whose play mode the Mode column edits: osc1 when it plays a sample. */
-  function sampleOsc(r: DrumRow): OscElement | undefined {
-    if (!isSoundRow(r)) return undefined
-    const o = osc(r, 1)
-    return o?.attrs.type === 'sample' ? o : undefined
-  }
-  /** The sample file a row plays, for the audio preview; undefined for non-sample rows. */
-  function sampleFile(r: DrumRow): string | undefined {
-    if (!isSoundRow(r)) return undefined
-    const o = osc(r, 1)
-    if (o?.attrs.type !== 'sample') return undefined
-    // The lowest range's sample stands for the row: the pad plays it first.
-    return soundingOrder(sampleRanges(o))[0]?.fileName || undefined
-  }
-
-  /**
-   * What the row's Source button offers. A drum with one sample — nearly every
-   * drum — offers to change it. More than one is the odd case, and what those
-   * ranges mean depends on the file: a kit row always sounds `kNoteForDrum`
-   * (`SoundDrum::noteOn`, `processing/sound/sound_drum.cpp:65`,
-   * upstream/community bef6d9df), so a note key does nothing inside a kit, and
-   * the only firmware that reads more than one range per drum reads the key as
-   * a velocity instead. So say "Layers" when the file is keyed that way.
-   */
-  function sourceAction(r: DrumRow): 'sample' | 'layers' | 'ranges' {
-    const o = sampleOsc(r)
-    if (!o || sampleRanges(o).length < 2) return 'sample'
-    return isVelocityKeyed(o) ? 'layers' : 'ranges'
-  }
+  // What a row shows — its description, its sample and what Source offers — is `src/core/kit/rows.ts`.
 
   const vol = (r: DrumRow) => (isSoundRow(r) ? (paramMenu(r, 'volume') ?? '') : '')
   const pan = (r: DrumRow) => {
@@ -105,15 +61,11 @@
     input.value = String(vol(r)) // re-show the stored value (clamped, or unchanged on bad input)
   }
 
-  /** Commit a typed pan: C, L1–L25, R1–R25, or a signed number (negative = left). */
+  /** Commit a typed pan: C, L1–L25, R1–R25, or a signed number (negative = left) — `parsePan` reads every spelling. */
   function commitPan(e: Event) {
     const input = e.currentTarget as HTMLInputElement
-    const raw = input.value.trim().toUpperCase().replace(/^(\d+)\s*([LR])$/, '$2$1') // 12L → L12
-    if (isSoundRow(r) && raw !== '') {
-      const side = /^([LR])\s*(\d*)$/.exec(raw) // a bare L or R is hard left/right
-      const n = raw === 'C' ? 0 : side ? (side[1] === 'L' ? -1 : 1) * (side[2] ? Number(side[2]) : 25) : Math.round(Number(raw))
-      if (Number.isFinite(n)) setParamMenu(r, 'pan', Math.max(-25, Math.min(25, n)))
-    }
+    const n = parsePan(input.value)
+    if (isSoundRow(r) && n !== undefined) setParamMenu(r, 'pan', n)
     input.value = pan(r)
   }
 

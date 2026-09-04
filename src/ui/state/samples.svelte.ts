@@ -12,13 +12,24 @@
  * Nothing here is preset-shaped: the file list is always
  * `referencedSampleFiles(editor.preset)`, so a sample-based synth and a kit
  * behave the same way.
+ *
+ * The card is handed in rather than imported: `card.svelte.ts` imports this
+ * module to bring the samples along with every save (`Card.write`), so a
+ * bundle that has the card store has the stash — and the dependency points
+ * one way.
  */
 
-import { untrack } from 'svelte'
-import { isNotFound } from '../../core/library'
+import { cardPath, isNotFound, joinPath, parentOf } from '../../core/library'
 import { referencedSampleFiles, retargetSampleFiles } from '../../core/preset'
-import { card } from './card.svelte'
+import type { DirEntry, Progress } from '../../core/sysex'
 import { editor } from './editor.svelte'
+
+/** What the stash needs of the card store: whether it is there, a listing, and a sample write. */
+export interface CardLink {
+  readonly connected: boolean
+  listPath(path: string): Promise<DirEntry[]>
+  writeSampleFile(path: string, data: Uint8Array, onProgress?: Progress): Promise<void>
+}
 
 class SampleStash {
   /** The folder under `SAMPLES/` the locally sourced samples sit in, for display. */
@@ -77,7 +88,7 @@ class SampleStash {
    * listing only directories not seen since the last invalidation. FAT names
    * compare case-insensitively.
    */
-  async checkMissing(): Promise<void> {
+  async checkMissing(card: CardLink): Promise<void> {
     const gen = ++this.checkGen
     const files = this.files()
     if (!card.connected || files.length === 0) {
@@ -86,7 +97,7 @@ class SampleStash {
       return
     }
     let error: string | null = null
-    for (const dir of new Set(files.map((f) => `/${f.slice(0, f.lastIndexOf('/'))}`))) {
+    for (const dir of new Set(files.map((f) => parentOf(cardPath(f))))) {
       if (this.cardListings.has(dir)) continue
       try {
         this.cardListings.set(dir, new Set((await card.listPath(dir)).map((e) => e.name.toLowerCase())))
@@ -101,9 +112,9 @@ class SampleStash {
     }
     const missing = new Set<string>()
     for (const f of files) {
-      const cut = f.lastIndexOf('/')
-      const listing = this.cardListings.get(`/${f.slice(0, cut)}`)
-      if (listing && !listing.has(f.slice(cut + 1).toLowerCase())) missing.add(f)
+      const full = cardPath(f)
+      const listing = this.cardListings.get(parentOf(full))
+      if (listing && !listing.has(full.slice(full.lastIndexOf('/') + 1).toLowerCase())) missing.add(f)
     }
     this.missing = missing
     this.checkError = error
@@ -156,53 +167,32 @@ class SampleStash {
    * case-insensitively). Returns how many were written; runs inside a caller
    * that owns the busy/progress display via `onStatus`.
    */
-  async syncMissingToCard(onStatus?: (label: string, progress: number) => void): Promise<number> {
+  async syncMissingToCard(card: CardLink, onStatus?: (label: string, progress: number) => void): Promise<number> {
     const files = this.pushable
     if (files.length === 0) return 0
-    const dirs = new Set(files.map((f) => `/${f.slice(0, f.lastIndexOf('/'))}`))
+    const dirs = new Set(files.map((f) => parentOf(cardPath(f))))
     const existing = new Map<string, number>()
     for (const dir of dirs) {
       try {
-        for (const e of await card.listPath(dir)) existing.set(`${dir}/${e.name}`.toLowerCase(), e.size)
+        for (const e of await card.listPath(dir)) existing.set(joinPath(dir, e.name).toLowerCase(), e.size)
       } catch (e) {
         if (!isNotFound(e)) throw e // the folder does not exist yet; open-for-write creates it
       }
     }
-    const want = files.filter((f) => existing.get(`/${f}`.toLowerCase()) !== this.bytes.get(f)!.length)
+    const want = files.filter((f) => existing.get(cardPath(f).toLowerCase()) !== this.bytes.get(f)!.length)
     let done = 0
     for (const f of want) {
       const data = this.bytes.get(f)!
       onStatus?.(`Copying ${f}`, done / want.length)
-      await card.writeSampleFile(`/${f}`, data, (d, t) => onStatus?.(`Copying ${f}`, (done + (t ? d / t : 0)) / want.length))
+      await card.writeSampleFile(cardPath(f), data, (d, t) => onStatus?.(`Copying ${f}`, (done + (t ? d / t : 0)) / want.length))
       done++
     }
     if (want.length > 0) {
       this.invalidateCardListings()
-      void this.checkMissing()
+      void this.checkMissing(card)
     }
     return want.length
   }
 }
 
 export const samples = new SampleStash()
-
-// Saving from the card panel retargets locally held samples to the saved
-// folder path and brings them along (card.save()).
-card.sampleRetarget = (savePath) => samples.retargetToSavePath(savePath)
-card.sampleSync = (onStatus) => samples.syncMissingToCard(onStatus)
-
-// The one place the missing-on-card check is kept current: when the
-// connection comes or goes, or the preset names a different set of files
-// (`fileKey`). A fresh connection drops the listing cache — the card may
-// have changed while we weren't looking. The check itself walks the tree
-// again, so it runs untracked or every attribute would be a dependency.
-$effect.root(() => {
-  let wasConnected = false
-  $effect(() => {
-    const connected = card.status === 'connected'
-    void samples.fileKey
-    if (connected && !wasConnected) samples.invalidateCardListings()
-    wasConnected = connected
-    untrack(() => void samples.checkMissing())
-  })
-})

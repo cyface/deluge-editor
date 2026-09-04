@@ -5,6 +5,7 @@
  * AudioContext is created on the first click (browsers require a gesture).
  */
 
+import { cardPath } from '../../core/library'
 import { computePeaks, type Peaks } from '../../core/samples/peaks'
 import { card } from './card.svelte'
 import { samples } from './samples.svelte'
@@ -23,6 +24,8 @@ class AudioPreview {
   private peaks = new Map<string, Peaks>()
   private decoding = new Set<string>()
   private source: AudioBufferSourceNode | null = null
+  /** Counts `toggle()` calls, so a load that lands after a later toggle is dropped rather than played. */
+  private toggleGen = 0
 
   /**
    * Where card-only bytes come from while the sample library is browsing a
@@ -33,6 +36,7 @@ class AudioPreview {
 
   /** Preview needs bytes: local, already decoded, or fetchable from the card. */
   canPreview(fileName: string): boolean {
+    void this.version // the cache is a plain Map; a decode landing is what changes the answer
     return this.cache.has(fileName) || samples.bytes.has(fileName) || this.mounted !== null || card.connected
   }
 
@@ -53,8 +57,13 @@ class AudioPreview {
     }
     this.stop()
     this.error = null
+    // Toggle A, then B while A's read is pending: A's node must not start,
+    // and A's finish must not clear B's loading line.
+    const gen = ++this.toggleGen
+    const live = (): boolean => gen === this.toggleGen
     try {
       const buffer0 = await this.load(fileName)
+      if (!live()) return
       // The cache may have been filled by the background thumbnail decode
       // (OfflineAudioContext), so the playback context can still be missing
       // here — and this click is exactly the gesture that may create it.
@@ -75,9 +84,9 @@ class AudioPreview {
       this.playing = fileName
       source.start()
     } catch (e) {
-      this.error = `${fileName}: ${e instanceof Error ? e.message : String(e)}`
+      if (live()) this.error = `${fileName}: ${e instanceof Error ? e.message : String(e)}`
     } finally {
-      this.loading = null
+      if (live()) this.loading = null
     }
   }
 
@@ -150,7 +159,7 @@ class AudioPreview {
       }
       this.loading = fileName
       this.progress = 0
-      bytes = await card.readSampleFile(`/${fileName}`, (done, total) => (this.progress = total ? done / total : 0))
+      bytes = await card.readFile(cardPath(fileName), (done, total) => (this.progress = total ? done / total : 0))
     }
     // decodeAudioData detaches its buffer, so hand it a copy, not the stash.
     const copy = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer

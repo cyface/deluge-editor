@@ -65,12 +65,23 @@ export type CardProgress = Progress
 /** An open file for ranged reads — a WAV header without the audio behind it. Always `close()`. The SysEx client's `ReadHandle`, which the local backend implements as well. */
 export type RangedFile = ReadHandle
 
+/**
+ * The contract both backends keep (`sms.ts` via the card store's `fs()`,
+ * `src/ui/localcard.ts`): paths are the protocol's leading-slash form, and a
+ * trailing slash is dropped before use, so `/SAMPLES/` and `/SAMPLES` name
+ * the same folder. `write` creates any missing parent folders — the
+ * firmware's open-for-write does, `f_mkdir` for each segment `f_opendir`
+ * reports FR_NO_PATH on before the `FA_CREATE_ALWAYS` open
+ * (`storage/smsysex.cpp`, upstream/community:204), and a card in a reader
+ * must not differ — while `mkdir` makes one level only and is content to
+ * find it there.
+ */
 export interface CardFS {
   /** The folder's entries; throws when it does not exist. */
   list(path: string): Promise<CardEntry[]>
   read(path: string, onProgress?: CardProgress): Promise<Uint8Array>
   reader(path: string): Promise<RangedFile>
-  /** Create or truncate, write, verify. */
+  /** Create (parents included) or truncate, write, verify. */
   write(path: string, data: Uint8Array, onProgress?: CardProgress): Promise<void>
   /** FatFS `f_rename`: a file or a folder, across folders; fails if `to` exists. */
   rename(from: string, to: string): Promise<void>

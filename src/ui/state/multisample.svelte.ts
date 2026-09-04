@@ -23,6 +23,7 @@
  * only, never the boundaries between them.
  */
 
+import { baseName as base, cardPath, joinPath, xmlPath } from '../../core/library'
 import { buildMultisample, importZone, type ImportSample } from '../../core/preset/multisample'
 import { OSC_ATTR_ORDER, SOUND_CHILD_ORDER } from '../../core/preset/order'
 import {
@@ -43,25 +44,27 @@ import {
   type RootRow,
   type SampleFile,
 } from '../../core/samples/roots'
-import { bufferReader, readWavInfo, type WavInfo } from '../../core/samples/wav'
-import { isDirectory } from '../../core/sysex'
+import { bufferReader, readWavInfo } from '../../core/samples/wav'
 import { ensureChild, removeAttr, setAttr } from '../../core/xml/edit'
+import { Activity } from './activity.svelte'
 import { card } from './card.svelte'
+import { CardBrowser } from './cardbrowser.svelte'
 import { editor } from './editor.svelte'
 import { ranges } from './ranges.svelte'
 import { samples } from './samples.svelte'
+import {
+  cleanFolder,
+  count,
+  importFileFrom,
+  isWav,
+  readEach,
+  wavsOf,
+  withSkipped,
+  type ImportFile,
+  type LocalSample,
+} from './wavfiles'
 
-/** A file on its way in, with whatever its header declared. */
-export interface ImportFile {
-  /** The path the preset will store, e.g. `SAMPLES/Piano/C3.wav` — no leading slash. */
-  fileName: string
-  frames?: number
-  loopStart?: number
-  loopEnd?: number
-  ms?: number
-  /** The root the WAV itself declares, in cents. */
-  fileRoot?: number
-}
+export type { ImportFile }
 
 /** A sample the import read but could not put on the keyboard. */
 export interface LeftOut {
@@ -137,65 +140,33 @@ export interface RedetectPlan {
   disordered: boolean
 }
 
-const isWav = (name: string): boolean => /\.wav$/i.test(name)
-
-/** A folder name FAT and the firmware are happy with; keeps the user's name otherwise. */
-const cleanFolder = (name: string): string => name.replace(/[\\/:*?"<>|]/g, '').trim() || 'Samples'
-
-/** Everything the import needs out of a WAV header, in the units the build wants. */
-const fileFrom = (fileName: string, info: WavInfo): ImportFile => ({
-  fileName,
-  frames: info.frames,
-  loopStart: info.loopStart,
-  loopEnd: info.loopEnd,
-  ms: info.sampleRate ? (info.frames / info.sampleRate) * 1000 : undefined,
-  fileRoot: info.rootNote === undefined ? undefined : Math.round(info.rootNote * 100),
-})
-
-class MultisampleImport {
+class MultisampleImport extends Activity {
   /** The oscillator the source prompt is open for, or null when it is closed. */
   asking = $state<1 | 2 | null>(null)
-  /** What the last import left beside the ranges; the range editor shows it. */
+  /** What the last import left beside the ranges; the range editor shows it. Edited in place (`shift`, `assign`), so a deep `$state`. */
   private held = $state<ImportSession | null>(null)
   /** The preset those ranges are in: another one loaded, and the row is not about it. */
-  private heldFor: Preset | null = null
+  private heldFor = $state.raw<Preset | null>(null)
   /** A re-detect read but not yet accepted, and the preset it was read for. */
-  private heldPlan = $state<RedetectPlan | null>(null)
-  private planFor: Preset | null = null
+  private heldPlan = $state.raw<RedetectPlan | null>(null)
+  private planFor = $state.raw<Preset | null>(null)
 
   /**
    * The import's row, while the preset it wrote to is still the loaded one.
    * Provenance and left-out files are about particular ranges in a particular
    * preset; loading another one puts the row away rather than captioning
    * someone else's ranges with it.
-   *
-   * The `$state` field is read before the plain one is compared, and that
-   * order matters: a getter that returns early on `heldFor` never reads
-   * `held`, so a `$derived` over it registers no dependency and never learns
-   * that a row appeared.
    */
-  get session(): ImportSession | null {
-    const held = this.held
-    return held !== null && this.heldFor === editor.preset ? held : null
-  }
+  readonly session = $derived<ImportSession | null>(this.held !== null && this.heldFor === editor.preset ? this.held : null)
 
-  /** The re-detect on screen, while the preset it was read for is still loaded — read as `session` is, and for the same reason. */
-  get plan(): RedetectPlan | null {
-    const plan = this.heldPlan
-    return plan !== null && this.planFor === editor.preset ? plan : null
-  }
+  /** The re-detect on screen, while the preset it was read for is still loaded. */
+  readonly plan = $derived<RedetectPlan | null>(this.heldPlan !== null && this.planFor === editor.preset ? this.heldPlan : null)
 
-  busy = $state<string | null>(null)
-  progress = $state(0)
-  error = $state<string | null>(null)
-  notice = $state<string | null>(null)
-
-  /** On-device browse: current path, null when the card browser is closed. */
-  cardPath = $state<string | null>(null)
-  cardEntries = $state<{ name: string; dir: boolean }[]>([])
+  /** The on-device folder browser, on this panel's busy line. */
+  readonly browser = new CardBrowser(this)
 
   /** The preset the prompt was opened over; loading another closes it. */
-  private opened: Preset | null = null
+  private opened = $state.raw<Preset | null>(null)
   /** The waveform the target had before we made it a sample oscillator, to put back. */
   private waveformWas: { which: 1 | 2; type: string | undefined } | null = null
 
@@ -219,7 +190,7 @@ class MultisampleImport {
     this.error = null
     this.notice = null
     this.cancelRedetect() // a folder replaces the ranges a pending proposal is about
-    this.closeCardBrowser()
+    this.browser.close()
     const sound = editor.sound
     if (!sound) return
     const osc = ensureChild(sound, `osc${which}`, SOUND_CHILD_ORDER) as OscElement
@@ -240,7 +211,7 @@ class MultisampleImport {
       else setAttr(osc, 'type', was.type, OSC_ATTR_ORDER)
     }
     this.asking = null
-    this.closeCardBrowser()
+    this.browser.close()
   }
 
   /** Put the import's own row away; the ranges it wrote stay, as any edit does. */
@@ -252,67 +223,30 @@ class MultisampleImport {
   // ---- sources ------------------------------------------------------------
 
   /** Read a dropped or picked folder of WAVs, keeping the bytes for the card push. */
-  async addLocalFolder(folderName: string, picked: { relPath: string; file: File }[]): Promise<void> {
-    const wavs = picked.filter((f) => isWav(f.relPath) && !f.relPath.split('/').pop()!.startsWith('.'))
+  async addLocalFolder(folderName: string, picked: LocalSample[]): Promise<void> {
+    const wavs = wavsOf(picked)
     if (this.asking === null) this.start(1)
     if (wavs.length === 0) {
       this.error = 'no .wav files in that folder — a multi-sampled synth is built from WAV samples'
       return
     }
-    await this.run(`Reading ${wavs.length} WAV header${wavs.length === 1 ? '' : 's'}`, async () => {
-      const folder = cleanFolder(folderName)
-      const files: ImportFile[] = []
+    await this.run(`Reading ${count(wavs.length, 'WAV header')}`, async () => {
+      const folder = cleanFolder(folderName, 'Samples')
       const bytes = new Map<string, Uint8Array>()
-      let done = 0
-      for (const { relPath, file } of wavs) {
-        const data = new Uint8Array(await file.arrayBuffer())
-        const fileName = `SAMPLES/${folder}/${relPath}`
-        try {
-          files.push(fileFrom(fileName, await readWavInfo(bufferReader(data), { tags: true })))
+      const { results: files, skipped } = await readEach(
+        wavs,
+        async ({ relPath, file }) => {
+          const data = new Uint8Array(await file.arrayBuffer())
+          const fileName = `SAMPLES/${folder}/${relPath}`
+          const info = await readWavInfo(bufferReader(data), { tags: true })
           bytes.set(fileName, data)
-        } catch (e) {
-          // a broken WAV is skipped, said out loud, and the rest still import
-          this.notice = `${relPath}: ${e instanceof Error ? e.message : String(e)} — skipped`
-        }
-        this.progress = ++done / wavs.length
-      }
-      if (files.length === 0) throw new Error('none of the WAV files could be read')
-      this.place(files, folder, bytes)
+          return importFileFrom(fileName, info)
+        },
+        (f) => f.relPath,
+        (p) => (this.progress = p),
+      )
+      this.place(files, folder, bytes, skipped)
     })
-  }
-
-  /**
-   * Open (or navigate) the on-device folder browser, connecting first if the
-   * editor isn't talking to a Deluge yet — the button is the gesture, and
-   * making the user find the preset panel to enable it is a puzzle, not a
-   * safeguard.
-   */
-  async browseCard(path = '/SAMPLES'): Promise<void> {
-    if (!card.connected) {
-      this.busy = 'Connecting to the Deluge'
-      this.error = null
-      const ok = await card.ensureConnected()
-      this.busy = null
-      if (!ok) {
-        this.error = card.error ?? 'could not reach the Deluge'
-        return
-      }
-    }
-    await this.run(`Reading ${path}`, async () => {
-      const entries = await card.listPath(path)
-      this.cardPath = path
-      this.cardEntries = entries.map((e) => ({ name: e.name, dir: isDirectory(e) }))
-    })
-  }
-
-  cardUp(): void {
-    if (!this.cardPath || this.cardPath === '/SAMPLES') return
-    void this.browseCard(this.cardPath.slice(0, this.cardPath.lastIndexOf('/')) || '/SAMPLES')
-  }
-
-  closeCardBrowser(): void {
-    this.cardPath = null
-    this.cardEntries = []
   }
 
   /**
@@ -321,27 +255,24 @@ class MultisampleImport {
    * copy of it, so nothing needs pushing back afterwards.
    */
   async addCardFolder(): Promise<void> {
-    const path = this.cardPath
+    const path = this.browser.path
     if (!path) return
-    const wavs = this.cardEntries.filter((e) => !e.dir && isWav(e.name))
+    const wavs = this.browser.entries.filter((e) => !e.dir && isWav(e.name))
     if (wavs.length === 0) {
       this.error = `no .wav files in ${path}`
       return
     }
-    await this.run(`Reading ${wavs.length} WAV header${wavs.length === 1 ? '' : 's'} from the card`, async () => {
-      const files: ImportFile[] = []
-      let done = 0
-      for (const { name } of wavs) {
-        const full = `${path}/${name}`
-        try {
-          files.push(fileFrom(full.replace(/^\//, ''), await card.wavInfo(full, { tags: true })))
-        } catch (e) {
-          this.notice = `${name}: ${e instanceof Error ? e.message : String(e)} — skipped`
-        }
-        this.progress = ++done / wavs.length
-      }
-      if (files.length === 0) throw new Error('none of the WAV files could be read')
-      this.place(files, path.split('/').pop() ?? null, new Map())
+    await this.run(`Reading ${count(wavs.length, 'WAV header')} from the card`, async () => {
+      const { results: files, skipped } = await readEach(
+        wavs,
+        async ({ name }) => {
+          const full = joinPath(path, name)
+          return importFileFrom(xmlPath(full), await card.wavInfo(full, { tags: true }))
+        },
+        (e) => e.name,
+        (p) => (this.progress = p),
+      )
+      this.place(files, base(path) || null, new Map(), skipped)
     })
   }
 
@@ -353,7 +284,7 @@ class MultisampleImport {
    * what this adds is that a file it cannot place is kept and offered back
    * rather than dropped where nobody sees it.
    */
-  private place(files: ImportFile[], folder: string | null, bytes: Map<string, Uint8Array>): void {
+  private place(files: ImportFile[], folder: string | null, bytes: Map<string, Uint8Array>, skipped: readonly string[] = []): void {
     const which = this.asking
     const osc = this.oscFor(which)
     if (!osc || which === null) {
@@ -410,10 +341,10 @@ class MultisampleImport {
       placed: result.written,
     }
     this.asking = null
-    this.closeCardBrowser()
-    this.notice = `${result.written} range${result.written === 1 ? '' : 's'} from ${folder ?? 'the folder'}`
+    this.browser.close()
+    this.notice = withSkipped(`${count(result.written, 'range')} from ${folder ?? 'the folder'}`, skipped)
     ranges.open(which)
-    void samples.checkMissing()
+    void samples.checkMissing(card)
   }
 
   // ---- what the session offers afterwards ---------------------------------
@@ -463,7 +394,7 @@ class MultisampleImport {
     this.session.placed = sampleRanges(osc).length
     // A range the preset didn't reference a moment ago: whether the card has
     // that file is a fresh question, held bytes or not.
-    void samples.checkMissing()
+    void samples.checkMissing(card)
     ranges.select(at)
     this.error = null
   }
@@ -489,18 +420,18 @@ class MultisampleImport {
    */
   private async readTags(paths: readonly string[]): Promise<{ files: SampleFile[]; unreadable: string[] }> {
     if (paths.some((p) => !samples.bytes.has(p)) && !card.connected && card.supported) {
-      this.busy = 'Connecting to the Deluge'
+      this.step('Connecting to the Deluge')
       if (!(await card.ensureConnected())) this.notice = card.error ?? 'the Deluge could not be reached'
     }
     const files: SampleFile[] = []
     const unreadable: string[] = []
     let done = 0
     for (const path of paths) {
-      this.busy = `Reading ${base(path)}`
+      this.step(`Reading ${base(path)}`)
       const held = samples.bytes.get(path)
       try {
         if (!held && !card.connected) throw new Error('out of reach')
-        const info = held ? await readWavInfo(bufferReader(held), { tags: true }) : await card.wavInfo(`/${path}`, { tags: true })
+        const info = held ? await readWavInfo(bufferReader(held), { tags: true }) : await card.wavInfo(cardPath(path), { tags: true })
         files.push({ name: path, fileRoot: info.rootNote === undefined ? undefined : Math.round(info.rootNote * 100) })
       } catch {
         files.push({ name: path })
@@ -634,37 +565,10 @@ class MultisampleImport {
         : `${changed} root${changed === 1 ? '' : 's'} changed`
   }
 
-  /** Copy the locally sourced samples to the card now, rather than at save time. */
-  async pushToCard(): Promise<void> {
-    if (samples.pushable.length === 0) return
-    await this.run('Connecting to the Deluge', async () => {
-      // Same as the browse: the click is the gesture, so connect for it.
-      if (!(await card.ensureConnected())) throw new Error(card.error ?? 'could not reach the Deluge')
-      this.busy = 'Checking the card'
-      const n = await samples.syncMissingToCard((label, p) => {
-        this.busy = label
-        this.progress = p
-      })
-      const risky = card.otherEditor ? ' — another editor is also on this Deluge and could overwrite them' : ''
-      this.notice = n === 0 ? 'every sample is already on the card' : `${n} sample${n === 1 ? '' : 's'} written${risky}`
-    })
-  }
-
-  private async run(label: string, fn: () => Promise<void>): Promise<void> {
-    this.busy = label
-    this.progress = 0
-    this.error = null
-    this.notice = null
-    try {
-      await fn()
-    } catch (e) {
-      this.error = e instanceof Error ? e.message : String(e)
-    } finally {
-      this.busy = null
-    }
+  /** Copy the locally sourced samples to the card now, rather than at save time — the shared push, on this panel's status line. */
+  pushToCard(): Promise<void> {
+    return card.pushSamples(this)
   }
 }
-
-const base = (path: string): string => path.split('/').pop() ?? path
 
 export const multisample = new MultisampleImport()

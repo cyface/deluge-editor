@@ -1,3 +1,5 @@
+export * from './envelope'
+export * from './filter'
 export * from './fixedpoint'
 export * from './hex'
 export * from './lfo'

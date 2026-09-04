@@ -12,36 +12,23 @@ import initKitTemplate from '../../assets/templates/Default Kit.XML?raw'
 import { addBlankRow, addSampleRows, rowNameFor, rowTemplateFrom, type SampleRowSpec } from '../../core/kit/build'
 import { orderSamples } from '../../core/kit/classify'
 import { shareZip, type ShareSample } from '../../core/kit/share'
+import { baseName, joinPath, xmlPath } from '../../core/library'
 import { isKit, drumRows, type KitElement, type SoundElement } from '../../core/preset'
 import { bufferReader, readWavInfo } from '../../core/samples/wav'
-import { isDirectory } from '../../core/sysex'
-import { errorText } from '../errtext'
+import { Activity } from './activity.svelte'
 import { card } from './card.svelte'
+import { CardBrowser, type BrowseEntry } from './cardbrowser.svelte'
 import { editor } from './editor.svelte'
 import { samples } from './samples.svelte'
+import { cleanFolder, count, isWav, readEach, wavsOf, withSkipped, type LocalSample } from './wavfiles'
 
-export interface LocalSample {
-  /** Path under the dropped/picked folder, e.g. `Kick.wav` or `sub/Kick.wav`. */
-  relPath: string
-  file: File
-}
-
-const isWav = (name: string): boolean => /\.wav$/i.test(name)
-
-/** A folder name FAT and the firmware are happy with; keeps the user's name otherwise. */
-const cleanFolder = (name: string): string => name.replace(/[\\/:*?"<>|]/g, '').trim() || 'Kit'
-
-class KitBuilder {
-  busy = $state<string | null>(null)
-  progress = $state(0)
-  error = $state<string | null>(null)
-  notice = $state<string | null>(null)
+class KitBuilder extends Activity {
+  /** The share README's credits. */
   author = $state('')
   license = $state('')
-  source = $state('')
-  /** On-device browse: current path, null when the browser is closed. */
-  cardPath = $state<string | null>(null)
-  cardEntries = $state<{ name: string; dir: boolean }[]>([])
+  sampleSource = $state('')
+  /** The on-device folder browser, on this panel's busy line. */
+  readonly browser = new CardBrowser(this)
 
   private template: SoundElement | null = null
 
@@ -52,68 +39,30 @@ class KitBuilder {
    * usually has strays.
    */
   async addLocalSamples(folderName: string, files: LocalSample[]): Promise<void> {
-    const wavs = files.filter((f) => isWav(f.relPath) && !f.relPath.split('/').pop()!.startsWith('.'))
+    const wavs = wavsOf(files)
     if (wavs.length === 0) {
       this.error = 'no .wav files in that folder — the Deluge kit builder reads WAV samples'
       return
     }
-    await this.run(`Reading ${wavs.length} WAV header${wavs.length === 1 ? '' : 's'}`, async () => {
-      const folder = cleanFolder(folderName)
-      const specs: SampleRowSpec[] = []
+    await this.run(`Reading ${count(wavs.length, 'WAV header')}`, async () => {
+      const folder = cleanFolder(folderName, 'Kit')
       const loaded = new Map<string, Uint8Array>()
-      let done = 0
-      for (const { relPath, file } of wavs) {
-        const data = new Uint8Array(await file.arrayBuffer())
-        const fileName = `SAMPLES/${folder}/${relPath}`
-        try {
+      const { results: specs, skipped } = await readEach(
+        wavs,
+        async ({ relPath, file }): Promise<SampleRowSpec> => {
+          const data = new Uint8Array(await file.arrayBuffer())
+          const fileName = `SAMPLES/${folder}/${relPath}`
           const info = await readWavInfo(bufferReader(data))
-          specs.push({ fileName, frames: info.frames, name: rowNameFor(relPath) })
           loaded.set(fileName, data)
-        } catch (e) {
-          // a broken WAV gets skipped, said out loud, and the rest still load
-          this.notice = `${relPath}: ${e instanceof Error ? e.message : String(e)} — skipped`
-        }
-        this.progress = ++done / wavs.length
-      }
-      if (specs.length === 0) throw new Error('none of the WAV files could be read')
+          return { fileName, frames: info.frames, name: rowNameFor(relPath) }
+        },
+        (f) => f.relPath,
+        (p) => (this.progress = p),
+      )
       this.buildRows(specs, folder)
       samples.hold(loaded)
-      this.notice = `${specs.length} row${specs.length === 1 ? '' : 's'} added from ${folder}`
+      this.notice = withSkipped(`${count(specs.length, 'row')} added from ${folder}`, skipped)
     })
-  }
-
-  /**
-   * Open (or navigate) the on-device folder browser, connecting first if the
-   * editor isn't talking to a Deluge yet — the button is the gesture, and
-   * making the user find the preset panel to enable it is a puzzle, not a
-   * safeguard.
-   */
-  async browseCard(path = '/SAMPLES'): Promise<void> {
-    if (!card.connected) {
-      this.busy = 'Connecting to the Deluge'
-      this.error = null
-      const ok = await card.ensureConnected()
-      this.busy = null
-      if (!ok) {
-        this.error = card.error ?? 'could not reach the Deluge'
-        return
-      }
-    }
-    await this.run(`Reading ${path}`, async () => {
-      const entries = await card.listPath(path)
-      this.cardPath = path
-      this.cardEntries = entries.map((e) => ({ name: e.name, dir: isDirectory(e) }))
-    })
-  }
-
-  cardUp(): void {
-    if (!this.cardPath || this.cardPath === '/SAMPLES') return
-    void this.browseCard(this.cardPath.slice(0, this.cardPath.lastIndexOf('/')) || '/SAMPLES')
-  }
-
-  closeCardBrowser(): void {
-    this.cardPath = null
-    this.cardEntries = []
   }
 
   /**
@@ -122,50 +71,33 @@ class KitBuilder {
    * come from a ranged read of each header — the samples themselves stay on
    * the card and are never transferred.
    */
-  async addCardFolder(path = this.cardPath, entries = this.cardEntries): Promise<void> {
+  async addCardFolder(path = this.browser.path, entries: readonly BrowseEntry[] = this.browser.entries): Promise<void> {
     if (!path) return
     const wavs = entries.filter((e) => !e.dir && isWav(e.name))
     if (wavs.length === 0) {
       this.error = `no .wav files in ${path}`
       return
     }
-    await this.run(`Reading ${wavs.length} WAV header${wavs.length === 1 ? '' : 's'} from the card`, async () => {
-      const specs: SampleRowSpec[] = []
-      let done = 0
-      for (const { name } of wavs) {
-        const full = `${path}/${name}`
-        try {
+    await this.run(`Reading ${count(wavs.length, 'WAV header')} from the card`, async () => {
+      const { results: specs, skipped } = await readEach(
+        wavs,
+        async ({ name }): Promise<SampleRowSpec> => {
+          const full = joinPath(path, name)
           const info = await card.wavInfo(full)
-          specs.push({ fileName: full.replace(/^\//, ''), frames: info.frames, name: rowNameFor(name) })
-        } catch (e) {
-          this.notice = `${name}: ${e instanceof Error ? e.message : String(e)} — skipped`
-        }
-        this.progress = ++done / wavs.length
-      }
-      if (specs.length === 0) throw new Error('none of the WAV files could be read')
-      this.buildRows(specs, path.split('/').pop() ?? null)
-      this.closeCardBrowser()
-      this.notice = `${specs.length} row${specs.length === 1 ? '' : 's'} added from ${path}`
+          return { fileName: xmlPath(full), frames: info.frames, name: rowNameFor(name) }
+        },
+        (e) => e.name,
+        (p) => (this.progress = p),
+      )
+      this.buildRows(specs, baseName(path) || null)
+      this.browser.close()
+      this.notice = withSkipped(`${count(specs.length, 'row')} added from ${path}`, skipped)
     })
   }
 
-  /** The builder panel's push button: the shared sync, with its own status display. */
-  async pushToCard(): Promise<void> {
-    if (samples.pushable.length === 0) return
-    await this.run('Connecting to the Deluge', async () => {
-      // Same as the browse: the click is the gesture, so connect for it.
-      if (!(await card.ensureConnected())) throw new Error(card.error ?? 'could not reach the Deluge')
-      this.busy = 'Checking the card'
-      const n = await samples.syncMissingToCard((label, p) => {
-        this.busy = label
-        this.progress = p
-      })
-      // A push runs for as long as the samples are big; another editor on the
-      // same Deluge can truncate any of them the moment it saves (issue #8).
-      const risky = card.otherEditor ? ' — another editor is also on this Deluge and could overwrite them' : ''
-      this.notice =
-        n === 0 ? 'every sample is already on the card' : `${n} sample${n === 1 ? '' : 's'} written${risky}`
-    })
+  /** The builder panel's push button: the shared sync, on this panel's status line. */
+  pushToCard(): Promise<void> {
+    return card.pushSamples(this)
   }
 
   /**
@@ -188,7 +120,7 @@ class KitBuilder {
       kind,
       author: this.author.trim() || undefined,
       license: this.license.trim() || undefined,
-      source: this.source.trim() || undefined,
+      source: this.sampleSource.trim() || undefined,
     }, files)
     const blob = new Blob([zip.buffer as ArrayBuffer], { type: 'application/zip' })
     const url = URL.createObjectURL(blob)
@@ -219,7 +151,7 @@ class KitBuilder {
     if (!editor.preset || !isKit(editor.preset)) {
       editor.newKit()
       samples.reset()
-      this.author = this.license = this.source = ''
+      this.author = this.license = this.sampleSource = ''
     }
     const kit = editor.preset as KitElement
     // the same blank kit New Kit loads; parsed once, cloned per row
@@ -228,20 +160,6 @@ class KitBuilder {
     addSampleRows(kit, this.template, ordered)
     samples.folder = folder
     editor.row = Math.max(0, drumRows(kit).length - ordered.length)
-  }
-
-  private async run(label: string, fn: () => Promise<void>): Promise<void> {
-    this.busy = label
-    this.progress = 0
-    this.error = null
-    this.notice = null
-    try {
-      await fn()
-    } catch (e) {
-      this.error = errorText(e)
-    } finally {
-      this.busy = null
-    }
   }
 }
 

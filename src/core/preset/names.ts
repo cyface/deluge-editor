@@ -239,12 +239,22 @@ const PARAM_LABELS: Record<string, string> = {
   pitch: 'Pitch',
   oscAPitch: 'Osc A Pitch',
   oscBPitch: 'Osc B Pitch',
+  // `<defaultParams>` spells the same four params `…PitchAdjust` (`Sound::writeParamsToFile`
+  // writes them only when set). The firmware's own names for them are "Osc1 pitch", "Osc2
+  // pitch", "FM mod1 pitch", "FM mod2 pitch" (`STRING_FOR_PARAM_LOCAL_OSC_A_PITCH_ADJUST` …
+  // `…MODULATOR_1_PITCH_ADJUST`, `src/deluge/gui/l10n/english.json:62-75`, `beta` e7bae539),
+  // under a menu titled "Osc* transpose" (`STRING_FOR_OSC_TRANSPOSE_MENU_TITLE`). The labels
+  // keep the editor's A/B and "Mod n" spelling so both spellings of a param read alike.
+  oscAPitchAdjust: 'Osc A Pitch',
+  oscBPitchAdjust: 'Osc B Pitch',
   modulator1Volume: 'Mod 1 Level',
   modulator2Volume: 'Mod 2 Level',
   modulator1Amount: 'Mod 1 Level',
   modulator2Amount: 'Mod 2 Level',
   modulator1Pitch: 'Mod 1 Pitch',
   modulator2Pitch: 'Mod 2 Pitch',
+  mod1PitchAdjust: 'Mod 1 Pitch',
+  mod2PitchAdjust: 'Mod 2 Pitch',
   modulator1Feedback: 'Mod 1 Feedback',
   modulator2Feedback: 'Mod 2 Feedback',
   carrier1Feedback: 'Osc A Feedback',

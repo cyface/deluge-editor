@@ -130,8 +130,39 @@ Updated as work lands. Line numbers in the sections below are still as of
   `kit.svelte.ts` to use `saveBlob`, the pure formatters listed in §5 "Size"
   into core.
 
-**Not started:** §4 copy pass, §6 state layer, the §9 "exported but used only
-in-file" group. Follow-ups above.
+**Done (2026-09-04, third pass):**
+
+- §6 state layer in full: `Activity` base class (busy/progress/error/notice,
+  `run()` refuses re-entry with a notice, `supersede` for folder navigation
+  drops an older run's outcome) extended by card, kit, samplePick,
+  multisample and library; `CardBrowser` store (one per consumer) replaces
+  the three on-device browsers; `card.pushSamples`; `wavfiles.ts` (`isWav`,
+  `cleanFolder`, `LocalSample`, `readEach`, `withSkipped`); path arithmetic
+  through `library/fs.ts`; `card.list` sorts like `library.list`; the two
+  `CardFS` backends agree on parent creation and trailing slashes, and the
+  contract is on the interface; `samples` no longer imports `card` (card
+  calls it); `$state.raw` on replace-only values; the non-reactive private
+  fields fixed; `audio.toggle` tokenised; unhandled rejections caught;
+  skipped WAVs reported in the notice; `editor.markSaved`; the mounted index
+  cache keyed by card name; `follow.attachTo` for tests; `kit.sampleSource`,
+  `card.readFile`, `confirm.open`/`picker.open` booleans; `confirm.error`
+  shown in App. Left: `follow.checking`/`audio.loading` outside Activity;
+  `ranges` keeps `open(which)`.
+- Core follow-ups: `canLfoSync`/`lfoRateIgnored` in `core/firmware/lfo.ts`
+  (FollowView had been greying LFO rate knobs the firmware still reads);
+  formatters moved into core with pinning tests (`kit/rows.ts`, `parsePan`,
+  `preset/rangeformat.ts`, `params/lfo.ts` waves, `params/filter.ts`,
+  `params/envelope.ts`, `pulseBaseWave`, `preset/midiout.ts`,
+  `modknobs.ts` summary) — the MPE-zone channel sentinels were 254/253 in
+  the UI where the firmware has 16/17 (`definitions_cxx.hpp:954-957`);
+  `PARAM_LABELS` gains the four `*PitchAdjust` names; `ARP_ATTR_ORDER`
+  extended through `notePattern` plus `NON_AUDIO_ARP_ATTR_ORDER` for MIDI/gate
+  rows; SOURCES.md's layout note rewritten from the fixtures (four layouts);
+  the range editor's read-only state follows `rangesLocked`; the pan
+  spelling exception is in decisions.md.
+
+**Not started:** §4 copy pass, the §9 "exported but used only in-file"
+group, `kit.svelte.ts` `<a download>` → `saveBlob`.
 
 ---
 

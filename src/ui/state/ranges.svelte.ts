@@ -23,7 +23,7 @@ class RangeEditor {
   which = $state<1 | 2 | null>(null)
   selected = $state(0)
   /** The preset the open oscillator belongs to; loading another closes the editor. */
-  private opened = $state<Preset | null>(null)
+  private opened = $state.raw<Preset | null>(null)
 
   /** The oscillator being edited, while it is still a sample oscillator. */
   readonly osc = $derived.by<OscElement | null>(() => {

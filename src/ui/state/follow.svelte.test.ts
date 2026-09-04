@@ -20,13 +20,37 @@ import { follow } from './follow.svelte'
 const cc = (n: number, value: number, channel = 1): MIDIMessageEvent =>
   ({ data: new Uint8Array([0xb0 + channel - 1, n, value]) }) as MIDIMessageEvent
 
+/** A MIDI port as the store sees one: a name, `open()`, `send()`, and the listener surface. */
+class FakePort extends EventTarget {
+  constructor(
+    readonly name: string,
+    private readonly sent: Uint8Array[] = [],
+  ) {
+    super()
+  }
+  open() {
+    return Promise.resolve(this)
+  }
+  send(b: Uint8Array) {
+    this.sent.push(b)
+  }
+}
+
+/** Hand the store a MIDIAccess with these ports; it picks among them as it would the browser's. */
+const attachWith = (ins: string[], outs: string[], sent: Uint8Array[] = []) =>
+  follow.attachTo({
+    inputs: new Map(ins.map((n, i) => [String(i), new FakePort(n)])),
+    outputs: new Map(outs.map((n, i) => [String(i), new FakePort(n, sent)])),
+  } as unknown as MIDIAccess)
+
 /**
- * The store picks its output port in `attach()`, which needs a real MIDIAccess;
- * these tests drive `push()` directly, so they hand it a port instead.
+ * The store picks its output port in `attach()`, which needs a MIDIAccess;
+ * these tests drive `push()` directly, so they hand it one Deluge port and
+ * collect what it sends.
  */
 function fakeOutput(): Uint8Array[] {
   const sent: Uint8Array[] = []
-  ;(follow as unknown as { out: { send: (b: Uint8Array) => void } }).out = { send: (b) => sent.push(b) }
+  attachWith(['Deluge Port 3'], ['Deluge Port 3'], sent)
   return sent
 }
 
@@ -94,25 +118,6 @@ describe('availability', () => {
  * every input; sending is not, so it does not fall back at all.
  */
 describe('choosing ports', () => {
-  class FakePort extends EventTarget {
-    constructor(readonly name: string) {
-      super()
-    }
-    open() {
-      return Promise.resolve(this)
-    }
-    send() {}
-  }
-  const attachWith = (ins: string[], outs: string[]) => {
-    const access = {
-      inputs: new Map(ins.map((n, i) => [String(i), new FakePort(n)])),
-      outputs: new Map(outs.map((n, i) => [String(i), new FakePort(n)])),
-    }
-    const store = follow as unknown as { access: unknown; attach: () => void }
-    store.access = access
-    store.attach()
-  }
-
   it('sends only to a port that names itself a Deluge', () => {
     attachWith(['Deluge Port 3'], ['Scarlett 2i2', 'Deluge Port 3'])
     expect(follow.sendPort).toBe('Deluge Port 3')

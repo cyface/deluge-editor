@@ -14,7 +14,9 @@ export interface PickerRequest {
 }
 
 class Picker {
-  request = $state<PickerRequest | null>(null)
+  request = $state.raw<PickerRequest | null>(null)
+
+  readonly open = $derived(this.request !== null)
 
   show(destination: string, label: string, x: number, y: number): void {
     this.request = { destination, label, x, y }

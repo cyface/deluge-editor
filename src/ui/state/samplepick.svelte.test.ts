@@ -153,15 +153,15 @@ describe('the card browser', () => {
     { name: 'notes.txt', dir: false },
   ]
   beforeEach(() => {
-    // The listing as browseCard would leave it — no Deluge is reached here.
-    pick.cardPath = '/SAMPLES/Drums'
-    pick.cardEntries = entries
+    // The listing as the browser would leave it — no Deluge is reached here.
+    pick.browser.path = '/SAMPLES/Drums'
+    pick.browser.entries = entries
   })
 
-  it('picks a WAV out for Select, and nothing else', async () => {
-    await pick.chooseCard(entries[2])
+  it('picks a WAV out for Select, and nothing else', () => {
+    pick.chooseCard(entries[2])
     expect(pick.selected).toBeNull()
-    await pick.chooseCard(entries[1])
+    pick.chooseCard(entries[1])
     expect(pick.selected).toBe('Kick.wav')
     expect(pick.open).toBe(true) // picked out, not yet taken
   })
@@ -169,8 +169,8 @@ describe('the card browser', () => {
   it('hands the folder to the caller and closes', async () => {
     let given: [string, number] | null = null
     pick.start(osc1(), { label: 'U1', onFolder: (path, list) => void (given = [path, list.length]) })
-    pick.cardPath = '/SAMPLES/Drums'
-    pick.cardEntries = entries
+    pick.browser.path = '/SAMPLES/Drums'
+    pick.browser.entries = entries
     expect(pick.folderHasWavs).toBe(true)
     await pick.useFolder()
     expect(given).toEqual(['/SAMPLES/Drums', 3])
@@ -178,7 +178,7 @@ describe('the card browser', () => {
   })
 
   it('offers no folder with no WAV in it', () => {
-    pick.cardEntries = [entries[0], entries[2]]
+    pick.browser.entries = [entries[0], entries[2]]
     expect(pick.folderHasWavs).toBe(false)
   })
 })

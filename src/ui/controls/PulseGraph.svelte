@@ -16,7 +16,7 @@
    * shape but the mathematical square — the wave stops moving as the knob
    * turns, and the graph says why rather than leaving it a mystery.
    */
-  import { pulseDuty, pulseFamily, pulseSyncRatio, pulseWidthHeard } from '../../core/params/pulse'
+  import { pulseBaseWave, pulseDuty, pulseFamily, pulseSyncRatio, pulseWidthHeard } from '../../core/params/pulse'
   import { menuToHalf } from '../../core/params/scale'
   import { OSC_TYPE_NAMES, type SoundElement, type SoundParamAttr } from '../../core/preset'
   import { osc, paramMenu, setParamMenu } from '../../core/preset/sound'
@@ -55,15 +55,8 @@
   const ratio = $derived(heard ? pulseSyncRatio(stored) : 1)
   const hx = $derived(PAD + (menu / 50) * (W - 2 * PAD))
 
-  /** One cycle of the base wave, phase 0..1, before any pulse shaping. */
-  function base(p: number): number {
-    const q = p - Math.floor(p)
-    if (type === 'sine') return Math.sin(2 * Math.PI * q)
-    if (type === 'triangle') return q < 0.25 ? 4 * q : q < 0.75 ? 2 - 4 * q : 4 * q - 4
-    // A wavetable's own frames are not read here, so a saw stands in for it.
-    if (type === 'saw' || type === 'analogSaw' || type === 'wavetable') return 1 - 2 * q
-    return q < 0.5 ? 1 : -1
-  }
+  /** One cycle of the base wave, phase 0..1, before any pulse shaping (`pulseBaseWave`). */
+  const base = (p: number): number => pulseBaseWave(type, p)
 
   /**
    * Two cycles of the note, so the shaping reads as a repeating wave rather

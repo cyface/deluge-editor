@@ -34,6 +34,7 @@ import {
   type FollowSettings,
   type MpeZones,
 } from '../../core/midi/followsettings'
+import { cardPath } from '../../core/library'
 import { SysexError } from '../../core/sysex'
 import { isKit } from '../../core/preset'
 import { KIT_FOLLOW_SLOTS, SOUND_FOLLOW_SLOTS, applyFollowCC, type FollowSlot } from '../../core/preset/follow'
@@ -77,16 +78,16 @@ class Follow {
   status = $state<'off' | 'listening' | 'error'>('off')
   error = $state<string | null>(null)
   /** Input ports being listened to, by name. */
-  ports = $state<string[]>([])
+  ports = $state.raw<string[]>([])
   /** 0 = any channel; otherwise 1–16, matching the instrument's numbering. */
   channel = $state(0)
   /** Kit only: the kit bus (AFFECT ENTIRE on) or the selected row (off). */
   target = $state<FollowTarget>('row')
-  last = $state<SeenCC | null>(null)
+  last = $state.raw<SeenCC | null>(null)
   /** CCs applied since the mode was last switched on. */
   applied = $state(0)
-  /** Parameter names touched in the last moment, for the view's glow. */
-  glow = $state<Record<string, number>>({})
+  /** Parameter names touched in the last moment, for the view's glow. Always replaced whole. */
+  glow = $state.raw<Record<string, number>>({})
 
   /**
    * Send editor moves back to the instrument.
@@ -224,6 +225,8 @@ class Follow {
   /** The last outgoing snapshot, and the target it was taken from. */
   private baseline: Map<number, number> | null = null
   private baselineKey = ''
+  /** `error` is a failed send's, so the next send or receive that works clears it. */
+  private sendFailed = false
 
   async toggle(): Promise<void> {
     if (this.on) {
@@ -290,6 +293,13 @@ class Follow {
     this.echo.clear()
     this.baseline = null
     this.baselineKey = ''
+    this.sendFailed = false
+  }
+
+  /** Listen and send through this `MIDIAccess` — the browser's, or a test's stand-in — picking the ports now. */
+  attachTo(access: MIDIAccess): void {
+    this.access = access
+    this.attach()
   }
 
   /**
@@ -308,7 +318,11 @@ class Follow {
     const chosen = deluge.length ? deluge : all
     for (const port of chosen) {
       port.addEventListener('midimessage', this.onMessage)
-      void port.open()
+      // A port that will not open is still listed — the listener is on it —
+      // but the refusal is said, not dropped on the floor as an unhandled rejection.
+      void port.open().catch((e: unknown) => {
+        this.error = `${port.name ?? 'MIDI in'}: ${errorText(e)}`
+      })
     }
     this.listening = chosen
     this.ports = chosen.map((p) => p.name ?? 'MIDI in')
@@ -353,6 +367,7 @@ class Follow {
     if (this.channel !== 0 && cc.channel !== this.channel) return
     const name = this.table[cc.cc] ?? null
     this.last = { ...cc, param: name, at: Date.now() }
+    this.clearSendError()
     if (name === null) return
     // Our own value coming back is not news, and applying it would count as a
     // move the instrument made.
@@ -423,10 +438,19 @@ class Follow {
       this.out.send(controlChange(channel, cc, value))
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e)
+      this.sendFailed = true
       return
     }
+    this.clearSendError()
     this.echo.set(cc, { value, at: Date.now() })
     this.sent += 1
+  }
+
+  /** The wire works again: a failed send's message has had its say. */
+  private clearSendError(): void {
+    if (!this.sendFailed) return
+    this.sendFailed = false
+    this.error = null
   }
 
   /**
@@ -444,7 +468,7 @@ class Follow {
         this.settingsError = card.error ?? 'Could not reach the Deluge over USB.'
         return
       }
-      const bytes = await this.readSetting(card, 'MIDIFollow.XML')
+      const bytes = await this.readSetting('MIDIFollow.XML')
       const parsed = parseFollowSettings(new TextDecoder().decode(bytes))
       /*
        * And the MPE zones, which decide whether a follow channel set to a zone
@@ -457,7 +481,7 @@ class Follow {
        */
       let zones: Record<string, MpeZones> | undefined
       try {
-        const dev = await this.readSetting(card, 'MIDIDevices.XML')
+        const dev = await this.readSetting('MIDIDevices.XML')
         zones = parseMpeInputs(new TextDecoder().decode(dev))
       } catch {
         // Absent is an answer: the firmware writes the file only when there is
@@ -487,17 +511,15 @@ class Follow {
    * One of the settings files, wherever this firmware keeps it. Community
    * 1.3 moved them into `SETTINGS/`
    * (`MIDIDeviceManager::readDevicesFromFile` still renames the old path), so
-   * a card written by earlier firmware has them at the root.
+   * a card written by earlier firmware has them at the root. Paths in the
+   * protocol's leading-slash form, as every card read is (`cardPath`).
    */
-  private async readSetting(
-    card: { readSampleFile: (p: string) => Promise<Uint8Array> },
-    name: string,
-  ): Promise<Uint8Array> {
+  private async readSetting(name: string): Promise<Uint8Array> {
     try {
-      return await card.readSampleFile(`SETTINGS/${name}`)
+      return await card.readFile(cardPath(`SETTINGS/${name}`))
     } catch (e) {
       if (e instanceof SysexError && (e.code === FR_NO_FILE || e.code === FR_NO_PATH)) {
-        return await card.readSampleFile(name)
+        return await card.readFile(cardPath(name))
       }
       throw e
     }

@@ -13,11 +13,12 @@
    * mapped parameter and hands the lot to the store on each change, so Send
    * covers every way a value can move here rather than one hook per control.
    */
+  import { lfoRateIgnored } from '../core/firmware/lfo'
   import { hexToInt } from '../core/params/hex'
   import { paramValueToCc } from '../core/midi/follow'
   import { paramLabel, type KitElement, type SoundElement } from '../core/preset'
   import { KIT_FOLLOW_SLOTS, SOUND_FOLLOW_SLOTS, ensureSlotElement, slotElement, slotHex, slotOrder, slotScale } from '../core/preset/follow'
-  import { envelope, hexToMenu, lfo as lfoElement, menuToHex, osc, oscHasFile } from '../core/preset/sound'
+  import { envelope, hexToMenu, menuToHex, osc, oscHasFile } from '../core/preset/sound'
   import { pulseWidthOffered } from '../core/params/pulse'
   import { MOD_FX_ATTR_KNOB, modFxEnabled, modFxKnobLabel, modFxOffered } from '../core/params/modfx'
   import type { ModFxType } from '../core/preset/enums'
@@ -220,9 +221,7 @@
    * instrument will still send it, so the knob stays and keeps showing what is
    * stored — it just takes no input here, as in the full editor.
    */
-  const lfoSynced = $derived(
-    !onBus && root !== null && (lfoElement(root as SoundElement, lfoSel as 1 | 2 | 3 | 4)?.attrs.syncLevel ?? '0') !== '0',
-  )
+  const lfoSynced = $derived(!onBus && root !== null && lfoRateIgnored(root as SoundElement, lfoSel as 1 | 2 | 3 | 4, editor.version))
   const SYNCED_NOTE = 'Disabled by tempo sync — the Deluge takes this LFO’s speed from the song, not from this value.'
 
   /*

@@ -8,7 +8,7 @@
  * `*_CHILD_ORDER`.
  *
  * `order.ts` is the 3f898e95 beta's layout. Other writers among the fixtures
- * (`tests/fixtures/SOURCES.md`, "Two things to know") lay a few elements out
+ * (`tests/fixtures/SOURCES.md`, "Things to know when comparing captures") lay a few elements out
  * differently — `<delay>`/`<sidechain>` before `<defaultParams>`, a cable's
  * `amount` before `polarity`, the sidechain's sync attributes first,
  * `numOctaves` before `syncLevel`, `lpfMode` before `modFXType`, and two
@@ -21,8 +21,9 @@
  * (`<modKnobs>`, `<midiKnobs>`, `<patchCables>`, `<sampleRanges>`,
  * `<wavetableRanges>`, `<soundSources>`, `<depthControlledBy>`),
  * `<midiKnob>`, `<wavetableRange>`, `<selectedDrumIndex>`, and the MIDI/gate
- * drum rows (`<midiOutput>`/`<gateOutput>` under `<soundSources>`, with their
- * own `<arpeggiator>`). The
+ * drum rows themselves (`<midiOutput>`/`<gateOutput>` under `<soundSources>`;
+ * the `<arpeggiator>` each carries is checked against
+ * `NON_AUDIO_ARP_ATTR_ORDER`). The
  * pre-3.0 nested format folds each leaf element into an attribute in the old
  * writer's leaf order; that format is read and never written
  * (`roundtrip.test.ts`), so it is left out too.
@@ -40,15 +41,6 @@ import { KIT_PARAM_ATTRS, SOUND_PARAM_ATTRS } from './params'
  * source, not a variance to allow.
  */
 const UNTABLED = new Set([
-  // `ArpeggiatorSettings::writeCommonParamsToFile` continues past `kitArp`
-  // with the randomizer's locked values and `notePattern`; `ARP_ATTR_ORDER`
-  // stops at `kitArp`.
-  'lastLockedNoteProb', 'lockedNoteProbArray', 'lastLockedBassProb', 'lockedBassProbArray',
-  'lastLockedSwapProb', 'lockedSwapProbArray', 'lastLockedGlideProb', 'lockedGlideProbArray',
-  'lastLockedReverseProb', 'lockedReverseProbArray', 'lastLockedChordProb', 'lockedChordProbArray',
-  'lastLockedRatchetProb', 'lockedRatchetProbArray', 'lastLockedVelocitySpread', 'lockedVelocitySpreadArray',
-  'lastLockedGateSpread', 'lockedGateSpreadArray', 'lastLockedOctaveSpread', 'lockedOctaveSpreadArray',
-  'notePattern',
   // Pre-3.2 depth modulation (`patch_cable_set.cpp:842`, "Files before V3.2
   // had this"): read, never written by the editor, so no table places it.
   'rangeAdjustable',
@@ -182,9 +174,10 @@ function ruleFor(el: XmlElement, parent: XmlElement | null): Rule | null {
       return { attrs: one('MOD_KNOB_ATTR_ORDER', O.MOD_KNOB_ATTR_ORDER), children: one('none', []) }
     case 'arpeggiator':
       // A MIDI or gate drum row has no `<defaultParams>`, so its arpeggiator
-      // carries `rate`, `gate` and the probabilities as attributes of its own,
-      // in an order `ARP_ATTR_ORDER` does not describe: not checked.
-      return under === 'midiOutput' || under === 'gateOutput' ? null : { attrs: VARIANTS.arp, children: one('none', []) }
+      // carries `gate`, `rate` and the probabilities as attributes of its own.
+      return under === 'midiOutput' || under === 'gateOutput'
+        ? { attrs: one('NON_AUDIO_ARP_ATTR_ORDER', O.NON_AUDIO_ARP_ATTR_ORDER), children: one('none', []) }
+        : { attrs: VARIANTS.arp, children: one('none', []) }
     case 'delay':
       return under === 'defaultParams'
         ? { attrs: one('KIT_DELAY_ATTR_ORDER', O.KIT_DELAY_ATTR_ORDER), children: one('none', []) }
