@@ -24,9 +24,16 @@ class AudioPreview {
   private decoding = new Set<string>()
   private source: AudioBufferSourceNode | null = null
 
+  /**
+   * Where card-only bytes come from while the sample library is browsing a
+   * card in a reader rather than the Deluge (`state/library.svelte.ts`):
+   * the same XML path, read from the mounted folder. Null means the Deluge.
+   */
+  mounted: ((fileName: string) => Promise<Uint8Array>) | null = null
+
   /** Preview needs bytes: local, already decoded, or fetchable from the card. */
   canPreview(fileName: string): boolean {
-    return this.cache.has(fileName) || samples.bytes.has(fileName) || card.connected
+    return this.cache.has(fileName) || samples.bytes.has(fileName) || this.mounted !== null || card.connected
   }
 
   stop(): void {
@@ -132,6 +139,11 @@ class AudioPreview {
     if (hit) return hit
     this.ctx ??= new AudioContext()
     let bytes = samples.bytes.get(fileName)
+    if (!bytes && this.mounted) {
+      this.loading = fileName
+      this.progress = 0
+      bytes = await this.mounted(fileName)
+    }
     if (!bytes) {
       if (!card.connected) {
         throw new Error('sample is not on this computer — connect the Deluge to preview it from the card')

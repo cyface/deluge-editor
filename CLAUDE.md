@@ -24,7 +24,8 @@ issues in dependency order (`gh issue list`).
 - `src/ui/` — Svelte 5 (runes) components. `state/editor.svelte.ts` is the
   main store (the tree is a `$state` proxy; core accessors write through it);
   `state/card.svelte.ts` wires `src/core/sysex` to Web MIDI (`CardPanel.svelte`);
-  `state/library.svelte.ts` drives `src/core/library` over it (`LibraryPanel.svelte`);
+  `state/library.svelte.ts` drives `src/core/library` over it, or over a card
+  in a reader via `localcard.ts` (File System Access API) — `LibraryPanel.svelte`;
   `state/follow.svelte.ts` listens for MIDI Follow feedback (`FollowView.svelte`);
   `groups.ts` defines the flow blocks; `controls/` are the knob, selects,
   graphs; `groups/` one panel per block. Values are read and written only

@@ -979,6 +979,22 @@ whose listing entry changed. Files the Deluge writes all carry the 1969
 timestamp, so in practice the size is the change detector; *Rescan all*
 exists for the rewrite that keeps the length.
 
+**The same panel works on a card in a reader.** `src/ui/localcard.ts` is a
+second `CardFS` over the browser's File System Access API (Chrome and Edge,
+the same browsers Web MIDI needs): `showDirectoryPicker` in `readwrite` mode
+is both the folder choice and the write permission, and a folder is accepted
+only when it has `SAMPLES/` beside `SONGS/`, `KITS/` or `SYNTHS/`, so a stray
+folder is never indexed. Everything above it — the reference scan, the move
+order, the swap-in, the guards — is the same code, which is why the abstract
+`CardFS` was worth having. Two things differ underneath. A file rename uses
+the handle's own `move()` where the browser has it; a folder is copied and
+then removed, because no browser moves a directory handle. And the change
+detector is `lastModified` rather than FAT's date words, so a card seen both
+ways gets two indexes rather than one that lies. It lives beside `dropdir.ts`
+rather than in `src/core/` because happy-dom has no such API; it is tested
+end to end against Chrome's origin-private file system instead, which is a
+real `FileSystemDirectoryHandle`.
+
 It is an item under Open, not a fourth menu: issue #37 folded the bar's
 commands into three so the file name has room, and a fourth menu costs
 exactly that room (the bar test measures it). It sits under Open because it

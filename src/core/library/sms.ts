@@ -22,6 +22,7 @@ export function smsFS(client: SmsClient): CardFS {
       }))
     },
     read: (path, onProgress) => client.readFile(path, onProgress),
+    reader: (path) => client.openRead(path),
     // Preset XML gets the byte-for-byte verify, as the editor's own saves do.
     write: (path, data, onProgress) => client.writeFile(path, data, onProgress, 'full'),
     rename: (from, to) => client.rename(from, to),

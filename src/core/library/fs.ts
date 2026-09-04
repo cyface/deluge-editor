@@ -16,10 +16,19 @@ export interface CardEntry {
 
 export type CardProgress = (done: number, total: number) => void
 
+/** An open file for ranged reads — a WAV header without the audio behind it. Always `close()`. */
+export interface RangedFile {
+  size: number
+  /** Up to `length` bytes at `offset`; shorter only at end of file. */
+  read(offset: number, length: number): Promise<Uint8Array>
+  close(): Promise<void>
+}
+
 export interface CardFS {
   /** The folder's entries; throws when it does not exist. */
   list(path: string): Promise<CardEntry[]>
   read(path: string, onProgress?: CardProgress): Promise<Uint8Array>
+  reader(path: string): Promise<RangedFile>
   /** Create or truncate, write, verify. */
   write(path: string, data: Uint8Array, onProgress?: CardProgress): Promise<void>
   /** FatFS `f_rename`: a file or a folder, across folders; fails if `to` exists. */

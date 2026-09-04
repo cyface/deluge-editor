@@ -6,6 +6,7 @@
   import { follow } from './state/follow.svelte'
   import { kit } from './state/kit.svelte'
   import { library } from './state/library.svelte'
+  import { canMountCard } from './localcard'
   import { randomizer } from './state/randomize.svelte'
   import Mark from './Mark.svelte'
   import Menu from './controls/Menu.svelte'
@@ -128,6 +129,18 @@
       title={midiTitle('Browse SAMPLES/ on the card: see which songs, kits and synths use each sample, and rename, move or delete with those files updated to follow')}
       disabled={!card.supported || !!card.busy}
       onclick={() => void library.openPanel()}
+    />
+    <!-- The same library over a card in a reader: the browser's folder
+         picker grants the write access, and a card of songs indexes in
+         seconds instead of minutes. Chrome and Edge only, like Web MIDI. -->
+    <MenuItem
+      label="Sample Library on a card in this computer…"
+      testid="library-mounted-button"
+      title={canMountCard()
+        ? 'Choose the root folder of a Deluge card in a card reader, then browse and reorganise its samples with every song, kit and synth updated to follow'
+        : 'Opening a folder for writing needs Chrome or Edge'}
+      disabled={!canMountCard() || !!library.busy}
+      onclick={() => void library.openMounted()}
     />
   </Menu>
   <!-- Save's items are disabled without a preset rather than the whole menu,

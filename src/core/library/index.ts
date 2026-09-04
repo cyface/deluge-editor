@@ -9,6 +9,7 @@ export {
   type CardEntry,
   type CardFS,
   type CardProgress,
+  type RangedFile,
 } from './fs'
 export {
   foldPath,

@@ -5,6 +5,10 @@
    * things you do to a library — rename, move, delete — with the files
    * that name the sample rewritten to follow (`state/library.svelte.ts`).
    *
+   * The card can be in the Deluge or in a reader on this computer — the
+   * same panel, `lib.source` says which, and only the header and the
+   * caveat differ.
+   *
    * A modal like the card panel: a place you work for a moment. The
    * confirmation before anything changes on the card is the page's one
    * question dialog, so the files a move will rewrite are named before the
@@ -32,39 +36,50 @@
     return `References read from ${parts.join(', ')}`
   })
   const preview = (e: LibraryEntry) => audio.toggle(xmlPath(e.path))
+  const mounted = $derived(lib.source === 'mounted')
   const rowActions = (e: LibraryEntry): boolean => !lib.busy && !e.fixed && lib.renaming !== e.name
 </script>
 
 {#if lib.open}
-  <div class="veil" role="dialog" aria-modal="true" aria-label="Samples on the Deluge">
-  <aside class="card" data-testid="library-panel">
+  <div class="veil" role="dialog" aria-modal="true" aria-label={mounted ? 'Samples on the card' : 'Samples on the Deluge'}>
+  <aside class="card" data-testid="library-panel" data-source={lib.source}>
     <header>
-      <b>Samples on the Deluge</b>
-      {#if card.status === 'connected'}
+      <b>{mounted ? 'Samples on the card' : 'Samples on the Deluge'}</b>
+      {#if mounted}
+        <span class="port" data-testid="library-mounted" title="The card's root folder, open in this browser">{lib.mountedName ?? ''}</span>
+      {:else if card.status === 'connected'}
         <span class="port" title={card.portName}>{card.portName}{card.identity ? ` · fw ${card.identity}` : ''}</span>
       {/if}
       <button type="button" class="x" aria-label="Close" disabled={!!lib.busy} onclick={() => lib.close()}>×</button>
     </header>
     <p class="lede">
       Rename, move or delete samples with every song, kit and synth that names them rewritten to follow.
-      A song or preset the Deluge has open keeps the old paths in memory until it is loaded again — reload it
-      there before saving it.
+      {#if mounted}
+        Put the card back in the Deluge when you are done; a song or preset it still has open keeps the old paths in
+        memory until it is loaded again.
+      {:else}
+        A song or preset the Deluge has open keeps the old paths in memory until it is loaded again — reload it
+        there before saving it.
+      {/if}
     </p>
 
-    {#if card.status === 'error'}
+    {#if !mounted && card.status === 'error'}
       <p class="err" role="alert">{card.error}</p>
       <button type="button" class="btn" onclick={() => lib.openPanel()}>Retry</button>
+    {:else if mounted && !lib.ready}
+      {#if lib.error}<p class="err" role="alert" data-testid="library-error">{lib.error}</p>{/if}
+      <button type="button" class="btn" onclick={() => lib.openMounted()}>Choose the card’s folder…</button>
     {:else}
       <div class="status" data-testid="library-index">
         <span class="n">{indexLine}</span>
-        <button type="button" class="btn small" disabled={!!lib.busy || !card.connected} onclick={() => lib.rescan()} title="Re-read the files that changed since the references were read">Rescan</button>
-        <button type="button" class="btn small" disabled={!!lib.busy || !card.connected} onclick={() => lib.rescan(true)} title="Forget the cache and read every song, kit and synth again">Rescan all</button>
+        <button type="button" class="btn small" disabled={!!lib.busy || !lib.ready} onclick={() => lib.rescan()} title="Re-read the files that changed since the references were read">Rescan</button>
+        <button type="button" class="btn small" disabled={!!lib.busy || !lib.ready} onclick={() => lib.rescan(true)} title="Forget the cache and read every song, kit and synth again">Rescan all</button>
       </div>
 
       <div class="pathbar">
         <button type="button" class="btn small" onclick={() => lib.up()} disabled={lib.path === '/SAMPLES' || !!lib.busy} title="Up one folder" aria-label="Up">↑</button>
         <span class="path" data-testid="library-path">{lib.path}</span>
-        <button type="button" class="btn small" disabled={!!lib.busy || !card.connected} onclick={() => lib.startNewFolder()} title="A new folder here">New folder</button>
+        <button type="button" class="btn small" disabled={!!lib.busy || !lib.ready} onclick={() => lib.startNewFolder()} title="A new folder here">New folder</button>
       </div>
 
       {#if lib.newFolder !== null}
@@ -113,7 +128,7 @@
                     class="act"
                     class:live={audio.playing === xmlPath(e.path)}
                     disabled={!!lib.busy || audio.loading !== null}
-                    title={audio.playing === xmlPath(e.path) ? 'Stop' : 'Play (reads the sample from the card)'}
+                    title={audio.playing === xmlPath(e.path) ? 'Stop' : mounted ? 'Play' : 'Play (reads the sample from the card)'}
                     aria-label="Play"
                     onclick={() => void preview(e)}
                   >{audio.playing === xmlPath(e.path) ? '■' : audio.loading === xmlPath(e.path) ? `${Math.round(audio.progress * 100)}%` : '▶'}</button>

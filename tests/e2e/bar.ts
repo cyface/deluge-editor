@@ -15,6 +15,7 @@ const MENU: Record<string, string> = {
   'card-save-button': 'menu-save',
   'card-overwrite': 'menu-save',
   'library-button': 'menu-open',
+  'library-mounted-button': 'menu-open',
 }
 
 function menuOf(item: string): string {

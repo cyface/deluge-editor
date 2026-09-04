@@ -5,6 +5,10 @@
  * `src/core/library`; this store holds the browsing state, the reference
  * index and its cache, and the one-question confirmations.
  *
+ * The card can be in the Deluge (over MIDI, `smsFS`) or in a reader on this
+ * computer (`localcard.ts`); the panel is the same either way and `source`
+ * says which, with an index per source.
+ *
  * The index is read once per session and then kept: a move updates it in
  * memory, and a rescan re-reads only files whose listing entry changed. It
  * is also cached in localStorage between sessions, so opening the panel on
@@ -41,13 +45,21 @@ import {
   type TargetKind,
 } from '../../core/library'
 import { retargetSampleFiles } from '../../core/preset'
-import type { WavInfo } from '../../core/samples/wav'
+import { readWavInfo, type WavInfo } from '../../core/samples/wav'
+import { localFS, pickCardRoot } from '../localcard'
+import { audio } from './audio.svelte'
 import { card } from './card.svelte'
 import { confirm } from './confirm.svelte'
 import { editor } from './editor.svelte'
 import { samples } from './samples.svelte'
 
-const CACHE_KEY = 'deluge-editor.sample-index'
+/** Where the card is: in the Deluge over MIDI, or in a reader on this computer. */
+export type CardSource = 'deluge' | 'mounted'
+
+const CACHE_KEY: Record<CardSource, string> = {
+  deluge: 'deluge-editor.sample-index',
+  mounted: 'deluge-editor.sample-index.mounted',
+}
 
 export interface LibraryEntry extends CardEntry {
   path: string
@@ -62,6 +74,9 @@ const kindOf = (e: { dir: boolean }): TargetKind => (e.dir ? 'folder' : 'file')
 
 class Library {
   open = $state(false)
+  source = $state<CardSource>('deluge')
+  /** The mounted card's root folder name, for the header. */
+  mountedName = $state<string | null>(null)
   path = $state(SAMPLES_ROOT)
   entries = $state<LibraryEntry[]>([])
   /** The reference index; null until the first scan of this session. */
@@ -86,7 +101,10 @@ class Library {
   /** New-folder editing. */
   newFolder = $state<string | null>(null)
 
-  private cached: ReferenceIndex = this.loadCache()
+  private cached: Record<CardSource, ReferenceIndex> = { deluge: this.loadCache('deluge'), mounted: this.loadCache('mounted') }
+  /** One index per source; a card seen both ways is two different listings. */
+  private indexes: Record<CardSource, ReferenceIndex | null> = { deluge: null, mounted: null }
+  private mounted: CardFS | null = null
   private infoFor: string | null = null
 
   readonly selectedEntry = $derived(this.entries.find((e) => e.name === this.selected) ?? null)
@@ -101,8 +119,12 @@ class Library {
     return counts
   })
 
-  /** Open the panel, connect, and read the references if this session hasn't. */
+  /** Whether the chosen source can be read right now. */
+  readonly ready = $derived(this.source === 'deluge' ? card.connected : this.mounted !== null)
+
+  /** Open the panel on the Deluge: connect, and read the references if this session hasn't. */
   async openPanel(): Promise<void> {
+    this.switchTo('deluge')
     this.open = true
     this.error = null
     this.notice = null
@@ -119,13 +141,58 @@ class Library {
     else await this.browse(this.path)
   }
 
+  /**
+   * Open the panel on a card in a reader: ask for its root folder (the
+   * browser's own picker, which also grants the write permission), then read
+   * the references — seconds from a reader where the Deluge takes minutes.
+   */
+  async openMounted(): Promise<void> {
+    this.error = null
+    this.notice = null
+    let root
+    try {
+      root = await pickCardRoot()
+    } catch (e) {
+      this.switchTo('mounted')
+      this.open = true
+      this.error = e instanceof Error ? e.message : String(e)
+      return
+    }
+    if (!root) return // cancelled: nothing changes, the panel stays as it was
+    this.mounted = localFS(root)
+    this.mountedName = root.name
+    this.indexes.mounted = null // a different folder is a different card
+    this.switchTo('mounted')
+    this.open = true
+    this.path = SAMPLES_ROOT
+    await this.rescan()
+  }
+
+  private switchTo(source: CardSource): void {
+    if (this.source !== source) {
+      this.cancelEdits()
+      this.selected = null
+      this.path = SAMPLES_ROOT
+    }
+    this.source = source
+    this.index = this.indexes[source]
+    // Card-only previews read from the mounted folder while it is the source.
+    audio.mounted = source === 'mounted' && this.mounted ? (f) => this.mounted!.read(`/${f}`) : null
+  }
+
   close(): void {
     if (this.busy) return
     this.open = false
     this.cancelEdits()
+    audio.stop()
+    audio.mounted = null
   }
 
   private fs(): CardFS {
+    if (this.source === 'mounted') {
+      if (!this.mounted) throw new Error('no card folder is open — choose one from the Open menu')
+      return this.mounted
+    }
     return smsFS(card.sms())
   }
 
@@ -135,11 +202,12 @@ class Library {
    */
   async rescan(all = false): Promise<void> {
     await this.run('Reading references', async () => {
-      const previous = all ? new Map() : (this.index ?? this.cached)
-      this.index = await scanReferences(this.fs(), previous, (p) => {
+      const previous = all ? new Map() : (this.index ?? this.cached[this.source])
+      const index = await scanReferences(this.fs(), previous, (p) => {
         this.scan = p
         this.progress = p.phase === 'reading' && p.total ? p.done / p.total : 0
       })
+      this.index = this.indexes[this.source] = index
       this.scan = null
       this.saveCache()
       await this.list(this.path)
@@ -175,7 +243,13 @@ class Library {
   private async readInfo(path: string): Promise<void> {
     this.infoFor = path
     try {
-      const info = await card.wavInfo(path)
+      const handle = await this.fs().reader(path)
+      let info: WavInfo
+      try {
+        info = await readWavInfo((offset, length) => handle.read(offset, length))
+      } finally {
+        await handle.close()
+      }
       if (this.infoFor === path) this.info = info
     } catch {
       // a file that isn't a readable WAV simply has no facts to show
@@ -266,13 +340,13 @@ class Library {
         if (label) this.busy = label
         this.progress = f
       })
-      this.index = applyMoveToIndex(this.index!, plan, outcome)
+      this.index = this.indexes[this.source] = applyMoveToIndex(this.index!, plan, outcome)
       this.saveCache()
       // The preset open in the editor follows too, as an ordinary edit the
       // Changes dock lists — otherwise saving it would put the old path back.
       if (editor.preset) {
         const moved = retargetSampleFiles(editor.preset, (f) => renamedRef(f, plan.from, plan.to, plan.kind))
-        if (moved.length) {
+        if (moved.length && this.source === 'deluge') {
           samples.invalidateCardListings()
           void samples.checkMissing()
         }
@@ -370,8 +444,10 @@ class Library {
     this.busy = label
     this.progress = 0
     this.error = null
-    // The bar's dot pulses through a transfer whether or not a dialog is open.
-    card.busy = label
+    this.notice = null // a new action supersedes the last one's report
+    // The bar's dot pulses through a card transfer whether or not a dialog is open.
+    const viaDeluge = this.source === 'deluge'
+    if (viaDeluge) card.busy = label
     try {
       await fn()
     } catch (e) {
@@ -379,13 +455,13 @@ class Library {
     } finally {
       this.busy = null
       this.scan = null
-      card.busy = null
+      if (viaDeluge) card.busy = null
     }
   }
 
-  private loadCache(): ReferenceIndex {
+  private loadCache(source: CardSource): ReferenceIndex {
     try {
-      return indexFromJSON(JSON.parse(localStorage.getItem(CACHE_KEY) ?? 'null'))
+      return indexFromJSON(JSON.parse(localStorage.getItem(CACHE_KEY[source]) ?? 'null'))
     } catch {
       return new Map() // storage can be blocked or hold junk; a cold scan is the fallback
     }
@@ -394,7 +470,7 @@ class Library {
   private saveCache(): void {
     if (!this.index) return
     try {
-      localStorage.setItem(CACHE_KEY, JSON.stringify(indexToJSON(this.index)))
+      localStorage.setItem(CACHE_KEY[this.source], JSON.stringify(indexToJSON(this.index)))
     } catch {
       // nothing lost but the shortcut next time
     }
