@@ -45,7 +45,7 @@
 
   {#if plan.disordered}
     <Status kind="caution" testid="range-redetect-disordered">
-      These roots don't climb with the keyboard — a sample would be rooted below the one beneath it. That is what a
+      These roots don’t climb with the keyboard — a sample would be rooted below the one beneath it. That is what a
       misread name or an assumed offset looks like, so read the list before applying.
     </Status>
   {/if}

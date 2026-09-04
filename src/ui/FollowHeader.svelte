@@ -7,7 +7,7 @@
   import { paramLabel } from '../core/preset'
   import Seg from './controls/Seg.svelte'
   import Status from './controls/Status.svelte'
-  import { HELP } from './help'
+  import { HELP, UI_HELP } from './help'
   import { follow } from './state/follow.svelte'
 
   interface Props {
@@ -52,7 +52,7 @@
       data-testid="follow-send"
       aria-pressed={follow.sending}
       disabled={follow.sendPort === null}
-      title={follow.sendPort === null ? 'No Deluge MIDI output found. Sending goes only to a port named Deluge, so a CC cannot land on another instrument.' : HELP['follow.send']}
+      title={follow.sendPort === null ? UI_HELP['ui.follow.noOutput'] : HELP['follow.send']}
       onclick={() => (follow.sending = !follow.sending)}
     >Send</button>
     <label class="pick" title={HELP['follow.sendChannel']}>

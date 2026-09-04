@@ -9,6 +9,7 @@
   import { moveRow, removeRow, renameRow } from '../core/kit/build'
   import { MIDI_OUTPUT_ATTR_ORDER, type DrumRow, type KitElement } from '../core/preset'
   import { sampleRanges } from '../core/preset/ranges'
+  import { UI_HELP } from './help'
   import { osc } from '../core/preset/sound'
   import { setAttr } from '../core/xml'
   import KitRow from './KitRow.svelte'
@@ -93,7 +94,7 @@
   {#snippet actions()}
     <!-- The instrument's own gesture: a new drum arrives silent and named
          U1, U2, … and gets its sample afterwards. -->
-    <button type="button" class="btn small" data-testid="add-row" title="Add an empty row, as the Deluge's drum creator does" onclick={() => kitBuilder.addRow()}>Add Row</button>
+    <button type="button" class="btn small" data-testid="add-row" title={UI_HELP['ui.rows.add']} onclick={() => kitBuilder.addRow()}>Add row</button>
   {/snippet}
   <div class="scroll">
     <table class="rows" data-testid="kit-rows" bind:this={table}>

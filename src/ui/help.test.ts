@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest'
 import { PARAM_NAMES } from '../core/preset'
 import { GROUPS, KIT_GROUP } from './groups'
-import { HELP, PARAM_HELP, paramHelp, panelHelp } from './help'
+import { HELP, PARAM_HELP, UI_HELP, paramHelp, panelHelp } from './help'
 
 const entries = [...Object.entries(PARAM_HELP), ...Object.entries(HELP)]
 
@@ -46,6 +46,13 @@ describe('tooltip copy', () => {
 
   it('is written as sentences, with the typographic apostrophe the UI uses', () => {
     const bad = entries.filter(([, t]) => !/^[A-Z“]/.test(t) || !t.endsWith('.') || t.includes("'") || t.includes('  '))
+    expect(bad.map(([k]) => k)).toEqual([])
+  })
+
+  it('says what a command does as a phrase: sentence case, no full stop, keyed under ui.', () => {
+    const ui = Object.entries(UI_HELP)
+    expect(ui.length).toBeGreaterThan(0)
+    const bad = ui.filter(([k, t]) => !k.startsWith('ui.') || !/^[A-Z]/.test(t) || t.endsWith('.') || t.includes("'") || t.includes('  ') || t.length > 230)
     expect(bad.map(([k]) => k)).toEqual([])
   })
 })

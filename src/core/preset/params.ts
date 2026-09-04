@@ -114,7 +114,7 @@ export const UNPATCHED_SOUND_PARAMS = ['portamento'] as const
  * `volume`/`pitchAdjust` become `volumePostFX`/`pitch` in the MIDI-follow
  * file, so both spellings are names.
  */
-export const UNPATCHED_GLOBAL_PARAMS = [
+const UNPATCHED_GLOBAL_PARAMS = [
   'modFXRate',
   'modFXDepth',
   'delayRate',

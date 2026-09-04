@@ -22,6 +22,7 @@
    * for cutoff and up for resonance; the knobs follow.
    */
   import { filterCutoffHz, hpfMagnitude, lpfMagnitude, lpfQ } from '../../core/params/filter'
+  import { UI_HELP } from '../help'
 
   interface Props { filters: FilterBinding }
   let { filters }: Props = $props()
@@ -116,7 +117,7 @@
 </script>
 
 <div class="wrap">
-  <div class="graph" bind:clientWidth={width} title="Drag a dot: sideways for cutoff, up and down for resonance">
+  <div class="graph" bind:clientWidth={width} title={UI_HELP['ui.graph.filter']}>
     <!-- overflow visible so a handle at full cutoff or zero resonance isn't clipped at the edge -->
     <svg bind:this={svg} viewBox="0 0 {W} {H}" height={H} style="overflow:visible" data-testid="filter-graph">
       {#each [0, 0.25, 0.5, 0.75, 1] as x (x)}<line x1={x * W} y1="0" x2={x * W} y2={H} stroke="#161311" />{/each}

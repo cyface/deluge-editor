@@ -142,7 +142,7 @@ test('New Synth starts from the Deluge-authored init template (issue #25)', asyn
   await choose(page, 'new-synth')
 
   // The template loads like an opened file: unnamed, c1.3.0-authored, clean.
-  await expect(page.getByTestId('file-name')).toHaveText('UNNAMED')
+  await expect(page.getByTestId('file-name')).toHaveText('(unnamed)')
   await expect(page.getByTestId('firmware')).toHaveValue('c1.3.0')
   await expect(page.getByTestId('summary')).toContainText('One square wave')
   await expect(page.getByTestId('change-count')).toHaveText('0')
@@ -297,7 +297,7 @@ test('the top bar’s commands live under New, Open and Save; the modes stay out
   await expect(menu).toHaveAttribute('aria-expanded', 'true')
   const list = page.getByTestId('menu-save-list')
   await expect(list).toHaveRole('menu')
-  await expect(list.getByRole('menuitem')).toHaveText(['Download XML', 'To Deluge', 'To Deluge – Overwrite'])
+  await expect(list.getByRole('menuitem')).toHaveText(['Download XML', 'To Deluge…', 'To Deluge — Overwrite'])
   // Nothing loaded: the items say what they would do, but cannot do it yet.
   await expect(page.getByTestId('download-xml')).toBeDisabled()
   await expect(page.getByTestId('card-save-button')).toBeDisabled()
@@ -326,12 +326,12 @@ test('the top bar’s commands live under New, Open and Save; the modes stay out
   await expect(page.getByTestId('new-synth')).toBeFocused()
   await page.keyboard.press('Enter')
   await expect(page.getByTestId('menu-new-list')).toHaveCount(0)
-  await expect(page.getByTestId('file-name')).toHaveText('UNNAMED')
+  await expect(page.getByTestId('file-name')).toHaveText('(unnamed)')
 
-  // Download Zip is conditional: a kit grows it, between XML and the Deluge.
+  // Download zip is conditional: a kit grows it, between XML and the Deluge.
   await choose(page, 'new-kit')
   await page.getByTestId('menu-save').click()
-  await expect(list.getByRole('menuitem')).toHaveText(['Download XML', 'Download Zip', 'To Deluge', 'To Deluge – Overwrite'])
+  await expect(list.getByRole('menuitem')).toHaveText(['Download XML', 'Download zip', 'To Deluge…', 'To Deluge — Overwrite'])
   await expect(page.getByTestId('download-xml')).toBeEnabled()
   await page.keyboard.press('Escape')
 

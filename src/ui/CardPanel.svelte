@@ -13,11 +13,11 @@
   import CardBrowser, { type BrowserEntry } from './controls/CardBrowser.svelte'
   import Dialog from './controls/Dialog.svelte'
   import Status from './controls/Status.svelte'
+  import { OTHER_EDITOR_WARNING } from './copy'
+  import { formatBytes } from './format'
+  import { UI_HELP } from './help'
   import { card } from './state/card.svelte'
   import { editor } from './state/editor.svelte'
-
-  const fmtSize = (n: number): string =>
-    n >= 1048576 ? `${(n / 1048576).toFixed(1)}M` : n >= 1024 ? `${(n / 1024).toFixed(1)}K` : `${n}`
 
   const title = $derived(card.mode === 'open' ? 'Open from Deluge' : 'Save to Deluge')
   const entries = $derived<BrowserEntry[]>(card.entries.map((e) => ({ name: e.name, dir: isDirectory(e), size: e.size })))
@@ -47,7 +47,7 @@
              still gated by the file's firmware attribute, and that is worth
              saying rather than letting the connection look fully read. -->
         <Status kind="caution" testid="card-firmware-unknown">
-          Could not read this Deluge's firmware version — the controls follow the version in the file.
+          Could not read this Deluge’s firmware version — the controls follow the version in the file.
         </Status>
       {/if}
       {#if card.otherEditor}
@@ -58,9 +58,7 @@
           but a save that was verified can still be overwritten a second
           later, and that is worth saying out loud.
         -->
-        <Status kind="caution" testid="card-other-editor">
-          Another editor is talking to this Deluge. Saves from both overwrite each other — last one wins.
-        </Status>
+        <Status kind="caution" testid="card-other-editor">{OTHER_EDITOR_WARNING}</Status>
       {/if}
       <CardBrowser
         path={card.path}
@@ -78,7 +76,7 @@
             class="btn small refresh"
             onclick={() => card.refresh()}
             disabled={!!card.busy}
-            title="Refresh file list from card."
+            title={UI_HELP['ui.card.refresh']}
             aria-label="Refresh"
           >
             <!-- Feather "rotate-cw" (MIT): arc plus a bracket arrowhead. -->
@@ -90,7 +88,7 @@
         {/snippet}
         {#snippet trailing(e)}
           {#if card.armedLoad === e.name}<span class="warn">discards your changes?</span>
-          {:else if !e.dir}<span class="s">{fmtSize(e.size ?? 0)}</span>{/if}
+          {:else if !e.dir}<span class="s">{formatBytes(e.size ?? 0)}</span>{/if}
         {/snippet}
       </CardBrowser>
       {#if card.mode === 'save' && !editor.preset}

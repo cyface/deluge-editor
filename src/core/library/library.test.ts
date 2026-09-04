@@ -223,7 +223,7 @@ describe('applyMove', () => {
     }
     const outcome = await applyMove(failing, plan)
     expect(outcome.updated).toEqual(['/KITS/Fixtures Kit.XML'])
-    expect(outcome.failed).toEqual([{ path: '/SYNTHS/Piano.XML', error: 'simulated write failure' }])
+    expect(outcome.failed).toEqual([{ path: '/SYNTHS/Piano.XML', error: new Error('simulated write failure') }])
     expect(text('/SYNTHS/Piano.XML')).toBe(rangesFixture)
     expect(fake.files.has('/SYNTHS/Piano.XML.tmp')).toBe(false)
     // the sample itself did move — the outcome says the synth still names the old path

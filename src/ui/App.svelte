@@ -64,7 +64,7 @@
     const text = await f.text() // read now: the DataTransfer dies with the event
     const run = () => editor.load(text, f.name)
     if (editor.preset) {
-      confirm.ask({ question: `Open ${f.name}? It replaces ${loadedName()}${changesNote()}.`, verb: 'Replace', run })
+      confirm.ask({ question: `Open ${f.name}? It replaces ${loadedName()}${changesNote()}.`, verb: 'Open', run })
       return
     }
     run()

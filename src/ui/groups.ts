@@ -233,7 +233,8 @@ export const GROUPS: readonly Group[] = [
   },
   {
     id: 'random',
-    name: 'Randomiser',
+    // The firmware's title: RANDOMIZER (STRING_FOR_RANDOMIZER, gui/l10n/english.json:574, tag beta).
+    name: 'Randomizer',
     color: '--arp',
     lane: 'mod',
     icon: IC.dice,

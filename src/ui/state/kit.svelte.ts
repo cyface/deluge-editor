@@ -15,6 +15,8 @@ import { shareZip, type ShareSample } from '../../core/kit/share'
 import { baseName, joinPath, xmlPath } from '../../core/library'
 import { isKit, drumRows, type KitElement, type SoundElement } from '../../core/preset'
 import { bufferReader, readWavInfo } from '../../core/samples/wav'
+import { saveBlob } from '../saveblob'
+import { noWavs } from '../copy'
 import { Activity } from './activity.svelte'
 import { card } from './card.svelte'
 import { CardBrowser, type BrowseEntry } from './cardbrowser.svelte'
@@ -41,7 +43,7 @@ class KitBuilder extends Activity {
   async addLocalSamples(folderName: string, files: LocalSample[]): Promise<void> {
     const wavs = wavsOf(files)
     if (wavs.length === 0) {
-      this.error = 'no .wav files in that folder — the Deluge kit builder reads WAV samples'
+      this.error = `${noWavs('that folder')} — the Deluge kit builder reads WAV samples`
       return
     }
     await this.run(`Reading ${count(wavs.length, 'WAV header')}`, async () => {
@@ -75,7 +77,7 @@ class KitBuilder extends Activity {
     if (!path) return
     const wavs = entries.filter((e) => !e.dir && isWav(e.name))
     if (wavs.length === 0) {
-      this.error = `no .wav files in ${path}`
+      this.error = noWavs(path)
       return
     }
     await this.run(`Reading ${count(wavs.length, 'WAV header')} from the card`, async () => {
@@ -123,12 +125,7 @@ class KitBuilder extends Activity {
       source: this.sampleSource.trim() || undefined,
     }, files)
     const blob = new Blob([zip.buffer as ArrayBuffer], { type: 'application/zip' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = presetFileName.replace(/\.XML$/, '.zip')
-    a.click()
-    URL.revokeObjectURL(url)
+    saveBlob(presetFileName.replace(/\.XML$/, '.zip'), blob)
   }
 
   /**

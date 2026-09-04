@@ -37,13 +37,15 @@ export const OSC_TYPE_NAMES: Record<OscType, string> = {
   inStereo: 'Input Stereo',
   dx7: 'DX7',
 }
+// The firmware's own spelling: "Analog square", "Analog saw" (STRING_FOR_ANALOG_SQUARE,
+// STRING_FOR_ANALOG_SAW, `gui/l10n/english.json:240-241`, `beta` e7bae539).
 export const OSC_TYPE_WORDS: Record<OscType, string> = {
   sine: 'sine',
   triangle: 'triangle',
   square: 'square',
-  analogSquare: 'analogue square',
+  analogSquare: 'analog square',
   saw: 'saw',
-  analogSaw: 'analogue saw',
+  analogSaw: 'analog saw',
   wavetable: 'wavetable',
   sample: 'sample',
   inLeft: 'left input',
@@ -279,10 +281,12 @@ const PARAM_LABELS: Record<string, string> = {
   env4Decay: 'Env 4 Decay',
   env4Sustain: 'Env 4 Sustain',
   env4Release: 'Env 4 Release',
-  waveFold: 'Wave Fold',
+  // The firmware names the parameter "Wavefolder" (STRING_FOR_WAVEFOLDER, `gui/l10n/english.json:60`, `beta` e7bae539).
+  waveFold: 'Wavefolder',
   delayRate: 'Delay Time',
   delayFeedback: 'Delay Feedback',
-  reverbAmount: 'Reverb',
+  // "Reverb amount" (STRING_FOR_PARAM_GLOBAL_REVERB_AMOUNT, `gui/l10n/english.json:56`); the panel's knob under its Reverb heading says Amount.
+  reverbAmount: 'Reverb Amount',
   modFXRate: 'Mod FX Rate',
   modFXDepth: 'Mod FX Depth',
   modFXOffset: 'Mod FX Offset',
@@ -325,3 +329,17 @@ const PARAM_LABELS: Record<string, string> = {
 }
 
 export const paramLabel = (name: string): string => PARAM_LABELS[name] ?? name
+
+/**
+ * The panel's spelling of a label that does not fit under a knob (`Knob.svelte`
+ * is 56 px wide). The same words as `PARAM_LABELS`, cut, so the Changes dock's
+ * long form and the panel's short form read as one name — never a different
+ * word. Anything not listed uses `paramLabel`.
+ */
+const PARAM_SHORT_LABELS: Record<string, string> = {
+  ratchetProbability: 'Ratchet Prob',
+  ratchetAmount: 'Ratchet Amt',
+  sequenceLength: 'Seq Length',
+}
+
+export const paramShortLabel = (name: string): string => PARAM_SHORT_LABELS[name] ?? paramLabel(name)

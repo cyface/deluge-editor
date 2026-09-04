@@ -112,7 +112,7 @@ export const lfoPhaseIncrement = (paramValue: number): number =>
   getExp(LFO_RATE_NEUTRAL, mulRshift32(paramValue, PARAM_RANGE))
 
 /** The same, in Hz: `phaseIncrement` cycles of 2^32 per second at 44.1 kHz. */
-export const lfoRateHz = (paramValue: number): number => (lfoPhaseIncrement(paramValue) / TWO32) * SAMPLE_RATE
+const lfoRateHz = (paramValue: number): number => (lfoPhaseIncrement(paramValue) / TWO32) * SAMPLE_RATE
 
 /** An unsynced LFO's frequency in Hz for a 0–50 menu rate. */
 export const lfoMenuRateHz = (menu: number): number => lfoRateHz(menuToStandard(menu))

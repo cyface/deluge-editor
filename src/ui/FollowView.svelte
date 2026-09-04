@@ -36,7 +36,8 @@
   import Panel from './controls/Panel.svelte'
   import Seg from './controls/Seg.svelte'
   import { KIT_GROUP, groupOf, gridGroups, type Group } from './groups'
-  import { HELP } from './help'
+  import { KIT_BUS_NOTE, SYNCED_NOTE, ENV1_HARDWIRED } from './copy'
+  import { HELP, paramHelp } from './help'
   import { GAP, MAX_COL, columnCount, heightMeasurer, splitStacks } from './masonry'
   import { editor } from './state/editor.svelte'
   import { follow } from './state/follow.svelte'
@@ -222,7 +223,8 @@
    * stored — it just takes no input here, as in the full editor.
    */
   const lfoSynced = $derived(!onBus && root !== null && lfoRateIgnored(root as SoundElement, lfoSel as 1 | 2 | 3 | 4, editor.version))
-  const SYNCED_NOTE = 'Disabled by tempo sync — the Deluge takes this LFO’s speed from the song, not from this value.'
+  /** On the bus a knob is the kit's, so its description gets the same sentence `KitGroup` appends. */
+  const busTip = (name: string): string => `${paramHelp(name) ?? ''} ${KIT_BUS_NOTE}`.trim()
 
   /*
    * Sending: the current CC value of every mapped parameter, offered to the
@@ -265,6 +267,7 @@
       order={slotOrder(e.slot, onBus)}
       sound={onBus ? undefined : (root as SoundElement)}
       dest={e.name}
+      title={onBus ? busTip(e.name) : undefined}
       {disabled}
       {disabledNote}
     />
@@ -325,7 +328,7 @@
                     id: n,
                     label: String(n),
                     idle: !envelope(root as SoundElement, n as 1 | 2 | 3 | 4),
-                    title: n === 1 ? 'Envelope 1 is hardwired to volume' : `Envelope ${n}`,
+                    title: n === 1 ? ENV1_HARDWIRED : `Envelope ${n}`,
                   }))}
                   selected={envSel}
                   onselect={(n) => (envPick = n)}

@@ -59,7 +59,7 @@
 </div>
 
 <div class="h3">Sidechain</div>
-<p class="hint">Ducking from the song's sidechain.</p>
+<p class="hint">Ducking from the song’s sidechain.</p>
 <div class="knobrow">
   <!-- The device's VOLUME DUCKING knob is really the strength of the
        sidechain → volumePostReverbSend patch cable (sidechain::VolumeShortcut,
@@ -86,7 +86,7 @@
     <IntKnob el={comp} ensure={COMP} attr="attack" label="Attack" max={127} read={compressorToKnob} write={knobToCompressor} order={AUDIO_COMPRESSOR_ATTR_ORDER} title={HELP['compressor.attack']} />
     <IntKnob el={comp} ensure={COMP} attr="release" label="Release" max={127} read={compressorToKnob} write={knobToCompressor} order={AUDIO_COMPRESSOR_ATTR_ORDER} title={HELP['compressor.release']} />
     <IntKnob el={comp} ensure={COMP} attr="ratio" label="Ratio" max={127} read={compressorToKnob} write={knobToCompressor} order={AUDIO_COMPRESSOR_ATTR_ORDER} title={HELP['compressor.ratio']} />
-    <IntKnob el={comp} ensure={COMP} attr="compHPF" label="Side HPF" max={127} read={compressorToKnob} write={knobToCompressor} order={AUDIO_COMPRESSOR_ATTR_ORDER} title={HELP['compressor.compHPF']} />
+    <IntKnob el={comp} ensure={COMP} attr="compHPF" label="HPF" max={127} read={compressorToKnob} write={knobToCompressor} order={AUDIO_COMPRESSOR_ATTR_ORDER} title={HELP['compressor.compHPF']} />
     {#if editor.supports('compressorBlend')}
       <IntKnob el={comp} ensure={COMP} attr="compBlend" label="Blend" max={128} read={blendToKnob} write={knobToBlend} order={AUDIO_COMPRESSOR_ATTR_ORDER} title={HELP['compressor.compBlend']} />
     {/if}
@@ -95,7 +95,7 @@
 
 {#if editor.supports('stutterConfig')}
   <div class="h3">Stutter</div>
-  <p class="hint">Used only when the sound's own stutter is selected on the device.</p>
+  <p class="hint">Used only when the sound’s own stutter is selected on the device.</p>
   <div class="knobrow">
     <HexKnob el={params(sound)} ensure={P} attr="stutterRate" label="Rate" order={SOUND_PARAM_ATTRS} {sound} />
   </div>
@@ -103,7 +103,7 @@
        quantized = true, reversed = false, pingPong = false
        (model/fx/stutterer.h, tag `beta`). -->
   <div class="fields">
-    <div class="f"><span class="lbl">Quantise</span><Toggle label="Quantized" name="stutter.quantized" value={stutter?.attrs.quantized} fallback="1" title={HELP['stutter.quantized']} onchange={(v) => setAttr(ST(), 'quantized', v, STUTTER_ATTR_ORDER)} /></div>
+    <div class="f"><span class="lbl">Quantize</span><Toggle label="Quantized" name="stutter.quantized" value={stutter?.attrs.quantized} fallback="1" title={HELP['stutter.quantized']} onchange={(v) => setAttr(ST(), 'quantized', v, STUTTER_ATTR_ORDER)} /></div>
     <div class="f"><span class="lbl">Direction</span><Toggle label="Reverse" name="stutter.reverse" value={stutter?.attrs.reverse} fallback="0" title={HELP['stutter.reverse']} onchange={(v) => setAttr(ST(), 'reverse', v, STUTTER_ATTR_ORDER)} /></div>
     <div class="f"><span class="lbl">Stereo</span><Toggle label="Ping-pong" name="stutter.pingPong" value={stutter?.attrs.pingPong} fallback="0" title={HELP['stutter.pingPong']} onchange={(v) => setAttr(ST(), 'pingPong', v, STUTTER_ATTR_ORDER)} /></div>
   </div>

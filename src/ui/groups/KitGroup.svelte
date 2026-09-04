@@ -13,7 +13,8 @@
   import HexKnob from '../controls/HexKnob.svelte'
   import IntKnob from '../controls/IntKnob.svelte'
   import Select from '../controls/Select.svelte'
-  import { HELP, KIT_BUS_NOTE, paramHelp } from '../help'
+  import { KIT_BUS_NOTE } from '../copy'
+  import { HELP, paramHelp } from '../help'
   import { modFxOptions } from '../options'
   import { editor } from '../state/editor.svelte'
   import DelayFields from './DelayFields.svelte'
@@ -97,7 +98,7 @@
 
 <div class="h3">Reverb</div>
 <div class="knobrow">
-  <HexKnob el={params} ensure={P} attr="reverbAmount" label="Send" order={KIT_PARAM_ATTRS} title={bus('reverbAmount')} />
+  <HexKnob el={params} ensure={P} attr="reverbAmount" label="Amount" order={KIT_PARAM_ATTRS} title={bus('reverbAmount')} />
 </div>
 
 <div class="h3">Sidechain</div>

@@ -8,6 +8,7 @@
    * instead of one line per value (`src/core/xml/group.ts`).
    */
   import { describeChangePath, describeChangeValue, describeElementPath } from '../core/preset'
+  import { UI_HELP } from './help'
   import { editor } from './state/editor.svelte'
   const d = $derived(editor.grouped)
   const label = (path: string) => describeChangePath(path, editor.flatOutput, editor.flatSource)
@@ -30,7 +31,7 @@
           <span class="name">{label(c.path)}</span>
           <span class="v"><s>{val(c.path, c.expected)}</s> → <b>{val(c.path, c.actual)}</b></span>
         </div>
-        <button type="button" class="x" title="Revert to the file's value" aria-label="Revert {label(c.path)}" onclick={() => editor.revert(c.path)}>×</button>
+        <button type="button" class="x" title={UI_HELP['ui.changes.revert']} aria-label="Revert {label(c.path)}" onclick={() => editor.revert(c.path)}>×</button>
       </div>
     {/each}
     {#each d.addedGroups as g (g.prefix)}
@@ -39,7 +40,7 @@
           <span class="name">{elabel(g.prefix)}</span>
           <span class="v">+ {#if nameOf(g.prefix)}<b>{nameOf(g.prefix)}</b> {/if}<em>added · {g.paths.length} values</em></span>
         </div>
-        <button type="button" class="x" title="Remove it again, as the file had it" aria-label="Remove {elabel(g.prefix)}" onclick={() => editor.revertGroup(g.prefix, 'added')}>×</button>
+        <button type="button" class="x" title={UI_HELP['ui.changes.removeAdded']} aria-label="Remove {elabel(g.prefix)}" onclick={() => editor.revertGroup(g.prefix, 'added')}>×</button>
       </div>
     {/each}
     {#each d.added as p (p)}
@@ -48,7 +49,7 @@
           <span class="name">{label(p)}</span>
           <span class="v">+ <b>{val(p, editor.flatOutput?.get(p) ?? '')}</b> <em>added</em></span>
         </div>
-        <button type="button" class="x" title="Remove again, as the file had it" aria-label="Revert {label(p)}" onclick={() => editor.revert(p)}>×</button>
+        <button type="button" class="x" title={UI_HELP['ui.changes.removeAdded']} aria-label="Revert {label(p)}" onclick={() => editor.revert(p)}>×</button>
       </div>
     {/each}
     {#each d.missingGroups as g (g.prefix)}
@@ -58,7 +59,7 @@
           <span class="v">− {#if nameOf(g.prefix)}<s>{nameOf(g.prefix)}</s> {/if}<em>removed · {g.paths.length} values</em></span>
         </div>
         {#if editor.canRestoreGroup(g.prefix)}
-          <button type="button" class="x" title="Restore the file's element" aria-label="Restore {elabel(g.prefix)}" onclick={() => editor.revertGroup(g.prefix, 'missing')}>×</button>
+          <button type="button" class="x" title={UI_HELP['ui.changes.restoreElement']} aria-label="Restore {elabel(g.prefix)}" onclick={() => editor.revertGroup(g.prefix, 'missing')}>×</button>
         {/if}
       </div>
     {/each}
@@ -68,7 +69,7 @@
           <span class="name">{label(p)}</span>
           <span class="v">− <s>{val(p, editor.flatSource?.get(p) ?? '')}</s> <em>removed</em></span>
         </div>
-        <button type="button" class="x" title="Restore the file's value" aria-label="Revert {label(p)}" onclick={() => editor.revert(p)}>×</button>
+        <button type="button" class="x" title={UI_HELP['ui.changes.restoreValue']} aria-label="Revert {label(p)}" onclick={() => editor.revert(p)}>×</button>
       </div>
     {/each}
   {/if}

@@ -3,11 +3,7 @@
 import { LFO_SCOPE } from '../core/firmware/features'
 import { PATCH_SOURCE_NAMES, type PatchSource } from '../core/preset'
 
-// The value → feature maps live in core, where the randomizer reads them too
-// (`src/core/firmware/gates.ts`).
-export { ALL_SOURCES, SOURCE_FEATURE } from '../core/firmware/gates'
-
-export const SOURCE_COLOR: Record<PatchSource, string> = {
+const SOURCE_COLOR: Record<PatchSource, string> = {
   lfo1: 'var(--lfo1)',
   lfo2: 'var(--lfo2)',
   lfo3: 'var(--lfo1)',

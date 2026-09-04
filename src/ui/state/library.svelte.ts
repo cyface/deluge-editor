@@ -48,6 +48,7 @@ import {
 } from '../../core/library'
 import { retargetSampleFiles } from '../../core/preset'
 import { readWavInfo, type WavInfo } from '../../core/samples/wav'
+import { CONNECTING } from '../copy'
 import { errorText } from '../errtext'
 import { localFS, pickCardRoot } from '../localcard'
 import { Activity } from './activity.svelte'
@@ -149,7 +150,7 @@ class Library extends Activity {
     this.open = true
     this.error = null
     this.notice = null
-    if (!card.connected && !(await this.run('Connecting to the Deluge', () => card.require()))) return
+    if (!card.connected && !(await this.run(CONNECTING, () => card.require()))) return
     if (!this.index) await this.rescan()
     else await this.browse(this.path)
   }
@@ -208,7 +209,7 @@ class Library extends Activity {
 
   private fs(): CardFS {
     if (this.source === 'mounted') {
-      if (!this.mounted) throw new Error('no card folder is open — choose one from the Open menu')
+      if (!this.mounted) throw new Error('No card folder is open — choose one from the Open menu')
       return this.mounted
     }
     return card.fs()
@@ -289,7 +290,7 @@ class Library extends Activity {
     this.renaming = null
     if (!e || !to || to === e.name) return
     if (!e.dir && isWav(e.name) && !isWav(to)) {
-      this.error = 'a sample keeps its .wav extension — the Deluge lists only .wav files'
+      this.error = 'A sample keeps its .wav extension — the Deluge lists only .wav files'
       return
     }
     this.proposeMove(e, joinPath(parentOf(e.path), to))
@@ -373,12 +374,12 @@ class Library extends Activity {
       if (outcome.failed.length) {
         parts.push(
           `${outcome.failed.length} NOT updated and still name the old path: ${outcome.failed
-            .map((f) => `${xmlPath(f.path)} (${f.error})`)
+            .map((f) => `${xmlPath(f.path)} (${errorText(f.error)})`)
             .join('; ')}`,
         )
       }
       this.notice = parts.join(' · ')
-      if (outcome.failed.length) this.error = 'some references could not be rewritten — see above, then Rescan and retry'
+      if (outcome.failed.length) this.error = 'Some references could not be rewritten — see above, then Rescan and retry'
       this.selected = plan.kind === 'file' && parentOf(plan.to) === this.path ? baseName(plan.to) : null
       await this.list(this.path)
     })

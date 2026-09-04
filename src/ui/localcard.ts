@@ -25,6 +25,7 @@
  */
 
 import { CardError, type CardEntry, type CardFS, type CardProgress, type RangedFile } from '../core/library'
+import { NEEDS_FOLDER_ACCESS } from './copy'
 
 /** The handle surface used here; lib.dom lags the spec on `entries()` and `move()`. */
 interface FileHandle {
@@ -134,7 +135,7 @@ async function copyTree(from: FileHandle | DirHandle, intoDir: DirHandle, name: 
  */
 export async function pickCardRoot(): Promise<DirHandle | null> {
   const picker = (window as PickerWindow).showDirectoryPicker
-  if (!picker) throw new Error('this browser cannot open a folder for writing — use Chrome or Edge')
+  if (!picker) throw new Error(NEEDS_FOLDER_ACCESS)
   let root: DirHandle
   try {
     root = await picker.call(window, { mode: 'readwrite', id: 'deluge-card' })

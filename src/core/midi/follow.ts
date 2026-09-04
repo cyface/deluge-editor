@@ -35,7 +35,7 @@ export {
 } from './followmaps'
 
 /** `kKnobPosOffset`, `src/definitions_cxx.hpp:364`. */
-export const KNOB_POS_OFFSET = 64
+const KNOB_POS_OFFSET = 64
 
 /**
  * The knob position a CC carries, read exactly as the instrument reads one.
@@ -75,7 +75,7 @@ export const ccToParamValue = (cc: number, half = false): number =>
  * instrument makes when it reports a value, so this is what the editor sends
  * to say "this parameter is now here".
  */
-export function paramValueToKnobPos(value: number, half = false): number {
+function paramValueToKnobPos(value: number, half = false): number {
   if (half) return (value >> 24) - KNOB_POS_OFFSET
   // (int32_t)(0x80000000 - (1 << 24)) is 0x7F000000: anything above it is the top.
   if (value >= 0x7f000000) return KNOB_POS_OFFSET

@@ -128,7 +128,7 @@
       <div class="f">
         <span class="lbl">{list.length === 1 ? 'Sample' : `${list.length} samples`}</span>
         <div class="ro" title={list.map((r) => r.fileName ?? '(no file)').join('\n')}>
-          {list.map((r) => shortName(r.fileName) || '(none)').join(' · ') || '(none)'}
+          {list.map((r) => shortName(r.fileName) || '(no file)').join(' · ') || '(none)'}
         </div>
       </div>
     </div>

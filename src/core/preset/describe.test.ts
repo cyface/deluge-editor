@@ -16,7 +16,7 @@ describe('describeChangePath', () => {
     expect(describeChangePath('sound@lpfMode')).toBe('LPF Mode')
     expect(describeChangePath('sound/arpeggiator@numOctaves')).toBe('Arp Octaves')
     expect(describeChangePath('sound/unison@num')).toBe('Unison Voices')
-    expect(describeChangePath('sound/audioCompressor@compHPF')).toBe('Compressor Side HPF')
+    expect(describeChangePath('sound/audioCompressor@compHPF')).toBe('Compressor HPF')
   })
 
   it('names a patch cable by what it connects', () => {

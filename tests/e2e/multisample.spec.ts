@@ -163,7 +163,7 @@ test('dismissing the folder question leaves the oscillator as it was (issue #33)
   const waveform = page.locator('[data-attr="osc1.type"]')
 
   await dropFolder(page, 'Piano', ['notes.txt'])
-  await expect(page.getByTestId('folder-import')).toContainText('no .wav files in that folder')
+  await expect(page.getByTestId('folder-import')).toContainText('No .wav files in that folder')
   await expect(waveform).toHaveValue('sample')
   // While it is in that state the oscillator says what it would do on the
   // instrument, because silence is the hardest fault to find there.

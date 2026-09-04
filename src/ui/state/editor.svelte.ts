@@ -19,12 +19,12 @@ import {
 } from '../../core/xml'
 
 /** Firmware the user can target. The loaded file's own version is added if it isn't one of these. */
-export const FIRMWARE_CHOICES = ['4.1.4', 'c1.0.1', 'c1.1.1', 'c1.2.1', 'c1.3.0'] as const
+const FIRMWARE_CHOICES = ['4.1.4', 'c1.0.1', 'c1.1.1', 'c1.2.1', 'c1.3.0'] as const
 
 /** A file without a parseable version gets the most conservative target: the last official build. */
 export const FALLBACK_FIRMWARE = '4.1.4'
 
-export function safeVersion(s: string): FirmwareVersion {
+function safeVersion(s: string): FirmwareVersion {
   try {
     return parseVersion(s)
   } catch {
@@ -146,7 +146,13 @@ class Editor {
         this.firmware = v !== undefined && isParseable(v) ? v : FALLBACK_FIRMWARE
       }
     } catch (e) {
-      this.error = `${name}: ${e instanceof Error ? e.message : String(e)}`
+      // The parser's own words stay off screen: what a person needs is which
+      // file, and whether it is XML at all or XML of something else.
+      const msg = e instanceof Error ? e.message : String(e)
+      const root = /^not a Deluge preset: <(.+)>$/.exec(msg)
+      this.error = root
+        ? `${name} is not a Deluge preset — its root element is <${root[1]}>, not <sound> or <kit>`
+        : `${name} could not be read as a Deluge preset — it is not a single well-formed XML document`
     }
   }
 

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ARP_ATTR_ORDER, SOUND_CHILD_ORDER, SOUND_PARAM_ATTRS, type SoundElement } from '../../core/preset'
+  import { ARP_ATTR_ORDER, paramShortLabel, SOUND_CHILD_ORDER, SOUND_PARAM_ATTRS, type SoundElement } from '../../core/preset'
   import { ensureParams, params } from '../../core/preset/sound'
   import { child, ensureChild, setAttr } from '../../core/xml'
   import HexKnob from '../controls/HexKnob.svelte'
@@ -46,8 +46,8 @@
     <HexKnob el={params(sound)} ensure={P} attr="glideProbability" label="Glide" order={SOUND_PARAM_ATTRS} {sound} />
     <HexKnob el={params(sound)} ensure={P} attr="swapProbability" label="Swap" order={SOUND_PARAM_ATTRS} {sound} />
   {/if}
-  <HexKnob el={params(sound)} ensure={P} attr="ratchetProbability" label="Ratchet Prob" order={SOUND_PARAM_ATTRS} {sound} />
-  <HexKnob el={params(sound)} ensure={P} attr="ratchetAmount" label="Ratchets" order={SOUND_PARAM_ATTRS} {sound} />
+  <HexKnob el={params(sound)} ensure={P} attr="ratchetProbability" label={paramShortLabel('ratchetProbability')} order={SOUND_PARAM_ATTRS} {sound} />
+  <HexKnob el={params(sound)} ensure={P} attr="ratchetAmount" label={paramShortLabel('ratchetAmount')} order={SOUND_PARAM_ATTRS} {sound} />
   {#if editor.supports('arpSpread')}
     <HexKnob el={params(sound)} ensure={P} attr="spreadGate" label="Gate Spread" order={SOUND_PARAM_ATTRS} {sound} />
     <HexKnob el={params(sound)} ensure={P} attr="spreadOctave" label="Octave Spread" order={SOUND_PARAM_ATTRS} {sound} />

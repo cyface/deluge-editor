@@ -8,7 +8,7 @@
  * the thumbnail in the oscillator panel.
  */
 
-export const KEY_COUNT = 128
+const KEY_COUNT = 128
 export const LOWEST_NOTE = 0
 export const HIGHEST_NOTE = KEY_COUNT - 1
 
@@ -27,7 +27,7 @@ export function noteAtX(x: number, width: number): number {
 }
 
 /** A range as drawn: the notes it sounds, and where they land. */
-export interface Band {
+interface Band {
   index: number
   low: number
   high: number

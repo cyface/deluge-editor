@@ -4,7 +4,7 @@
 </script>
 
 <div class="empty">
-  <p class="lead">Choose <b>New › Synth</b> or <b>New › Kit</b> to start a preset from the Deluge's own init presets.</p>
+  <p class="lead">Choose <b>New › Synth</b> or <b>New › Kit</b> to start a preset from the Deluge’s own init presets.</p>
   <p class="lead alt">Drop a <b>folder of WAVs</b> anywhere on the page to build a kit from samples.</p>
   <p class="lead alt">Choose <b>Open › From this computer</b> to open a Deluge <b>SYNTHS/</b> or <b>KITS/</b> preset, or drop one anywhere on the page.</p>
   <p class="lead alt">Or <b>Open › From Deluge</b> to browse your Deluge over USB in either Chrome or Edge.</p>

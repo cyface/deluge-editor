@@ -20,7 +20,7 @@ describe('modKnobSummary', () => {
   it('reads a slot the file does not carry as its stock assignment', () => {
     expect(STOCK_MOD_KNOBS.map((_, i) => modKnobSummary(undefined, i, raw))).toEqual([
       'Pan', 'Volume', 'LPF Res', 'LPF Freq', 'Env 1 Release', 'Env 1 Attack', 'Delay Feedback', 'Delay Time',
-      'Reverb', 'Volume via compressor', 'Pitch via lfo1', 'LFO 1 Rate', 'Portamento', 'Stutter Rate', 'Bitcrush', 'Decimation',
+      'Reverb Amount', 'Volume via compressor', 'Pitch via lfo1', 'LFO 1 Rate', 'Portamento', 'Stutter Rate', 'Bitcrush', 'Decimation',
     ])
   })
   it('reads the reassigned fixture: a plain param, a cable depth, and a second source', () => {

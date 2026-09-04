@@ -11,6 +11,7 @@
    */
   import { noteName } from '../../core/preset/notes'
   import { keySpans, rangeIndexAt, rootParts, type SampleRange } from '../../core/preset/ranges'
+  import { UI_HELP } from '../help'
   import { HIGHEST_NOTE, LOWEST_NOTE, bandLabel, bands, isBlackKey, noteAtX, noteX, octaveTicks } from '../keymap'
 
   interface Props {
@@ -103,7 +104,7 @@
         aria-valuemax={HIGHEST_NOTE}
         aria-valuenow={s.note}
         aria-valuetext={noteName(s.note)}
-        title="Split at {noteName(s.note)} — drag or use the arrow keys"
+        title="Split at {noteName(s.note)} — {UI_HELP['ui.keymap.split']}"
         onpointerdown={(e) => grab(e, s.index)}
         onpointermove={(e) => drag(e, s.index)}
         onkeydown={(e) => nudge(e, s.index, s.note)}

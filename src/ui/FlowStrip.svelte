@@ -9,7 +9,8 @@
   import type { PatchSource, SoundElement } from '../core/preset'
   import { cables } from '../core/preset/sound'
   import { groupOf, visibleGroups, type Group } from './groups'
-  import { ALL_SOURCES, SOURCE_FEATURE, sourceColor, sourceHint, sourceName, sourceTip } from './sources'
+  import { ALL_SOURCES, SOURCE_FEATURE } from '../core/firmware/gates'
+  import { sourceColor, sourceHint, sourceName, sourceTip } from './sources'
   import { editor } from './state/editor.svelte'
 
   interface Props { sound: SoundElement }

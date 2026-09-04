@@ -7,6 +7,7 @@
  */
 
 import type { WavInfo } from '../../core/samples/wav'
+import { NO_WAVS_READABLE } from '../copy'
 
 /** A file on its way into a multi-sample import, with whatever its header declared. */
 export interface ImportFile {
@@ -75,7 +76,7 @@ export async function readEach<T, R>(
     }
     onProgress(++done / items.length)
   }
-  if (results.length === 0) throw new Error(`none of the WAV files could be read — ${skipped.join('; ')}`)
+  if (results.length === 0) throw new Error(`${NO_WAVS_READABLE} — ${skipped.join('; ')}`)
   return { results, skipped }
 }
 

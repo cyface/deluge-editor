@@ -13,6 +13,8 @@
   import { setAttr } from '../core/xml'
   import Select from './controls/Select.svelte'
   import Waveform from './controls/Waveform.svelte'
+  import { notOnCard, notOnCardYet } from './copy'
+  import { HELP, UI_HELP } from './help'
   import { loopModeOptions } from './options'
   import { audio } from './state/audio.svelte'
   import { isSoundRow } from './state/editor.svelte'
@@ -48,7 +50,7 @@
   const pan = (r: DrumRow) => {
     if (!isSoundRow(r)) return ''
     const p = paramMenu(r, 'pan')
-    return p === undefined ? '' : p === 0 ? 'C' : `${p < 0 ? 'L' : 'R'}${Math.abs(p)}`
+    return p === undefined ? '' : p === 0 ? 'CTR' : `${p < 0 ? 'L' : 'R'}${Math.abs(p)}` // the knob's spelling (docs/decisions.md)
   }
 
   /** Commit a typed volume: 0–50, the Deluge's own scale. Empty leaves the value alone. */
@@ -61,7 +63,7 @@
     input.value = String(vol(r)) // re-show the stored value (clamped, or unchanged on bad input)
   }
 
-  /** Commit a typed pan: C, L1–L25, R1–R25, or a signed number (negative = left) — `parsePan` reads every spelling. */
+  /** Commit a typed pan: CTR, L1–L25, R1–R25, or a signed number (negative = left) — `parsePan` reads every spelling. */
   function commitPan(e: Event) {
     const input = e.currentTarget as HTMLInputElement
     const n = parsePan(input.value)
@@ -93,7 +95,7 @@
   <td
     class="grip"
     draggable="true"
-    title="Drag to reorder"
+    title={UI_HELP['ui.row.drag']}
     aria-hidden="true"
     ondragstart={ondragstart}
     {ondragend}
@@ -106,11 +108,7 @@
         class:live={audio.playing === file}
         data-testid="row-play"
         disabled={audio.loading !== null || (!audio.canPreview(file) && audio.playing !== file)}
-        title={audio.playing === file
-          ? 'Stop'
-          : audio.canPreview(file)
-            ? 'Preview this sample'
-            : 'Sample is not on this computer — connect the Deluge to preview it'}
+        title={UI_HELP[audio.playing === file ? 'ui.preview.stop' : audio.canPreview(file) ? 'ui.preview.play' : 'ui.preview.unavailable']}
         aria-label="Preview row {i + 1}"
         onclick={() => audio.toggle(file, sampled?.attrs.reversed === '1')}
       >{audio.playing === file ? '■' : audio.loading === file ? `${Math.round(audio.progress * 100)}%` : '▶'}</button>
@@ -143,9 +141,7 @@
         class="warn"
         class:pending={held}
         data-testid="row-missing"
-        title={held
-          ? 'Not on the card yet — saving the kit will copy it there'
-          : 'Not on the card — the Deluge loads the kit anyway, but this row will be silent'}
+        title={held ? notOnCardYet('kit') : notOnCard('kit', 'row')}
       >⚠</span>
     {/if}
     {#if sampled}
@@ -157,11 +153,7 @@
         type="button"
         class="pick"
         data-testid="row-sample"
-        title={act === 'layers'
-          ? "Show this row's velocity layers"
-          : act === 'ranges'
-            ? "Show this row's ranges"
-            : 'Choose the sample this row plays'}
+        title={UI_HELP[act === 'layers' ? 'ui.row.layers' : act === 'ranges' ? 'ui.row.ranges' : 'ui.row.pickSample']}
         aria-label="{act === 'sample' ? 'Sample' : 'Layers'} for row {i + 1}"
         onclick={onpick}
       >{act === 'sample' ? 'Sample…' : act === 'layers' ? 'Layers…' : 'Ranges…'}</button>
@@ -178,7 +170,7 @@
         value={sampled.attrs.loopMode}
         options={loopModeOptions()}
         fallback="0"
-        title="The device's REPEAT setting: Cut stops on note-off, Once always plays out, Loop repeats, Stretch fits the sample to the note length"
+        title={HELP['osc.loopMode']}
         onchange={(v) => setAttr(sampled, 'loopMode', v, OSC_ATTR_ORDER)}
       />
     {/if}
@@ -193,7 +185,7 @@
         value={sampled.attrs.reversed}
         options={DIRECTIONS}
         fallback="0"
-        title="Play direction"
+        title={UI_HELP['ui.row.direction']}
         onchange={(v) => setAttr(sampled, 'reversed', v, OSC_ATTR_ORDER)}
       />
     {/if}
@@ -205,7 +197,7 @@
         data-testid="row-vol"
         value={vol(r)}
         placeholder="—"
-        title="Volume, 0–50 (the Deluge's own scale); blank means the firmware's default"
+        title={UI_HELP['ui.row.volume']}
         aria-label="Volume of row {i + 1}"
         spellcheck="false"
         onchange={commitVol}
@@ -219,7 +211,7 @@
         data-testid="row-pan"
         value={pan(r)}
         placeholder="—"
-        title="Pan: C for centre, L1–L25, R1–R25; a bare L or R pans hard; a signed number works too (negative = left)"
+        title={UI_HELP['ui.row.pan']}
         aria-label="Pan of row {i + 1}"
         spellcheck="false"
         onchange={commitPan}
@@ -227,9 +219,9 @@
     {/if}
   </td>
   <td class="acts">
-    <button type="button" class="act" title="Move up (towards the bottom pad)" aria-label="Move row {i + 1} up" disabled={i === 0} onclick={() => onmove(i - 1)}>▲</button>
-    <button type="button" class="act" title="Move down" aria-label="Move row {i + 1} down" disabled={i === count - 1} onclick={() => onmove(i + 1)}>▼</button>
-    <button type="button" class="act x" title="Remove this row" aria-label="Remove row {i + 1}" onclick={onremove}>×</button>
+    <button type="button" class="act" title={UI_HELP['ui.row.up']} aria-label="Move row {i + 1} up" disabled={i === 0} onclick={() => onmove(i - 1)}>▲</button>
+    <button type="button" class="act" title={UI_HELP['ui.row.down']} aria-label="Move row {i + 1} down" disabled={i === count - 1} onclick={() => onmove(i + 1)}>▼</button>
+    <button type="button" class="act x" title={UI_HELP['ui.row.remove']} aria-label="Remove row {i + 1}" onclick={onremove}>×</button>
   </td>
 </tr>
 

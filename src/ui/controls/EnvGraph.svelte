@@ -10,6 +10,7 @@
   import { ENV_SKETCH_TOTAL, envelopeGeometry } from '../../core/params/envelope'
   import type { SoundElement } from '../../core/preset'
   import { envelope, envelopeMenu, setEnvelopeMenu } from '../../core/preset/sound'
+  import { UI_HELP } from '../help'
   interface Props { sound: SoundElement; selected: number; available: number[] }
   let { sound, selected, available }: Props = $props()
   const H = 74, pad = 4
@@ -88,7 +89,7 @@
   }
 </script>
 
-<div class="graph" bind:clientWidth={width} title="Drag the points: attack peak sideways, decay/sustain corner any way, release end sideways">
+<div class="graph" bind:clientWidth={width} title={UI_HELP['ui.graph.envelope']}>
   <!-- overflow visible so the edge handles (attack at the top, release on the floor) don't clip -->
   <svg bind:this={svg} viewBox="0 0 {W} {H}" height={H} style="overflow:visible" data-testid="env-graph">
     {#each curves as c (c.n)}

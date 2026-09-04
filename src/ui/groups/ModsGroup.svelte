@@ -20,7 +20,8 @@
   import LfoGraph from '../controls/LfoGraph.svelte'
   import Seg from '../controls/Seg.svelte'
   import Select from '../controls/Select.svelte'
-  import { HELP } from '../help'
+  import { ENV1_HARDWIRED, SYNCED_NOTE } from '../copy'
+  import { HELP, UI_HELP } from '../help'
   import { lfoTypeOptions, syncLevelOptions, syncTypeOptions } from '../options'
   import { sourceColor } from '../sources'
   import { editor } from '../state/editor.svelte'
@@ -44,7 +45,7 @@
       // Env 1's hardwired role reads in the graph's corner label, not a tiny sup.
       dot: cablesFrom(sound, `envelope${n}`).length ? sourceColor(`envelope${n}`) : undefined,
       idle: !envelope(sound, n as N),
-      title: n === 1 ? 'Envelope 1 is hardwired to volume' : `Envelope ${n}`,
+      title: n === 1 ? ENV1_HARDWIRED : `Envelope ${n}`,
     })),
   )
   const lfoItems = $derived(
@@ -54,7 +55,7 @@
       // Scope and cables read in the note under the tabs, not a tiny sup.
       dot: cablesFrom(sound, `lfo${n}`).length ? sourceColor(`lfo${n}`) : undefined,
       idle: !lfo(sound, n as N),
-      title: LFO_SCOPE[`lfo${n}` as keyof typeof LFO_SCOPE] === 'global' ? 'Runs once per sound: can reach global parameters and sync to tempo' : 'Runs per voice',
+      title: UI_HELP[LFO_SCOPE[`lfo${n}` as keyof typeof LFO_SCOPE] === 'global' ? 'ui.mods.lfoGlobal' : 'ui.mods.lfoVoice'],
     })),
   )
   const lfoNote = $derived.by(() => {
@@ -75,7 +76,6 @@
    * knob stops taking input.
    */
   const lfoSynced = $derived(lfoRateIgnored(sound, lfoSel as N, editor.version))
-  const SYNCED_NOTE = 'Disabled by tempo sync — the Deluge takes this LFO’s speed from the song, not from this value.'
 </script>
 
 <div class="h3">Envelopes</div>

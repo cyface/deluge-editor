@@ -8,6 +8,7 @@
   import CardBrowser from './controls/CardBrowser.svelte'
   import Dialog from './controls/Dialog.svelte'
   import Status from './controls/Status.svelte'
+  import { browseSamplesTip } from './copy'
   import { pickedFolder, takeFiles } from './filepick'
   import { card } from './state/card.svelte'
   import { multisample as ms } from './state/multisample.svelte'
@@ -27,20 +28,20 @@
 <Dialog title="Build Osc {label} from a folder" ariaLabel="Build a multi-sample instrument" testid="folder-import" width={560} closeLabel="Cancel" onclose={() => ms.cancel()}>
   <p class="lede">
     Every WAV in the folder becomes a key range: the root notes come from what the files declare, then from their
-    names, and anything that can't be placed is listed rather than dropped.
+    names, and anything that can’t be placed is listed rather than dropped.
   </p>
 
   <input bind:this={folderInput} type="file" webkitdirectory hidden data-testid="ms-folder-input" onchange={pickFolder} />
   <div class="ways">
     <button type="button" class="btn go" data-testid="ms-source-local" disabled={!!ms.busy} onclick={() => folderInput?.click()}>
-      On This Computer…
+      On this computer…
     </button>
     <button
       type="button"
       class="btn"
       data-testid="ms-source-card"
       disabled={!card.supported || !!ms.busy}
-      title={card.supported ? 'Browse SAMPLES/ on the Deluge (connects first if needed)' : 'Web MIDI needs Chrome or Edge'}
+      title={browseSamplesTip(card.supported)}
       onclick={() => ms.browser.open()}
     >On the Deluge…</button>
     <button type="button" class="btn" data-testid="ms-cancel" onclick={() => ms.cancel()}>Cancel</button>
@@ -61,7 +62,7 @@
         onOpen={(name) => ms.browser.enter(name)}
       >
         <button type="button" class="btn go" data-testid="ms-take-card-folder" disabled={!!ms.busy || !hasWavs} onclick={() => ms.addCardFolder()}>
-          Use This Folder
+          Use this folder
         </button>
         <p class="hint">Samples stay on the card — only their headers are read, for the roots and zones.</p>
       </CardBrowser>

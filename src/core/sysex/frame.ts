@@ -49,7 +49,7 @@ export function buildJsonFrame(msgId: number, command: object, binary?: Uint8Arr
   for (let i = 0; i < text.length; i++) {
     const c = text.charCodeAt(i)
     if (c < 0x20 || c > 0x7e) {
-      throw new Error(`SysEx JSON must be printable ASCII, got U+${c.toString(16).toUpperCase()} in ${text}`)
+      throw new Error(`Names on the card must be plain ASCII — “${text[i]}” cannot be sent over SysEx`)
     }
     out[7 + i] = c
   }

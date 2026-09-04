@@ -43,6 +43,7 @@ export const ensureParams = (sound: SoundElement): SoundParamsElement =>
 export const paramHex = (sound: SoundElement, attr: SoundParamAttr): HexParam | undefined =>
   params(sound)?.attrs[attr]
 
+/** Exported for tests. */
 export function setParamHex(sound: SoundElement, attr: SoundParamAttr, hex: HexParam): void {
   setAttr(ensureParams(sound), attr, hex, SOUND_PARAM_ATTRS)
 }

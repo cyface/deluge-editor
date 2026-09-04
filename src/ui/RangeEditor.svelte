@@ -23,7 +23,8 @@
   import NumberField from './controls/NumberField.svelte'
   import Panel from './controls/Panel.svelte'
   import Status from './controls/Status.svelte'
-  import { HELP } from './help'
+  import { notOnCard, notOnCardYet } from './copy'
+  import { HELP, UI_HELP } from './help'
   import { ROOT_SOURCE } from './rangesource'
   import { audio } from './state/audio.svelte'
   import { editor } from './state/editor.svelte'
@@ -107,7 +108,7 @@
     <!-- Velocity layers are a fork-only feature (no `rangeTopVelocity` in stock
          firmware): shown, never rewritten, so the file passes through as it came. -->
     <Status kind="caution" testid="range-velocity">
-      These ranges are keyed by velocity, which this editor doesn't model — they are shown read-only and pass through unchanged.
+      These ranges are keyed by velocity, which this editor doesn’t model — they are shown read-only and pass through unchanged.
     </Status>
   {/if}
 
@@ -142,11 +143,7 @@
                     class:live={audio.playing === f}
                     data-testid="range-play"
                     disabled={audio.loading !== null || (!audio.canPreview(f) && audio.playing !== f)}
-                    title={audio.playing === f
-                      ? 'Stop'
-                      : audio.canPreview(f)
-                        ? 'Preview this sample'
-                        : 'Sample is not on this computer — connect the Deluge to preview it'}
+                    title={UI_HELP[audio.playing === f ? 'ui.preview.stop' : audio.canPreview(f) ? 'ui.preview.play' : 'ui.preview.unavailable']}
                     aria-label="{audio.playing === f ? 'Stop' : 'Preview'} {base(f)}"
                     onclick={() => void audio.toggle(f, reversed)}
                   >{audio.playing === f ? '■' : '▶'}</button>
@@ -169,9 +166,7 @@
                     class="miss"
                     class:pending={held}
                     data-testid="range-missing"
-                    title={held
-                      ? 'Not on the card yet — saving the preset will copy it there'
-                      : 'Not on the card — the Deluge loads the preset anyway, but this range will be silent'}
+                    title={held ? notOnCardYet('preset') : notOnCard('preset', 'range')}
                   >⚠</span>
                 {/if}
                 <span class="fname" title={r.fileName}>{base(r.fileName) || '(no file)'}</span>
@@ -205,7 +200,7 @@
     <div class="fields">
       <div class="f">
         <span class="lbl">Sample</span>
-        <div class="ro" title={current.fileName}>{base(current.fileName) || '(none)'}</div>
+        <div class="ro" title={current.fileName}>{base(current.fileName) || '(no file)'}</div>
       </div>
       <NumberField label="Root Note" name="range.root" value={root.note} min={0} max={127} format={(n) => noteName(n)} title={HELP['range.root']} onchange={(v) => setRoot(v, root.cents)} />
       <NumberField label="Detune ¢" name="range.detune" value={root.cents} min={-99} max={99} title={HELP['range.detune']} onchange={(v) => setRoot(root.note, v)} />

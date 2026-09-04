@@ -28,6 +28,7 @@
   import { syncLevelName, SYNC_TYPES } from '../../core/params/sync'
   import { LFO_TYPE_NAMES, type SoundElement, type SoundParamAttr } from '../../core/preset'
   import { lfo as lfoElement, paramMenu, setParamMenu } from '../../core/preset/sound'
+  import { UI_HELP } from '../help'
 
   interface Props { sound: SoundElement; selected: 1 | 2 | 3 | 4; available: number[] }
   let { sound, selected, available }: Props = $props()
@@ -216,7 +217,7 @@
 </script>
 
 <div class="wrap">
-  <div class="graph" bind:clientWidth={width} title={synced ? 'Sync sets the speed; the Rate knob is ignored' : 'Drag the handle to set the rate'}>
+  <div class="graph" bind:clientWidth={width} title={UI_HELP[synced ? 'ui.graph.lfoSynced' : 'ui.graph.lfo']}>
     <svg bind:this={svg} viewBox="0 0 {W} {H}" height={H} data-testid="lfo-graph">
       {#each [0, 0.25, 0.5, 0.75, 1] as x (x)}<line x1={x * W} y1="0" x2={x * W} y2={PLOT} stroke="#161311" />{/each}
       <line x1="0" y1={MID} x2={W} y2={MID} stroke="#241f1a" />

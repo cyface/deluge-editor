@@ -32,6 +32,6 @@
     <HexKnob el={params(sound)} ensure={P} attr="hpfMorph" label="HPF Morph" order={SOUND_PARAM_ATTRS} {sound} />
   {/if}
   {#if editor.supports('waveFold')}
-    <HexKnob el={params(sound)} ensure={P} attr="waveFold" label="Fold" order={SOUND_PARAM_ATTRS} {sound} />
+    <HexKnob el={params(sound)} ensure={P} attr="waveFold" label="Wavefolder" order={SOUND_PARAM_ATTRS} {sound} />
   {/if}
 </div>

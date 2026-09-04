@@ -7,6 +7,7 @@
 
 import { cardPath } from '../../core/library'
 import { computePeaks, type Peaks } from '../../core/samples/peaks'
+import { NOT_ON_THIS_COMPUTER } from '../copy'
 import { card } from './card.svelte'
 import { samples } from './samples.svelte'
 
@@ -155,7 +156,7 @@ class AudioPreview {
     }
     if (!bytes) {
       if (!card.connected) {
-        throw new Error('sample is not on this computer — connect the Deluge to preview it from the card')
+        throw new Error(NOT_ON_THIS_COMPUTER)
       }
       this.loading = fileName
       this.progress = 0

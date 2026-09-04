@@ -98,7 +98,7 @@ export interface MoveOutcome {
   /** Files that named the sample in the index but not in their current text. */
   unchanged: string[]
   /** Files whose rewrite failed; each still holds the old path. */
-  failed: { path: string; error: string }[]
+  failed: { path: string; error: unknown }[]
 }
 
 export type MoveProgress = (label: string, fraction: number) => void
@@ -159,7 +159,7 @@ export async function applyMove(fs: CardFS, plan: MovePlan, onProgress?: MovePro
       const count = await rewriteFile(fs, path, plan, (label, f) => onProgress?.(label, (i + f) / n))
       ;(count > 0 ? outcome.updated : outcome.unchanged).push(path)
     } catch (e) {
-      outcome.failed.push({ path, error: e instanceof Error ? e.message : String(e) })
+      outcome.failed.push({ path, error: e })
     }
   }
   onProgress?.('', 1)

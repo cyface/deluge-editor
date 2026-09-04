@@ -88,7 +88,7 @@
     </div>
   {/each}
 </div>
-<p class="hint">“Via” makes the knob set a patch cable's strength instead of the parameter itself.</p>
+<p class="hint">“Via” makes the knob set a patch cable’s strength instead of the parameter itself.</p>
 
 <style>
   .gold { display: grid; gap: 5px; margin: 8px 0 0 4px; }

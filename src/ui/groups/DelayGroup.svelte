@@ -20,5 +20,5 @@
 <DelayFields {delay} ensure={D} tip={(k) => HELP[k]} />
 <div class="h3">Reverb</div>
 <div class="knobrow">
-  <HexKnob el={params(sound)} ensure={P} attr="reverbAmount" label="Send" order={SOUND_PARAM_ATTRS} {sound} />
+  <HexKnob el={params(sound)} ensure={P} attr="reverbAmount" label="Amount" order={SOUND_PARAM_ATTRS} {sound} />
 </div>

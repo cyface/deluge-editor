@@ -161,8 +161,31 @@ Updated as work lands. Line numbers in the sections below are still as of
   the range editor's read-only state follows `rangesLocked`; the pan
   spelling exception is in decisions.md.
 
-**Not started:** §4 copy pass, the §9 "exported but used only in-file"
-group, `kit.svelte.ts` `<a download>` → `saveBlob`.
+**Done (2026-09-04, fourth pass):**
+
+- §4 copy pass: sentence case for buttons and menu items (control labels stay
+  Title Case: CSS-uppercased and equal to `paramLabel`); ellipsis only where
+  more input is needed (rule recorded in `TopBar.svelte`); em dash; ’ in all
+  markup; firmware spellings with citations (Randomizer, Quantize, analog,
+  Wavefolder, Reverb Amount, Portamento, Tape Warble; the compressor's
+  side-chain filter is "HPF" as the firmware's own menu says, not "Sidechain
+  HPF"); `paramShortLabel` for the three arp knobs the 56 px knob cannot fit;
+  pan is `CTR/L25/R25` everywhere including the kit cell; every inline
+  tooltip moved into `help.ts` as a `UI_HELP` table with its own sweep test;
+  citations in one `Symbol, path:line` form with every block cited; confirm
+  verb matches its question; store errors sentence case, no period; parser
+  and SysEx internals off screen; one other-editor phrasing; placeholders
+  `(unnamed)` / `(no file)` / `(none)` / `(empty)`; `copy.ts` for the shared
+  sentences and `format.ts` for byte sizes.
+- §9 "exported but used only in-file": 15 exports dropped, `setParamHex`
+  marked test-only; three entries were stale (they now have product
+  importers). `sources.ts` no longer re-exports the gate tables; FlowStrip
+  imports them from core. `kit.svelte.ts` uses `saveBlob`.
+
+**Everything in §11 is done.** Open follow-ups: the held-back 3.1.1 fixture
+(licensing); `follow.checking`/`audio.loading` outside `Activity`; `ranges`
+keeps `open(which)`; `pulse.ts` osc type and `gateAllows` stay `string`;
+`DirEntry`/`CardEntry` differ; `summariseSound` unsplit.
 
 ---
 

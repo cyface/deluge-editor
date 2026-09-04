@@ -58,11 +58,11 @@ tooltip saying what the parameter does on the Deluge, cited to the firmware.
 
 Anything that would throw away unsaved work asks first: **New** over an edited
 preset, a file dropped over a loaded one, samples dropped on a kit. **Save**
-has four exits. *Download XML* is the file; *Download Zip* (offered when the
+has four exits. *Download XML* is the file; *Download zip* (offered when the
 preset references samples) packs the preset under `KITS/` or `SYNTHS/`, the
 samples at the paths it names, and a README, ready to merge onto another card;
 *To Deluge* opens the card browser, where writing over a name that already
-exists takes two clicks, the first only arming the second; *To Deluge –
+exists takes two clicks, the first only arming the second; *To Deluge —
 Overwrite* writes straight back to the file the preset was opened from, or
 last saved to, with no dialog, and is disabled until it has such a path. A
 save over USB is read back and compared before it is called saved. A `._`
@@ -97,7 +97,7 @@ preset loaded there is nothing to follow with, so there is no button.
 
 **Randomize** generates a patch. Pick an intensity (mild → wild) and which
 blocks a roll may touch — the sound-making blocks the flow strip names; the
-arp Randomiser and the gold knob assignments are never rolled — and roll. It
+arp Randomizer and the gold knob assignments are never rolled — and roll. It
 starts from whatever is loaded, or from the Deluge's own init synth if nothing
 is, and in a kit it rolls the selected row. What it writes is the firmware's:
 enum strings come from the string tables character for character, knob values
@@ -112,7 +112,7 @@ button, so a patch you liked can be rolled again exactly; and a roll is
 ordinary edits, so **Changes** lists all of them and any one can be put back.
 Each roll also names the preset after what it made ("FM BELL", "SAW SWELL"),
 read back from the rolled sound, so a folder of rolls is not a folder of
-UNNAMED.
+(unnamed).
 
 A sample oscillator with more than one sample opens a **range editor** the
 width of the page: the key zones as bands across the keyboard, with the splits
@@ -127,7 +127,7 @@ use ▲▼ to reorder, set volume, pan, repeat mode and direction in place, play
 a sample or read its waveform thumbnail, and *Add Row* for an empty one.
 Samples that live only on this computer are pushed to `SAMPLES/<folder>/` on
 the card when you save to the Deluge, or packaged with the preset by
-*Download Zip*, whose **Share** section takes the author and licence for the
+*Download zip*, whose **Share** section takes the author and licence for the
 README.
 
 *From folder…* on a sample oscillator — set the waveform to Sample and the
@@ -143,7 +143,7 @@ to give it a note rather than quietly dropped, and one control shifts every
 root and boundary together when a library is named against a different middle
 C. As everywhere else in the editor, the only commit is saving.
 
-**Open › Sample Library on Deluge** (or **… on a card in this computer**, for
+**Open › Sample library on Deluge** (or **… on a card in this computer**, for
 a card in a reader) is the card's sample library: `SAMPLES/` as a
 list, each sample and folder with how many songs, kits and synths name it,
 and the three things you do to a library. *Rename* and *Move…* rewrite every

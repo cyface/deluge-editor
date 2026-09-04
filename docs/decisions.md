@@ -120,7 +120,7 @@ bare `0` at centre (`Pan::drawValue`, `gui/menu_item/patched_param/pan.cpp:30-43
 `beta` e7bae539) — and the OLED draws a signed number over a bar, negative
 left. The editor's knob, its change list and the kit table put the letter
 first and name the centre: `L25`, `R12`, `CTR` (`HexKnob.svelte`,
-`src/core/preset/describe.ts`; the kit table's narrower column says `C`).
+`src/core/preset/describe.ts`, and the kit table's pan cell).
 Why: beside a knob, a trailing letter or a minus sign reads as an amount
 before it reads as a side, and `-25` next to a 0–50 scale looks like "less"
 rather than "left". The number itself is the Deluge's (`panToMenu`), and
@@ -391,7 +391,7 @@ is one the firmware actually wrote. The template is a purpose-captured copy
 with its own `SOURCES.md`, not an import from `tests/fixtures/` — the UI
 bundle doesn't reach into the test tree — and the round-trip suite globs the
 templates folder so they are held to the fixtures' bar. The name starts
-empty (shown as UNNAMED) so the card panel's save flow forces a real one —
+empty (shown as (unnamed)) so the card panel's save flow forces a real one —
 except that a preset built from samples is offered the name its samples
 suggest when it comes to be saved (`guessPresetName`: the folder they share,
 else the folder most of them came from, else the stem they share, else the
@@ -708,7 +708,7 @@ control is not being read right now" is exactly what the user needs to know.
 Removing it would leave the sync setting looking like it had eaten the rate.
 A knob that turns and changes nothing is the worst of the three.
 
-The other is the Randomiser panel's **Arp Only** row (bass, chord, glide
+The other is the Randomizer panel's **Arp Only** row (bass, chord, glide
 probabilities), dimmed with the note "arp is off" while the arpeggiator is
 off. Same reasoning, one difference: these knobs stay live, because the
 natural order of work is to set the odds and then switch the arp on, and the
@@ -930,7 +930,7 @@ patch can be reproduced exactly — which is also what makes the ranges and the
 firmware gating testable at all (`src/core/random/patch.test.ts` sweeps 120
 seeds at four intensities against both firmware lineages).
 
-The editor's Randomize and the firmware's own **Randomiser** panel are
+The editor's Randomize and the firmware's own **Randomizer** panel are
 different things — the latter is the arpeggiator's per-note probability and
 spread menu — and they never share wording or colour. That panel and the gold
 knob assignments are also the two blocks a roll never touches
@@ -938,7 +938,7 @@ knob assignments are also the two blocks a roll never touches
 preset whose gold knobs move every roll is a preset you can't play.
 
 Every roll also names the preset (`src/core/random/names.ts`). A generator
-that leaves everything called UNNAMED makes a folder of rolls unusable, and
+that leaves everything called UNNAMED on the Deluge makes a folder of rolls unusable, and
 the Deluge shows the file name and nothing else. The name is read back from
 the rolled sound through the same accessors the panels use, so "FM BELL" is
 an FM patch and "SAW SWELL" really has a slow attack.
@@ -951,7 +951,7 @@ room left. They are folded into three dropdowns by verb: **New** (Synth, Kit,
 Randomize), **Open** (from this computer, from the Deluge, and the two sample
 library entries — on the Deluge, or on a card in a reader), **Save** (download
 XML, download Zip when the preset references samples, to the Deluge, and
-To Deluge – Overwrite once the preset has a card path). A desktop-style File
+To Deluge — Overwrite once the preset has a card path). A desktop-style File
 menu row would have said the same thing at the cost of a second row of
 chrome.
 
@@ -972,7 +972,7 @@ would do.
 
 ## The sample library rewrites text, and moves the sample before the references
 
-**Open › Sample Library on Deluge** does what Deluge Commander does on a mounted
+**Open › Sample library on Deluge** does what Deluge Commander does on a mounted
 card — see which songs, kits and synths name a sample, and rename, move or
 delete it with those files updated — over SysEx, on the card in the
 instrument. Three choices in how, each with a reason.

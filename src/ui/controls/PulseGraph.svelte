@@ -20,6 +20,7 @@
   import { menuToHalf } from '../../core/params/scale'
   import { OSC_TYPE_NAMES, type SoundElement, type SoundParamAttr } from '../../core/preset'
   import { osc, paramMenu, setParamMenu } from '../../core/preset/sound'
+  import { UI_HELP } from '../help'
 
   interface Props { sound: SoundElement; n: 1 | 2; type: string }
   let { sound, n, type }: Props = $props()
@@ -124,7 +125,7 @@
 </script>
 
 <div class="wrap">
-  <div class="graph" bind:clientWidth={width} title={heard ? 'Drag the handle to set pulse width' : 'Osc Sync takes this control away from every shape but the mathematical square'}>
+  <div class="graph" bind:clientWidth={width} title={UI_HELP[heard ? 'ui.graph.pulse' : 'ui.graph.pulseSynced']}>
     <svg bind:this={svg} viewBox="0 0 {W} {H}" height={H} data-testid="pulse-graph-{n}">
       <line x1="0" y1={MID} x2={W} y2={MID} stroke="#241f1a" />
       <line x1={W / 2} y1="0" x2={W / 2} y2={H} stroke="#161311" />

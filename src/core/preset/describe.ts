@@ -105,7 +105,9 @@ const ATTR_LABELS: Record<string, string> = {
   numOctaves: 'Octaves',
   stepRepeat: 'Step Repeat',
   mpeVelocity: 'MPE Velocity',
-  compHPF: 'Side HPF',
+  // The compressor menu's own item is titled HPF (audio_compressor::SideHPF compHPF,
+  // `gui/menu_item/generate/g_menus.inc:36`, `beta` e7bae539).
+  compHPF: 'HPF',
   compBlend: 'Blend',
   thresh: 'Threshold',
 }

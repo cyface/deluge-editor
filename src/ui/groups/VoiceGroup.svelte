@@ -35,5 +35,5 @@
   {#if editor.supports('unisonSpread')}
     <IntKnob el={unison} ensure={ensureUnison} attr="spread" label="Spread" min={0} max={50} order={UNISON_ATTR_ORDER} title={HELP['unison.spread']} />
   {/if}
-  <HexKnob el={params(sound)} ensure={() => ensureParams(sound)} attr="portamento" label="Porta" order={SOUND_PARAM_ATTRS} {sound} />
+  <HexKnob el={params(sound)} ensure={() => ensureParams(sound)} attr="portamento" label="Portamento" order={SOUND_PARAM_ATTRS} {sound} />
 </div>

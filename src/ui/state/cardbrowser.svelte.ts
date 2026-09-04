@@ -13,6 +13,7 @@
 
 import { joinPath, parentOf } from '../../core/library'
 import { isDirectory } from '../../core/sysex'
+import { CONNECTING } from '../copy'
 import type { Activity } from './activity.svelte'
 import { card } from './card.svelte'
 import { isWav } from './wavfiles'
@@ -63,7 +64,7 @@ export class CardBrowser {
 
   /** Open the browser on `path` (the root by default), connecting first if need be. */
   async open(path = this.root): Promise<void> {
-    const label = card.connected || this.list !== listCard ? `Reading ${path}` : 'Connecting to the Deluge'
+    const label = card.connected || this.list !== listCard ? `Reading ${path}` : CONNECTING
     await this.activity.run(
       label,
       async (live) => {

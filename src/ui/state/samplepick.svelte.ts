@@ -49,6 +49,7 @@ import { joinPath, xmlPath } from '../../core/library'
 import { parseNoteName } from '../../core/samples/roots'
 import { bufferReader, readWavInfo, type WavInfo } from '../../core/samples/wav'
 import { setAttr } from '../../core/xml/edit'
+import { NO_LONGER_LOADED } from '../copy'
 import { Activity } from './activity.svelte'
 import { card } from './card.svelte'
 import { CardBrowser, type BrowseEntry } from './cardbrowser.svelte'
@@ -201,7 +202,7 @@ class SamplePick extends Activity {
    */
   private assign(fileName: string, info: WavInfo | undefined): boolean {
     if (!this.osc || editor.preset !== this.opened) {
-      this.error = 'the preset this was for is no longer loaded'
+      this.error = NO_LONGER_LOADED
       return false
     }
     const osc = this.osc

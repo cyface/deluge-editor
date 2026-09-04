@@ -8,6 +8,7 @@
    * library's move picker all read the same way.
    */
   import type { Snippet } from 'svelte'
+  import { UI_HELP } from '../help'
 
   export interface BrowserEntry { name: string; dir: boolean; size?: number }
 
@@ -48,7 +49,7 @@
   }
   let {
     path, root = '/', entries, busy = false, onUp, onOpen, onPick, onPickDouble, pickable, disabledEntry, selected = null,
-    pathTestid, testid, boxed = false, listHeight, emptyText = 'empty', before, actions, trailing, children,
+    pathTestid, testid, boxed = false, listHeight, emptyText = '(empty)', before, actions, trailing, children,
   }: Props = $props()
 
   const picks = (name: string): boolean => onPick !== undefined && (pickable?.(name) ?? true)
@@ -57,7 +58,7 @@
 <div class="browser" class:boxed data-testid={testid}>
   <div class="pathbar">
     {@render before?.()}
-    <button type="button" class="btn small" onclick={onUp} disabled={path === root || busy} title="Up one folder" aria-label="Up">↑</button>
+    <button type="button" class="btn small" onclick={onUp} disabled={path === root || busy} title={UI_HELP['ui.browser.up']} aria-label="Up">↑</button>
     <span class="path" data-testid={pathTestid}>{path}</span>
     {@render actions?.()}
   </div>

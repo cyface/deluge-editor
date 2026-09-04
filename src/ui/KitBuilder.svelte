@@ -9,7 +9,9 @@
   import CardBrowser from './controls/CardBrowser.svelte'
   import Panel from './controls/Panel.svelte'
   import Status from './controls/Status.svelte'
+  import { browseSamplesTip, midiTip, OTHER_EDITOR_WARNING } from './copy'
   import { pickedFolder, takeFiles } from './filepick'
+  import { UI_HELP } from './help'
   import { card } from './state/card.svelte'
   import { editor } from './state/editor.svelte'
   import { kit } from './state/kit.svelte'
@@ -30,15 +32,13 @@
   <div class="ways">
     <div class="dropzone" role="note">Drop a folder of WAVs anywhere on the page</div>
     <input bind:this={folderInput} type="file" webkitdirectory hidden data-testid="folder-input" onchange={pickFolder} />
-    <button type="button" class="btn" data-testid="choose-folder" title="Pick a sample folder on this computer" onclick={() => folderInput?.click()}>Choose Folder…</button>
+    <button type="button" class="btn" data-testid="choose-folder" title={UI_HELP['ui.kit.chooseFolder']} onclick={() => folderInput?.click()}>Choose folder…</button>
     <button
       type="button"
       class="btn"
       data-testid="browse-card-samples"
       disabled={!card.supported || !!kit.busy}
-      title={card.supported
-        ? 'Browse SAMPLES/ on the Deluge (connects first if needed)'
-        : 'Web MIDI needs Chrome or Edge'}
+      title={browseSamplesTip(card.supported)}
       onclick={() => kit.browser.open()}
     >From Deluge…</button>
     {#if pushCount > 0}
@@ -47,11 +47,9 @@
         class="btn"
         data-testid="push-samples"
         disabled={!card.supported || !!kit.busy}
-        title={card.supported
-          ? `Write ${pushCount} sample file${pushCount === 1 ? '' : 's'} to SAMPLES/${samples.folder ?? ''} on the card (connects first if needed)`
-          : 'Web MIDI needs Chrome or Edge'}
+        title={midiTip(`Write ${pushCount} sample file${pushCount === 1 ? '' : 's'} to SAMPLES/${samples.folder ?? ''} on the card`, card.supported)}
         onclick={() => kit.pushToCard()}
-      >Send {pushCount} Sample{pushCount === 1 ? '' : 's'} to Card</button>
+      >Send {pushCount} sample{pushCount === 1 ? '' : 's'} to the card</button>
     {/if}
   </div>
 
@@ -85,9 +83,7 @@
          as long as the files are big, and the other one can truncate any of
          them mid-flight. Shown here too — a push from this panel does not
          need the card panel open. -->
-    <Status kind="caution" testid="kit-other-editor">
-      Another editor is talking to this Deluge. Samples written from both overwrite each other — last one wins.
-    </Status>
+    <Status kind="caution" testid="kit-other-editor">{OTHER_EDITOR_WARNING}</Status>
   {/if}
   {#if kit.busy}<Status kind="busy" testid="kit-busy">{kit.busy}… {Math.round(kit.progress * 100)}%</Status>{/if}
   {#if kit.error}<Status kind="err">{kit.error}</Status>{/if}

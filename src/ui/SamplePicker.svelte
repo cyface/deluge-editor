@@ -9,6 +9,7 @@
   import CardBrowser from './controls/CardBrowser.svelte'
   import Dialog from './controls/Dialog.svelte'
   import Status from './controls/Status.svelte'
+  import { browseSamplesTip } from './copy'
   import { takeFiles } from './filepick'
   import { card } from './state/card.svelte'
   import { samplePick as pick } from './state/samplepick.svelte'
@@ -31,14 +32,14 @@
   <input bind:this={fileInput} type="file" accept=".wav,audio/wav" hidden data-testid="sample-file-input" onchange={chooseLocal} />
   <div class="ways">
     <button type="button" class="btn go" data-testid="sample-source-local" disabled={!!pick.busy} onclick={() => fileInput?.click()}>
-      On This Computer…
+      On this computer…
     </button>
     <button
       type="button"
       class="btn"
       data-testid="sample-source-card"
       disabled={!card.supported || !!pick.busy}
-      title={card.supported ? 'Browse SAMPLES/ on the Deluge (connects first if needed)' : 'Web MIDI needs Chrome or Edge'}
+      title={browseSamplesTip(card.supported)}
       onclick={() => pick.browser.open()}
     >On the Deluge…</button>
     <button type="button" class="btn" data-testid="sample-cancel" onclick={() => pick.cancel()}>Cancel</button>
@@ -78,7 +79,7 @@
               disabled={!pick.folderHasWavs || !!pick.busy}
               title="Select all samples in this folder as new kit rows"
               onclick={() => void pick.useFolder()}
-            >All Samples in This Folder</button>
+            >All samples in this folder</button>
           {/if}
         </div>
       </CardBrowser>

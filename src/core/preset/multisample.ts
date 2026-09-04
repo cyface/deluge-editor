@@ -141,7 +141,7 @@ export interface FittedSample {
  * anything is written and `buildMultisample` writes exactly it, so what the
  * user is shown and what the oscillator gets cannot drift apart.
  */
-export function fitSamples(samples: readonly ImportSample[]): FittedSample[] {
+function fitSamples(samples: readonly ImportSample[]): FittedSample[] {
   const sorted = [...samples].sort((a, b) => a.root - b.root || a.fileName.localeCompare(b.fileName))
   const tops = midpointTopNotes(sorted.map((s) => s.root))
   // Only the last range may be unbounded; an earlier one with no band left

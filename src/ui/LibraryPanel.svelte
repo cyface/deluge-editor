@@ -18,21 +18,16 @@
   import CardBrowser, { type BrowserEntry } from './controls/CardBrowser.svelte'
   import Dialog from './controls/Dialog.svelte'
   import Status from './controls/Status.svelte'
+  import { formatBytes, formatDuration } from './format'
+  import { UI_HELP } from './help'
   import { audio } from './state/audio.svelte'
   import { card } from './state/card.svelte'
   import { library as lib, type LibraryEntry } from './state/library.svelte'
-
-  const fmtSize = (n: number): string =>
-    n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : n >= 1024 ? `${(n / 1024).toFixed(1)} KB` : `${n} B`
-  const fmtDuration = (frames: number, rate: number): string => {
-    const s = rate ? frames / rate : 0
-    return s >= 60 ? `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}` : `${s.toFixed(s < 10 ? 2 : 1)} s`
-  }
   /** The scan's status line: what it is doing, or what it covers. */
   const indexLine = $derived.by(() => {
     if (lib.scan) {
       const p = lib.scan
-      return p.phase === 'listing' ? `Listing ${xmlPath(p.path)}…` : p.total ? `Reading ${p.done + 1} of ${p.total} changed: ${xmlPath(p.path)}` : 'Nothing changed since last time'
+      return p.phase === 'listing' ? `Reading ${xmlPath(p.path)}…` : p.total ? `Reading ${p.done + 1} of ${p.total} changed: ${xmlPath(p.path)}` : 'Nothing changed since last time'
     }
     if (!lib.index) return 'References not read yet'
     const parts = ['SONGS', 'KITS', 'SYNTHS'].map((r) => `${lib.indexed[r] ?? 0} ${r.toLowerCase()}`)
@@ -50,7 +45,7 @@
   <Dialog {title} testid="library-panel" data-source={lib.source} width={720} closeDisabled={!!lib.busy} onclose={() => lib.close()}>
     {#snippet header()}
       {#if mounted}
-        <span class="port" data-testid="library-mounted" title="The card's root folder, open in this browser">{lib.mountedName ?? ''}</span>
+        <span class="port" data-testid="library-mounted" title={UI_HELP['ui.library.mounted']}>{lib.mountedName ?? ''}</span>
       {:else if card.status === 'connected'}
         <span class="port" title={card.portName}>{card.portName}{card.identity ? ` · fw ${card.identity}` : ''}</span>
       {/if}
@@ -76,14 +71,14 @@
     {:else}
       <div class="status" data-testid="library-index">
         <span class="n">{indexLine}</span>
-        <button type="button" class="btn small" disabled={!!lib.busy || !lib.ready} onclick={() => lib.rescan()} title="Re-read the files that changed since the references were read">Rescan</button>
-        <button type="button" class="btn small" disabled={!!lib.busy || !lib.ready} onclick={() => lib.rescan(true)} title="Forget the cache and read every song, kit and synth again">Rescan all</button>
+        <button type="button" class="btn small" disabled={!!lib.busy || !lib.ready} onclick={() => lib.rescan()} title={UI_HELP['ui.library.rescan']}>Rescan</button>
+        <button type="button" class="btn small" disabled={!!lib.busy || !lib.ready} onclick={() => lib.rescan(true)} title={UI_HELP['ui.library.rescanAll']}>Rescan all</button>
       </div>
 
       <div class="pathbar">
-        <button type="button" class="btn small" onclick={() => lib.up()} disabled={lib.path === '/SAMPLES' || !!lib.busy} title="Up one folder" aria-label="Up">↑</button>
+        <button type="button" class="btn small" onclick={() => lib.up()} disabled={lib.path === '/SAMPLES' || !!lib.busy} title={UI_HELP['ui.browser.up']} aria-label="Up">↑</button>
         <span class="path" data-testid="library-path">{lib.path}</span>
-        <button type="button" class="btn small" disabled={!!lib.busy || !lib.ready} onclick={() => lib.startNewFolder()} title="A new folder here">New folder</button>
+        <button type="button" class="btn small" disabled={!!lib.busy || !lib.ready} onclick={() => lib.startNewFolder()} title={UI_HELP['ui.library.newFolder']}>New folder</button>
       </div>
 
       {#if lib.newFolder !== null}
@@ -122,11 +117,11 @@
                 <button type="button" class="btn small" onclick={() => lib.cancelEdits()}>Cancel</button>
               </div>
             {:else}
-              <button type="button" class="entry" disabled={!!lib.busy} onclick={() => void lib.choose(e)} title={e.dir ? 'Open this folder' : 'Show which files use this sample'}>
+              <button type="button" class="entry" disabled={!!lib.busy} onclick={() => void lib.choose(e)} title={UI_HELP[e.dir ? 'ui.library.openFolder' : 'ui.library.usages']}>
                 <span class="n">{e.dir ? '▸ ' : ''}{e.name}</span>
-                {#if e.fixed}<span class="tag" title="The Deluge records into this folder; it stays where it is">recording</span>{/if}
-                <span class="used" class:none={e.used === 0} data-testid="library-used" title={e.used ? `Named by ${e.used} file${e.used === 1 ? '' : 's'} on the card` : 'Nothing on the card names it'}>{e.used}</span>
-                {#if !e.dir}<span class="s">{fmtSize(e.size)}</span>{/if}
+                {#if e.fixed}<span class="tag" title={UI_HELP['ui.library.recording']}>recording</span>{/if}
+                <span class="used" class:none={e.used === 0} data-testid="library-used" title={e.used ? `Named by ${e.used} file${e.used === 1 ? '' : 's'} on the card` : UI_HELP['ui.library.unused']}>{e.used}</span>
+                {#if !e.dir}<span class="s">{formatBytes(e.size)}</span>{/if}
               </button>
               <span class="actions">
                 {#if !e.dir}
@@ -135,23 +130,23 @@
                     class="act"
                     class:live={audio.playing === xmlPath(e.path)}
                     disabled={!!lib.busy || audio.loading !== null}
-                    title={audio.playing === xmlPath(e.path) ? 'Stop' : mounted ? 'Play' : 'Play (reads the sample from the card)'}
+                    title={UI_HELP[audio.playing === xmlPath(e.path) ? 'ui.preview.stop' : mounted ? 'ui.library.play' : 'ui.library.playCard']}
                     aria-label="Play"
                     onclick={() => void preview(e)}
                   >{audio.playing === xmlPath(e.path) ? '■' : audio.loading === xmlPath(e.path) ? `${Math.round(audio.progress * 100)}%` : '▶'}</button>
                 {/if}
                 {#if rowActions(e)}
-                  <button type="button" class="act" data-testid="library-rename-start" onclick={() => lib.startRename(e.name)} title="Rename, and rewrite every file that names it">Rename</button>
-                  <button type="button" class="act" data-testid="library-move-start" onclick={() => lib.startMove(e.name)} title="Move to another folder, and rewrite every file that names it">Move…</button>
+                  <button type="button" class="act" data-testid="library-rename-start" onclick={() => lib.startRename(e.name)} title={UI_HELP['ui.library.rename']}>Rename</button>
+                  <button type="button" class="act" data-testid="library-move-start" onclick={() => lib.startMove(e.name)} title={UI_HELP['ui.library.move']}>Move…</button>
                   {#if e.used === 0}
-                    <button type="button" class="act danger" data-testid="library-delete" onclick={() => lib.remove(e.name)} title="Delete — nothing on the card names it">Delete</button>
+                    <button type="button" class="act danger" data-testid="library-delete" onclick={() => lib.remove(e.name)} title={UI_HELP['ui.library.delete']}>Delete</button>
                   {/if}
                 {/if}
               </span>
             {/if}
           </li>
         {:else}
-          <li class="empty">{lib.busy ? '' : 'empty'}</li>
+          <li class="empty">{lib.busy ? '' : '(empty)'}</li>
         {/each}
       </ul>
 
@@ -164,7 +159,7 @@
             busy={!!lib.busy}
             disabledEntry={(name) => name === lib.moving}
             listHeight="140px"
-            emptyText="no folders here"
+            emptyText="(empty)"
             onUp={() => lib.destUp()}
             onOpen={(name) => void lib.browseDest(`${lib.destPath}/${name}`)}
           >
@@ -185,7 +180,7 @@
           <div class="dh">
             <b>{xmlPath(e.path)}</b>
             {#if lib.info}
-              <span class="facts">{lib.info.sampleRate} Hz · {lib.info.bitsPerSample}-bit · {lib.info.channels === 1 ? 'mono' : lib.info.channels === 2 ? 'stereo' : `${lib.info.channels} ch`} · {fmtDuration(lib.info.frames, lib.info.sampleRate)}</span>
+              <span class="facts">{lib.info.sampleRate} Hz · {lib.info.bitsPerSample}-bit · {lib.info.channels === 1 ? 'mono' : lib.info.channels === 2 ? 'stereo' : `${lib.info.channels} ch`} · {formatDuration(lib.info.frames, lib.info.sampleRate)}</span>
             {/if}
           </div>
           {#if lib.usages.length}

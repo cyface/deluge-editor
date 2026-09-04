@@ -82,7 +82,7 @@ export function usbInputZones(byCable: Record<string, MpeZones>): MpeZones {
  * written when there is something worth writing, so these defaults are what an
  * untouched Deluge is running.
  */
-export const DEFAULT_CABLE_ZONES: Readonly<Record<number, MpeZones>> = {
+const DEFAULT_CABLE_ZONES: Readonly<Record<number, MpeZones>> = {
   1: { lowerLast: 0, upperFirst: 15 },
   2: { lowerLast: 7, upperFirst: 8 },
   3: { lowerLast: 0, upperFirst: 15 },

@@ -7,7 +7,7 @@ test('roll a random patch: seeded, scoped, and every change listed', async ({ pa
   // The button needs no preset: it starts from the firmware's init synth.
   await choose(page, 'randomize-button')
   await expect(page.getByTestId('randomize-panel')).toBeVisible()
-  await expect(page.getByTestId('file-name')).toHaveText('UNNAMED')
+  await expect(page.getByTestId('file-name')).toHaveText('(unnamed)')
   await expect(page.getByTestId('change-count')).toHaveText('0')
 
   // A seeded roll is reproducible, so the test can name the patch it expects.
@@ -83,11 +83,11 @@ test('intensity and scope stay put while the panel is open, and Escape closes it
   await expect(page.locator('[data-level="wild"]')).toHaveAttribute('aria-pressed', 'true')
 })
 
-test('the generator and the arpeggiator’s own Randomiser stay distinct', async ({ page }) => {
+test('the generator and the arpeggiator’s own Randomizer stay distinct', async ({ page }) => {
   await page.goto('/')
   await choose(page, 'new-synth')
   // The firmware's note randomiser is a panel in the grid, under its own name.
-  await expect(page.locator('[data-group="random"] h2')).toHaveText('Randomiser')
+  await expect(page.locator('[data-group="random"] h2')).toHaveText('Randomizer')
   // The generator is a New menu item and a strip, and never uses that word:
   // it is called Randomize everywhere it appears.
   const item = await reveal(page, 'randomize-button')
@@ -95,7 +95,7 @@ test('the generator and the arpeggiator’s own Randomiser stay distinct', async
   await item.click()
   const strip = page.getByTestId('randomize-panel')
   await expect(strip).toBeVisible()
-  await expect(strip).not.toContainText('Randomiser')
+  await expect(strip).not.toContainText('Randomizer')
   // …and it is a strip in the flow, not something floating over the patch.
   await expect(strip).toHaveCSS('position', 'relative')
 })

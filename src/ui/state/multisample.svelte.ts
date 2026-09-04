@@ -46,6 +46,7 @@ import {
 } from '../../core/samples/roots'
 import { bufferReader, readWavInfo } from '../../core/samples/wav'
 import { ensureChild, removeAttr, setAttr } from '../../core/xml/edit'
+import { CONNECTING, NO_LONGER_LOADED, noWavs, UNREACHABLE } from '../copy'
 import { Activity } from './activity.svelte'
 import { card } from './card.svelte'
 import { CardBrowser } from './cardbrowser.svelte'
@@ -227,7 +228,7 @@ class MultisampleImport extends Activity {
     const wavs = wavsOf(picked)
     if (this.asking === null) this.start(1)
     if (wavs.length === 0) {
-      this.error = 'no .wav files in that folder — a multi-sampled synth is built from WAV samples'
+      this.error = `${noWavs('that folder')} — a multi-sampled synth is built from WAV samples`
       return
     }
     await this.run(`Reading ${count(wavs.length, 'WAV header')}`, async () => {
@@ -259,7 +260,7 @@ class MultisampleImport extends Activity {
     if (!path) return
     const wavs = this.browser.entries.filter((e) => !e.dir && isWav(e.name))
     if (wavs.length === 0) {
-      this.error = `no .wav files in ${path}`
+      this.error = noWavs(path)
       return
     }
     await this.run(`Reading ${count(wavs.length, 'WAV header')} from the card`, async () => {
@@ -288,7 +289,7 @@ class MultisampleImport extends Activity {
     const which = this.asking
     const osc = this.oscFor(which)
     if (!osc || which === null) {
-      this.error = 'the preset this import was aimed at is no longer loaded'
+      this.error = NO_LONGER_LOADED
       return
     }
     const plan = resolveRoots(files.map((f) => ({ name: f.fileName, fileRoot: f.fileRoot })))
@@ -306,7 +307,7 @@ class MultisampleImport extends Activity {
       chosen.push({ ...file, root: row.root })
     }
     if (chosen.length === 0) {
-      this.error = `nothing in ${folder ?? 'that folder'} says what note it was recorded at — no embedded root note, no note in the file name`
+      this.error = `Nothing in ${folder ?? 'that folder'} says what note it was recorded at — no embedded root note, no note in the file name`
       return
     }
 
@@ -360,7 +361,7 @@ class MultisampleImport extends Activity {
     if (!osc || !this.session) return
     const applied = shiftRanges(osc, by)
     if (applied === 0) {
-      this.notice = 'the ranges are already at the end of the keyboard'
+      this.notice = 'The ranges are already at the end of the keyboard'
       return
     }
     this.session.offset += applied
@@ -384,7 +385,7 @@ class MultisampleImport extends Activity {
     }
     const above = note >= Math.round((list[index]?.rootCents ?? 0) / 100)
     if (!insertRange(osc, index, above ? 'above' : 'below', spec)) {
-      this.error = 'that key band is one note wide — move a split first to make room'
+      this.error = 'That key band is one note wide — move a split first to make room'
       return
     }
     const at = above ? index + 1 : index
@@ -420,8 +421,8 @@ class MultisampleImport extends Activity {
    */
   private async readTags(paths: readonly string[]): Promise<{ files: SampleFile[]; unreadable: string[] }> {
     if (paths.some((p) => !samples.bytes.has(p)) && !card.connected && card.supported) {
-      this.step('Connecting to the Deluge')
-      if (!(await card.ensureConnected())) this.notice = card.error ?? 'the Deluge could not be reached'
+      this.step(CONNECTING)
+      if (!(await card.ensureConnected())) this.notice = card.error ?? UNREACHABLE
     }
     const files: SampleFile[] = []
     const unreadable: string[] = []
@@ -464,7 +465,7 @@ class MultisampleImport extends Activity {
     const list = osc ? soundingOrder(sampleRanges(osc)) : []
     const paths = [...new Set(list.map((r) => r.fileName).filter((f): f is string => !!f))]
     if (!osc || paths.length === 0) {
-      this.error = 'these ranges have no samples to read'
+      this.error = 'These ranges have no samples to read'
       return
     }
     await this.run(`Reading ${paths.length} WAV header${paths.length === 1 ? '' : 's'}`, async () => {
@@ -526,7 +527,7 @@ class MultisampleImport extends Activity {
     const plan = this.plan
     const osc = this.oscFor(plan?.which ?? null)
     if (!plan || !osc) {
-      this.error = 'the preset that was read for is no longer loaded'
+      this.error = NO_LONGER_LOADED
       this.cancelRedetect()
       return
     }
@@ -535,7 +536,7 @@ class MultisampleImport extends Activity {
     // no longer lines up would put a root on the wrong sample.
     if (list.length !== plan.rows.length || plan.rows.some((r, i) => (list[i].fileName ?? '') !== r.fileName)) {
       this.cancelRedetect()
-      this.error = 'the ranges changed while that was on screen — read them again'
+      this.error = 'The ranges changed while that was on screen — read them again'
       return
     }
     const from: Record<string, RangeRootFrom> = {}

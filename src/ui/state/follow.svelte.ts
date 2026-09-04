@@ -40,6 +40,7 @@ import { isKit } from '../../core/preset'
 import { KIT_FOLLOW_SLOTS, SOUND_FOLLOW_SLOTS, applyFollowCC, type FollowSlot } from '../../core/preset/follow'
 import { card } from './card.svelte'
 import { editor } from './editor.svelte'
+import { NEEDS_WEB_MIDI } from '../copy'
 import { errorText } from '../errtext'
 
 /** What the follow CCs are being applied to. Mirrors the instrument's AFFECT ENTIRE. */
@@ -63,7 +64,7 @@ const GLOW_FOR = 1200
  * 1" and so on, one per USB cable, and which cable a CC goes out on decides
  * whether MIDI-Follow can match it at all.
  */
-export function portNumber(name: string | null | undefined): number | null {
+function portNumber(name: string | null | undefined): number | null {
   const m = /(\d+)\s*$/.exec(name ?? '')
   return m ? Number(m[1]) : null
 }
@@ -241,7 +242,7 @@ class Follow {
     if (!this.supported) {
       this.on = true
       this.status = 'error'
-      this.error = 'Web MIDI is not available here — use Chrome or Edge.'
+      this.error = NEEDS_WEB_MIDI
       return
     }
     this.on = true
@@ -349,7 +350,7 @@ class Follow {
     if (this.out === null) this.sending = false
     if (chosen.length === 0) {
       this.status = 'error'
-      this.error = 'No MIDI input found — connect the Deluge over USB.'
+      this.error = 'No MIDI input found — connect the Deluge over USB'
     }
   }
 

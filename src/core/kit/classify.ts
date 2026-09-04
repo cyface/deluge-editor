@@ -22,7 +22,7 @@ export type DrumClass =
   | 'other'
 
 /** Row order, bottom pad first. Tim's spec: kick, snare, closed hat, open hat, then the rest. */
-export const DRUM_ORDER: readonly DrumClass[] = [
+const DRUM_ORDER: readonly DrumClass[] = [
   'kick', 'snare', 'closed-hat', 'open-hat', 'clap', 'rim', 'tom', 'crash', 'ride', 'perc', 'other',
 ]
 

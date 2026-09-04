@@ -18,6 +18,7 @@ import {
   SmsClient,
   type DirEntry,
 } from '../../core/sysex'
+import { CONNECTING, NEEDS_WEB_MIDI, otherEditorCould, UNREACHABLE } from '../copy'
 import { errorText } from '../errtext'
 import { Activity } from './activity.svelte'
 import { editor } from './editor.svelte'
@@ -197,13 +198,13 @@ class Card extends Activity {
 
   /** `ensureConnected` for a job that cannot go on without the card: connected, or the reason as an error. */
   async require(): Promise<void> {
-    if (!(await this.ensureConnected())) throw new Error(this.error ?? 'could not reach the Deluge')
+    if (!(await this.ensureConnected())) throw new Error(this.error ?? UNREACHABLE)
   }
 
   async connect(): Promise<void> {
     if (!this.supported) {
       this.status = 'error'
-      this.error = 'Web MIDI is not available here — use Chrome or Edge.'
+      this.error = NEEDS_WEB_MIDI
       return
     }
     this.status = 'connecting'
@@ -217,7 +218,7 @@ class Card extends Activity {
       if (!output || !input) {
         const seen = [...access.outputs.values()].map((o) => o.name).filter(Boolean)
         throw new Error(
-          `no Deluge MIDI port found${seen.length ? ` (saw: ${seen.join(', ')})` : ''} — connect the Deluge over USB`,
+          `No Deluge MIDI port found${seen.length ? ` (saw: ${seen.join(', ')})` : ''} — connect the Deluge over USB`,
         )
       }
       this.portName = output.name ?? 'Deluge'
@@ -252,7 +253,7 @@ class Card extends Activity {
         this.client = null
         this.busy = null
         this.status = 'error'
-        this.error = 'Deluge disconnected — reconnect over USB and retry.'
+        this.error = 'Deluge disconnected — reconnect over USB and retry'
       }
       output.send(IDENTITY_REQUEST)
       // The inquiry is one frame with no retry ladder of its own; after one
@@ -274,7 +275,7 @@ class Card extends Activity {
   }
 
   async refresh(): Promise<void> {
-    await this.run('Reading directory', () => this.list())
+    await this.run(`Reading ${this.path}`, () => this.list())
   }
 
   async enter(name: string): Promise<void> {
@@ -404,7 +405,7 @@ class Card extends Activity {
     // now. With another editor on the same Deluge, its next `open` for
     // write truncates whatever it names, so a verified save is not a
     // durable one (issue #8).
-    this.announce(this.otherEditor ? `${written} — another editor is also on this Deluge and could overwrite it` : written)
+    this.announce(this.otherEditor ? `${written} — ${otherEditorCould('it')}` : written)
     editor.markSaved(path, name)
   }
 
@@ -415,14 +416,14 @@ class Card extends Activity {
    */
   async pushSamples(activity: Activity): Promise<void> {
     if (samples.pushable.length === 0) return
-    await activity.run('Connecting to the Deluge', async () => {
+    await activity.run(CONNECTING, async () => {
       await this.require()
       activity.step('Checking the card')
       const n = await samples.syncMissingToCard(this, (label, p) => activity.step(label, p))
       // A push runs for as long as the samples are big; another editor on the
       // same Deluge can truncate any of them the moment it saves (issue #8).
-      const risky = this.otherEditor ? ' — another editor is also on this Deluge and could overwrite them' : ''
-      activity.notice = n === 0 ? 'every sample is already on the card' : `${count(n, 'sample')} written${risky}`
+      const risky = this.otherEditor ? ` — ${otherEditorCould('them')}` : ''
+      activity.notice = n === 0 ? 'Every sample is already on the card' : `${count(n, 'sample')} written${risky}`
     })
   }
 

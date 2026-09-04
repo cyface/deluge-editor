@@ -86,7 +86,7 @@ export function parseNoteName(fileName: string): number | undefined {
  * as numbers so `A2` sorts before `A10`, which is what a person naming layers
  * means and what plain byte order gets wrong (`compareNatural`).
  */
-export const byFileName: (a: string, b: string) => number = compareNatural
+const byFileName: (a: string, b: string) => number = compareNatural
 
 /**
  * The device's suspicion, reproduced: more than one file, every one of them

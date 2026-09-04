@@ -271,7 +271,7 @@ test('card: a second editor on the same Deluge is detected and warned about (iss
   // the verified save says plainly that it may not stay written.
   await page.getByTestId('card-save-name').fill('Contended.XML')
   await page.getByTestId('card-save').click()
-  await expect(page.getByTestId('card-saved')).toContainText('Contended.XML written — another editor is also on this Deluge')
+  await expect(page.getByTestId('card-saved')).toContainText('Contended.XML written — another editor is talking to this Deluge')
   const onCard = await page.evaluate(() =>
     (globalThis as unknown as { __fakeCard: { files: Map<string, unknown> } }).__fakeCard.files.has('/SYNTHS/Contended.XML'),
   )

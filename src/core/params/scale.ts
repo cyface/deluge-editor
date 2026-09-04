@@ -97,20 +97,20 @@ export const formatCable = (menu: number): string =>
 // `release >> 3, releaseRateTable`) and writes `table[i] << 2` / `<< 3`.
 // Tables: `src/deluge/util/lookuptables/lookuptables.cpp`.
 
-export const ATTACK_RATE_TABLE = [
+const ATTACK_RATE_TABLE = [
   262144, 221969, 187951, 159147, 134757, 114105, 96618, 81811, 69273, 58656, 49667, 42055, 35610, 30153,
   25532, 21619, 18306, 15500, 13125, 11113, 9410, 7968, 6747, 5713, 4837, 4096, 3468, 2937, 2487, 2106,
   1783, 1510, 1278, 1082, 917, 776, 657, 556, 471, 399, 338, 286, 242, 205, 174, 147, 124, 105, 89, 76, 64,
 ] as const
 
-export const RELEASE_RATE_TABLE = [
+const RELEASE_RATE_TABLE = [
   32691, 4604, 2444, 1648, 1234, 980, 809, 685, 592, 519, 460, 412, 372, 338, 309, 283, 261, 241, 224, 208,
   194, 181, 169, 159, 149, 140, 132, 124, 117, 110, 104, 98, 93, 88, 83, 78, 74, 70, 66, 62, 59, 56, 53, 50,
   47, 44, 41, 39, 36, 34, 32,
 ] as const
 
 /** `getLookupIndexFromValue` (`util/functions.cpp`): the first index at the smallest distance. */
-export function nearestIndex(value: number, table: readonly number[]): number {
+function nearestIndex(value: number, table: readonly number[]): number {
   let best = Infinity
   let index = 0
   table.forEach((t, i) => {
@@ -145,7 +145,7 @@ export const knobToBlend = (k: number): number => (k >= 128 ? INT32_MAX : knobTo
 // `-1` (0xFFFFFFFF) means off and angles from 180° appear negative. The menu
 // shows degrees: `value / 11930464` (`gui/menu_item/osc/retrigger_phase.h`).
 
-export const RETRIG_OFF = -1
+const RETRIG_OFF = -1
 export function retrigToDegrees(v: number): number {
   const u = v >>> 0
   return u === 0xffffffff ? RETRIG_OFF : Math.floor(u / 11930464)
