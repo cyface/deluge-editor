@@ -13,6 +13,20 @@
   --lfo1: #3fc9c2; --lfo2: #4fa8e8; --env1: #93d152; --env2: #c9e05a; --vel: #e85f9c; --note: #b06ce8;
   --at: #e8863f; --rnd: #8a8f9c; --sc: #e8563f;
   --ok: #67c45c; --warn: #e8b13f; --bad: #e8563f;
+  /* Surfaces below the panel face: a well an input or list sits in, a raised
+     button face, and the lighter face a menu or a cable row stands on. */
+  --well: #0d0b0a; --raised: #141210; --raised-hi: #1b1815;
+  /* Text a step brighter than --text: headings, and the entries of a list. */
+  --text-hi: #e2d9ca; --text-list: #ddd3c2;
+  /* Status lines: the text, the border and the fill of the boxed kinds. */
+  --bad-text: #e8a08f; --bad-edge: #5a2a22; --bad-bg: #1d1210;
+  --warn-text: #e8b06a; --warn-edge: #6b4a1c; --warn-bg: #1d1710;
+  --ok-text: #9ed492; --ok-edge: #2f4a2c; --ok-bg: #101710;
+  --busy-text: #cfe3c9;
+  /* Two radii: controls and boxes, and the sheets (dialogs, panels). */
+  --r-s: 3px; --r-l: 5px;
+  /* Three condensed label sizes: a table head or hint, a field label, a heading. */
+  --lbl-s: 9.5px; --lbl-m: 10.5px; --lbl-l: 12px;
   --sans: 'Barlow', system-ui, sans-serif;
   --cond: 'Barlow Condensed', 'Barlow', system-ui, sans-serif;
   --mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
@@ -27,7 +41,11 @@
 html, body { margin: 0; background: var(--ink); color: var(--text); }
 body { font-family: var(--sans); font-size: 13px; line-height: 1.45; min-height: 100vh; }
 :focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
-@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+  /* The Follow glow ring is a transition; with none, a static ring stands in for it. */
+  .slot.lit { outline: 2px solid var(--ok); outline-offset: 0; }
+}
 ::-webkit-scrollbar { width: 9px; height: 9px; }
 ::-webkit-scrollbar-thumb { background: #2a251f; border-radius: 5px; }
 ::-webkit-scrollbar-track { background: #100e0c; }
@@ -74,11 +92,18 @@ button { font-family: inherit; }
 .btn:hover { border-color: var(--brass-dim); color: var(--brass-hi); background: #221d17; }
 .btn.on { background: linear-gradient(180deg, #3d2f15, #251c0e); border-color: var(--brass-dim); color: var(--brass-hi); }
 .btn:disabled { opacity: .4; cursor: default; }
+/* The primary action of a dialog or a row of choices: warm, since most of them write something. */
+.btn.go { background: var(--warn-bg); border-color: #8a5a2a; color: var(--warn-text); }
+.btn.go:hover:not(:disabled) { border-color: var(--warn-text); color: #f2c68a; }
 .btn.small { height: 22px; padding: 0 8px; font-size: 10.5px; }
+/* A bare close cross, for a header or a row. */
+.x { background: none; border: 0; color: var(--faint); font-size: 15px; line-height: 1; cursor: pointer; padding: 0 2px; }
+.x:hover:not(:disabled) { color: var(--brass-hi); }
+.x:disabled { opacity: .4; cursor: default; }
 .badge { display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; height: 15px; min-width: 15px; padding: 0 4px; border-radius: 8px; font-family: var(--mono); font-size: 10px; line-height: 1; letter-spacing: 0; background: var(--brass); color: #1a1408; }
 
 .f { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-.f label { font-family: var(--cond); font-size: 10px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.f label, .f > .lbl { font-family: var(--cond); font-size: 10px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
 .f select, .f input, .f .ro {
   background: #100e0c; border: 1px solid var(--edge-hi); border-radius: 3px; color: #ddd4c4;
   font-family: var(--mono); font-size: 11px; width: 100%; height: 28px; line-height: 26px; padding: 0 7px; margin: 0;
@@ -111,6 +136,40 @@ button { font-family: inherit; }
 .seg button.on { background: linear-gradient(180deg, #3d2f15, #251c0e); border-color: var(--brass-dim); color: var(--brass-hi); }
 .seg button.idle { opacity: .45; }
 .seg button i { position: absolute; top: 3px; right: 3px; width: 5px; height: 5px; border-radius: 50%; background: var(--d); }
+.seg.flush { margin: 0; }
+/* The selection is the file's default rather than a value it holds: dimmed, not italic — small caps stay legible. */
+.seg.default button.on { opacity: .75; }
+
+/* ---------- status lines: one face per kind ---------- */
+.msg { margin: 8px 0 0 4px; font-family: var(--mono); font-size: 10.5px; line-height: 1.4; }
+.msg.busy { color: var(--busy-text); }
+.msg.ok { color: var(--ok-text); }
+.msg.err, .msg.notice, .msg.caution { padding: 5px 7px; border: 1px solid; border-radius: var(--r-s); word-break: break-word; }
+.msg.err { color: var(--bad-text); border-color: var(--bad-edge); background: var(--bad-bg); }
+.msg.notice { color: var(--ok-text); border-color: var(--ok-edge); background: var(--ok-bg); }
+.msg.caution { font-family: var(--cond); font-size: 11px; line-height: 1.3; color: var(--warn-text); border-color: var(--warn-edge); background: var(--warn-bg); }
+
+/* ---------- the connected dot ---------- */
+.dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--dot, var(--ok)); box-shadow: 0 0 6px var(--dot, var(--ok)); flex: none; }
+.dot.amber { --dot: var(--warn-text); }
+.dot.pulse { animation: dotpulse 1.2s ease-in-out infinite; }
+@keyframes dotpulse { 0%, 100% { opacity: 1; } 50% { opacity: .25; } }
+
+/* ---------- a panel's or a dock's header ---------- */
+.ph { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin: 0 0 4px 4px; min-height: 18px; }
+/* The title never wraps; a long summary gives way (ellipsis) instead. */
+.ph h2 { margin: 0; font-family: var(--cond); font-size: var(--lbl-l); font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: var(--text-hi); white-space: nowrap; }
+.ph .sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ph .acts { display: flex; align-items: center; gap: 6px; flex: none; margin-left: auto; }
+
+/* ---------- a card browser's path bar ---------- */
+.pathbar { display: flex; align-items: center; gap: 7px; margin-bottom: 6px; }
+.pathbar .path { flex: 1; min-width: 0; font-family: var(--mono); font-size: 11px; color: var(--busy-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* A parameter the instrument just moved (Follow Mode): a brief ring, so a knob
+   sweep is visible even when the number lands on the step it was already showing. */
+.slot { display: inline-flex; border-radius: 6px; box-shadow: 0 0 0 0 rgba(103, 196, 92, 0); transition: box-shadow .35s ease-out; }
+.slot.lit { box-shadow: 0 0 0 2px rgba(103, 196, 92, .55); }
 
 .graph { margin: 8px 0 0 4px; background: #08090a; border: 1px solid var(--edge); border-radius: 3px; position: relative; touch-action: none; }
 .graph svg { display: block; width: 100%; }

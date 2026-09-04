@@ -1,4 +1,4 @@
-import { atLeast, parseVersion, type FirmwareVersion, type Lineage } from './version'
+import { atLeast, parseVersion, type FirmwareVersion } from './version'
 
 /**
  * Minimum firmware per lineage that supports a feature. A lineage that is
@@ -343,10 +343,13 @@ export const LFO_SCOPE = {
   lfo4: 'voice',
 } as const satisfies Record<string, 'global' | 'voice'>
 
+/** The table widened for lookup by an arbitrary string, so an unknown feature reads as absent. */
+const FEATURE_TABLE: Readonly<Record<string, FeatureSupport | undefined>> = FEATURES
+
 /** Does `version` support `feature`? Unknown features are unsupported, never an error. */
 export function supports(version: FirmwareVersion, feature: string): boolean {
-  const f = (FEATURES as Record<string, FeatureSupport>)[feature]
+  const f = FEATURE_TABLE[feature]
   if (!f) return false
-  const min = f[version.lineage as Lineage]
+  const min = f[version.lineage]
   return min !== undefined && atLeast(version, parseVersion(min))
 }

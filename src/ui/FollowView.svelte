@@ -23,6 +23,7 @@
   import type { ModFxType } from '../core/preset/enums'
   import { KIT_ATTR_ORDER, SOUND_ATTR_ORDER } from '../core/preset/order'
   import { setAttr } from '../core/xml'
+  import FollowHeader from './FollowHeader.svelte'
   import FollowHelp from './FollowHelp.svelte'
   import Select from './controls/Select.svelte'
   import { modFxOptions } from './options'
@@ -35,7 +36,7 @@
   import Seg from './controls/Seg.svelte'
   import { KIT_GROUP, groupOf, gridGroups, type Group } from './groups'
   import { HELP } from './help'
-  import { GAP, MAX_COL, columnCount, splitStacks } from './masonry'
+  import { GAP, MAX_COL, columnCount, heightMeasurer, splitStacks } from './masonry'
   import { editor } from './state/editor.svelte'
   import { follow } from './state/follow.svelte'
 
@@ -103,25 +104,7 @@
     splitStacks(blocks, blocks.map((b) => (heights[b.group.id] ?? FALLBACK_HEIGHT) + GAP), cols),
   )
 
-  const observed = new Map<Element, string>()
-  const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver((entries) => {
-    for (const e of entries) {
-      const id = observed.get(e.target)
-      if (id === undefined) continue
-      const h = e.contentRect.height
-      if (Math.abs((heights[id] ?? -1) - h) > 0.5) heights[id] = h
-    }
-  })
-  function measure(node: HTMLElement, id: string) {
-    observed.set(node, id)
-    ro?.observe(node)
-    return {
-      destroy() {
-        observed.delete(node)
-        ro?.unobserve(node)
-      },
-    }
-  }
+  const measure = heightMeasurer(heights)
 
   /*
    * Every panel whose picture is the control keeps it: the filter response,
@@ -154,21 +137,20 @@
    */
   const envs = $derived([1, 2, 3, 4].filter((n) => follow.slots.some((e) => e.name.startsWith(`env${n}`))))
   const lfos = $derived([1, 2, 3, 4].filter((n) => follow.slots.some((e) => e.name === `lfo${n}Rate`)))
-  let envSel = $state(1)
-  let lfoSel = $state(1)
-  $effect(() => {
-    if (envs.length && !envs.includes(envSel)) envSel = envs[0]
-  })
-  $effect(() => {
-    if (lfos.length && !lfos.includes(lfoSel)) lfoSel = lfos[0]
-  })
+  // The pick is what was last chosen — by a tab or by the instrument — and
+  // the selection is that pick clamped to the tabs this map has, so a map
+  // change never shows a tab that is not there, and never a frame late.
+  let envPick = $state(1)
+  let lfoPick = $state(1)
+  const envSel = $derived(envs.includes(envPick) ? envPick : (envs[0] ?? 1))
+  const lfoSel = $derived(lfos.includes(lfoPick) ? lfoPick : (lfos[0] ?? 1))
   $effect(() => {
     const name = follow.last?.param
     if (!name) return
     const env = /^env([1-4])/.exec(name)
-    if (env) envSel = Number(env[1])
+    if (env) envPick = Number(env[1])
     const lfo = /^lfo([1-4])Rate$/.exec(name)
-    if (lfo) lfoSel = Number(lfo[1])
+    if (lfo) lfoPick = Number(lfo[1])
   })
 
   /*
@@ -267,81 +249,9 @@
   })
 
   let helpOpen = $state(false)
-
-  const channels = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
-  const sendChannels = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
-  const lastLine = $derived.by(() => {
-    const l = follow.last
-    if (!l) return 'nothing heard yet'
-    return `ch ${l.channel} · CC ${l.cc} = ${l.value} → ${l.param ? paramLabel(l.param) : 'unmapped'}`
-  })
 </script>
 
-<section class="hdr" data-testid="follow-header">
-  <div class="row">
-    <span class="tag" class:live={follow.status === 'listening'}>{follow.status === 'listening' ? 'Following' : follow.status === 'error' ? 'Not listening' : 'Off'}</span>
-    <label class="pick" title={HELP['follow.channel']}>
-      Listen on
-      <select data-testid="follow-channel" bind:value={follow.channel}>
-        {#each channels as c (c)}<option value={c}>{c === 0 ? 'Any' : c}</option>{/each}
-      </select>
-    </label>
-    <span class="rule" aria-hidden="true"></span>
-    <!-- The other direction, and the one that can do harm: this writes into
-         the sound the instrument has live (docs/decisions.md). It sits beside
-         the listening channel because the two channels are the thing to get
-         right, and a CC that misses Midi-Follow is still a CC the instrument
-         acts on. -->
-    <button
-      type="button"
-      class="sendbtn"
-      class:on={follow.sending}
-      data-testid="follow-send"
-      aria-pressed={follow.sending}
-      disabled={follow.sendPort === null}
-      title={follow.sendPort === null ? 'No Deluge MIDI output found. Sending goes only to a port named Deluge, so a CC cannot land on another instrument.' : HELP['follow.send']}
-      onclick={() => (follow.sending = !follow.sending)}
-    >Send</button>
-    <label class="pick" title={HELP['follow.sendChannel']}>
-      Send on
-      <!-- Heard is the default and the only setting that is right whatever the
-           instrument's follow channel is set to, an MPE zone included. -->
-      <select data-testid="follow-send-channel" disabled={!follow.sending} bind:value={follow.sendChannel}>
-        <option value="auto">Heard{follow.heardChannel === null ? '' : ` · ${follow.heardChannel}`}</option>
-        {#each sendChannels as c (c)}<option value={c}>{c}</option>{/each}
-      </select>
-    </label>
-    {#if kit}
-      <span class="rule" aria-hidden="true"></span>
-      <!-- The instrument routes a kit clip's follow CCs by AFFECT ENTIRE: on,
-           they reach the kit bus; off, the selected row's sound
-           (`MidiFollow::getModelStackWithParamForKitClip`). Nothing on the wire
-           says which, so it is set here to match the instrument. -->
-      <div class="target" role="group" aria-label="Follow target" title={HELP['follow.target']}>
-        <button type="button" class:on={!onBus} data-testid="follow-target-row" onclick={() => (follow.target = 'row')}>Selected row</button>
-        <button type="button" class:on={onBus} data-testid="follow-target-bus" onclick={() => (follow.target = 'bus')}>Kit bus</button>
-      </div>
-    {/if}
-    <span class="last" data-testid="follow-last">{lastLine}</span>
-    <button type="button" class="helpbtn" data-testid="follow-help-button" onclick={() => (helpOpen = true)}>Help</button>
-  </div>
-  {#if follow.error}
-    <p class="err" role="alert" data-testid="follow-error">{follow.error}</p>
-  {:else if follow.sending}
-    <!-- One line, only while the hazard is live. The rest of the explanation
-         is behind the help button, where it is not in the way. -->
-    <p class="sendwarn" data-testid="follow-send-warning">
-      {#if follow.outChannel === null}
-        Waiting to hear the Deluge before sending. Open a clip or turn a knob on the Deluge, and the
-        channel its feedback arrives on becomes the channel sends go out on.
-      {:else}
-        Sending on {follow.sendPort} channel {follow.outChannel} — this changes the sound the Deluge has
-        live.{#if !follow.deviceChecked} Read the Deluge’s settings from the help sheet if it does not
-        respond: which of its USB ports a CC goes out on decides whether Midi-Follow accepts it.{/if}
-      {/if}
-    </p>
-  {/if}
-</section>
+<FollowHeader kit={kit !== undefined} onhelp={() => (helpOpen = true)} />
 
 {#if helpOpen}<FollowHelp onclose={() => (helpOpen = false)} />{/if}
 
@@ -419,7 +329,7 @@
                     title: n === 1 ? 'Envelope 1 is hardwired to volume' : `Envelope ${n}`,
                   }))}
                   selected={envSel}
-                  onselect={(n) => (envSel = n)}
+                  onselect={(n) => (envPick = n)}
                 />
                 <EnvGraph sound={root as SoundElement} selected={envSel} available={envs} />
                 <div class="knobrow">
@@ -430,7 +340,7 @@
                   <Seg
                     items={lfos.map((n) => ({ id: n, label: String(n), title: `LFO ${n}` }))}
                     selected={lfoSel}
-                    onselect={(n) => (lfoSel = n)}
+                    onselect={(n) => (lfoPick = n)}
                   />
                   <LfoGraph sound={root as SoundElement} selected={lfoSel as 1 | 2 | 3 | 4} available={lfos} />
                   <div class="knobrow">
@@ -467,37 +377,8 @@
 {/if}
 
 <style>
-  .hdr { margin: 12px 0 0; border: 1px solid var(--edge); border-radius: 4px; background: linear-gradient(180deg, var(--panel2), var(--panel)); padding: 9px 12px 10px; }
-  .row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
-  .tag { font-family: var(--cond); font-size: 11px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); }
-  .tag.live { color: #9ed492; }
-  .tag.live::before { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 6px var(--ok); margin-right: 7px; vertical-align: 1px; animation: pulse 1.6s ease-in-out infinite; }
-  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
-  .pick { font-family: var(--cond); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; }
-  .pick select { background: #141210; border: 1px solid var(--edge-hi); border-radius: 3px; color: var(--text); font-family: var(--mono); font-size: 10.5px; padding: 2px 4px; }
-  .target { display: inline-flex; border: 1px solid var(--edge-hi); border-radius: 3px; overflow: hidden; }
-  .target button { background: #141210; border: 0; color: var(--muted); font-family: var(--cond); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; padding: 3px 9px; cursor: pointer; }
-  .target button + button { border-left: 1px solid var(--edge-hi); }
-  .target button.on { background: var(--brass-face); color: var(--brass-hi); }
-  .last { font-family: var(--mono); font-size: 10.5px; color: var(--muted); margin-left: auto; }
-  .rule { width: 1px; height: 17px; background: var(--edge-hi); }
-  .sendbtn { height: 22px; padding: 0 10px; border-radius: 3px; border: 1px solid var(--edge-hi); background: #141210; color: var(--muted); font-family: var(--cond); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; cursor: pointer; }
-  .sendbtn:hover:not(:disabled) { color: var(--text); border-color: var(--brass); }
-  .sendbtn:disabled { opacity: .45; cursor: default; }
-  /* Sending writes to the instrument, so it wears the warning colour the card
-     panel uses for "this may not stay as you left it", not the calm green. */
-  .sendbtn.on { background: #1d1710; border-color: #6b4a1c; color: #e8b06a; }
-  .err { margin: 8px 0 0; font-family: var(--mono); font-size: 11px; color: #e8a08f; }
-  /* The one line of prose the header keeps, and only while sending is on. */
-  .sendwarn { margin: 8px 0 0; font-size: 11.5px; line-height: 1.5; color: #e8b06a; }
-  .helpbtn { height: 22px; padding: 0 10px; border-radius: 3px; border: 1px solid var(--edge-hi); background: #141210; color: var(--muted); font-family: var(--cond); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; cursor: pointer; }
-  .helpbtn:hover { color: var(--text); border-color: var(--brass); }
   /* Mod FX's one-line reason, inside the panel rather than the header. */
   .gate { margin: 8px 0 0; font-size: 11px; color: var(--faint); line-height: 1.5; }
   .grid { padding: 10px 0 0; display: grid; align-items: start; }
   .stack { min-width: 0; }
-  /* A parameter the instrument just moved: a brief ring, so a knob sweep is
-     visible even when the number lands on the step it was already showing. */
-  .slot { display: inline-flex; border-radius: 6px; box-shadow: 0 0 0 0 rgba(103, 196, 92, 0); transition: box-shadow .35s ease-out; }
-  .slot.lit { box-shadow: 0 0 0 2px rgba(103, 196, 92, .55); }
 </style>

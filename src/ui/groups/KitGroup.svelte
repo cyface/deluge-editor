@@ -5,7 +5,7 @@
    * (Mod FX, Distortion, Delay, Reverb) so the same control reads the same
    * everywhere — only the values live in the kit's XML, not the row's.
    */
-  import { DELAY_ATTR_ORDER, KIT_ATTR_ORDER, KIT_CHILD_ORDER, KIT_DELAY_ATTR_ORDER, KIT_FILTER_ATTR_ORDER, KIT_PARAMS_CHILD_ORDER, KIT_PARAM_ATTRS, SIDECHAIN_ATTR_ORDER, type KitElement } from '../../core/preset'
+  import { KIT_ATTR_ORDER, KIT_CHILD_ORDER, KIT_DELAY_ATTR_ORDER, KIT_FILTER_ATTR_ORDER, KIT_PARAMS_CHILD_ORDER, KIT_PARAM_ATTRS, SIDECHAIN_ATTR_ORDER, type KitElement } from '../../core/preset'
   import { menuToSidechainAttack, menuToSidechainRelease, sidechainAttackToMenu, sidechainReleaseToMenu } from '../../core/params/scale'
   import { hexToMenu, menuToHex } from '../../core/preset/sound'
   import { child, ensureChild, setAttr } from '../../core/xml'
@@ -13,10 +13,11 @@
   import HexKnob from '../controls/HexKnob.svelte'
   import IntKnob from '../controls/IntKnob.svelte'
   import Select from '../controls/Select.svelte'
-  import Toggle from '../controls/Toggle.svelte'
   import { HELP, KIT_BUS_NOTE, paramHelp } from '../help'
-  import { hpfModeOptions, lpfModeOptions, modFxOptions, routeOptions, syncLevelOptions, syncTypeOptions } from '../options'
+  import { modFxOptions } from '../options'
   import { editor } from '../state/editor.svelte'
+  import DelayFields from './DelayFields.svelte'
+  import FilterModeFields from './FilterModeFields.svelte'
 
   interface Props { kit: KitElement }
   let { kit }: Props = $props()
@@ -29,6 +30,8 @@
   const D = () => ensureChild(kit, 'delay', KIT_CHILD_ORDER)
   const sc = $derived(child(kit, 'sidechain') ?? child(kit, 'compressor'))
   const set = (name: string) => (v: string) => setAttr(kit, name, v, KIT_ATTR_ORDER)
+  /** The one element the bus keeps for the sidechain: `<sidechain>` on community ≥ 1.1, `<compressor>` before. */
+  const SC = () => ensureChild(kit, editor.supports('sidechainTag') ? 'sidechain' : 'compressor', KIT_CHILD_ORDER)
   /**
    * The same control's description as on a sound, plus what the kit bus makes
    * of it (issue #20). The knobs here hang off `<lpf>`/`<delay>` children
@@ -54,15 +57,7 @@
 </script>
 
 <FilterGraph {filters} />
-<div class="fields">
-  <Select label="LPF Mode" name="kit.lpfMode" value={kit.attrs.lpfMode} options={lpfModeOptions(editor.supports)} title={bus('sound.lpfMode')} onchange={set('lpfMode')} />
-  {#if editor.supports('hpfMode')}
-    <Select label="HPF Mode" name="kit.hpfMode" value={kit.attrs.hpfMode} options={hpfModeOptions()} title={bus('sound.hpfMode')} onchange={set('hpfMode')} />
-  {/if}
-  {#if editor.supports('filterRoute')}
-    <Select label="Routing" name="kit.filterRoute" value={kit.attrs.filterRoute} options={routeOptions()} title={bus('sound.filterRoute')} onchange={set('filterRoute')} />
-  {/if}
-</div>
+<FilterModeFields attrs={kit.attrs} prefix="kit." tip={bus} onchange={(name, v) => set(name)(v)} />
 <div class="knobrow">
   <HexKnob el={lpf} ensure={() => ensureChild(P(), 'lpf', KIT_PARAMS_CHILD_ORDER)} attr="frequency" label="LPF Freq" order={KIT_FILTER_ATTR_ORDER} title={bus('lpfFrequency')} />
   <HexKnob el={lpf} ensure={() => ensureChild(P(), 'lpf', KIT_PARAMS_CHILD_ORDER)} attr="resonance" label="LPF Res" order={KIT_FILTER_ATTR_ORDER} title={bus('lpfResonance')} />
@@ -98,14 +93,7 @@
   <HexKnob el={dly} ensure={() => ensureChild(P(), 'delay', KIT_PARAMS_CHILD_ORDER)} attr="rate" label="Time" order={KIT_DELAY_ATTR_ORDER} title={bus('delayRate')} />
   <HexKnob el={dly} ensure={() => ensureChild(P(), 'delay', KIT_PARAMS_CHILD_ORDER)} attr="feedback" label="Feedback" order={KIT_DELAY_ATTR_ORDER} title={bus('delayFeedback')} />
 </div>
-<div class="fields">
-  <Select label="Sync" name="kit.delay.syncLevel" value={delay?.attrs.syncLevel} options={syncLevelOptions()} title={bus('delay.syncLevel')} onchange={(v) => setAttr(D(), 'syncLevel', v, DELAY_ATTR_ORDER)} />
-  {#if editor.supports('syncType')}
-    <Select label="Sync Type" name="kit.delay.syncType" value={delay?.attrs.syncType} options={syncTypeOptions()} title={bus('delay.syncType')} onchange={(v) => setAttr(D(), 'syncType', v, DELAY_ATTR_ORDER)} />
-  {/if}
-  <div class="f"><span class="lbl">Stereo</span><Toggle label="Ping-pong" name="kit.delay.pingPong" value={delay?.attrs.pingPong} title={bus('delay.pingPong')} onchange={(v) => setAttr(D(), 'pingPong', v, DELAY_ATTR_ORDER)} /></div>
-  <div class="f"><span class="lbl">Character</span><Toggle label="Analog" name="kit.delay.analog" value={delay?.attrs.analog} title={bus('delay.analog')} onchange={(v) => setAttr(D(), 'analog', v, DELAY_ATTR_ORDER)} /></div>
-</div>
+<DelayFields {delay} ensure={D} prefix="kit." tip={bus} />
 
 <div class="h3">Reverb</div>
 <div class="knobrow">
@@ -114,11 +102,7 @@
 
 <div class="h3">Sidechain</div>
 <div class="knobrow">
-  <IntKnob el={sc} ensure={() => ensureChild(kit, editor.supports('sidechainTag') ? 'sidechain' : 'compressor', KIT_CHILD_ORDER)} attr="attack" label="Attack" read={sidechainAttackToMenu} write={menuToSidechainAttack} order={SIDECHAIN_ATTR_ORDER} title={bus('sidechain.attack')} />
-  <IntKnob el={sc} ensure={() => ensureChild(kit, editor.supports('sidechainTag') ? 'sidechain' : 'compressor', KIT_CHILD_ORDER)} attr="release" label="Release" read={sidechainReleaseToMenu} write={menuToSidechainRelease} order={SIDECHAIN_ATTR_ORDER} title={bus('sidechain.release')} />
+  <IntKnob el={sc} ensure={SC} attr="attack" label="Attack" read={sidechainAttackToMenu} write={menuToSidechainAttack} order={SIDECHAIN_ATTR_ORDER} title={bus('sidechain.attack')} />
+  <IntKnob el={sc} ensure={SC} attr="release" label="Release" read={sidechainReleaseToMenu} write={menuToSidechainRelease} order={SIDECHAIN_ATTR_ORDER} title={bus('sidechain.release')} />
   <HexKnob el={params} ensure={P} attr="sidechainCompressorShape" label="Shape" order={KIT_PARAM_ATTRS} title={bus('compressorShape')} />
 </div>
-
-<style>
-  .lbl { font-family: var(--cond); font-size: 10px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
-</style>

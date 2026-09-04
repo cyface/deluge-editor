@@ -7,7 +7,7 @@
 import { hexToInt } from '../params/hex'
 import { standardToMenu } from '../params/scale'
 import { child } from '../xml/element'
-import { isKit, isSound, drumRows } from './index'
+import { drumRows, isKit, isSound } from './rows'
 import {
   FILTER_MODE_SHORT,
   FILTER_MODE_WORDS,

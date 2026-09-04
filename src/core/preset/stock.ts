@@ -5,13 +5,7 @@
  *
  * Everything here is read from firmware source, not derived from fixtures:
  *
- * - Mod (gold) knob layout: `Sound::Sound()` constructor,
- *   `src/deluge/processing/sound/sound.cpp` (`beta` e7bae539); identical
- *   in official 4.1.4 (`synthstrom-official` branch, `src/sound.cpp`), so one
- *   table serves every supported firmware. XML names via
- *   `params::paramNameForFile` (`src/deluge/modulation/params/param.cpp`);
- *   `PatchSource::SIDECHAIN` serializes as "compressor" and `LFO_GLOBAL_1`
- *   as "lfo1".
+ * - Mod (gold) knob layout: `STOCK_MOD_KNOBS` in `modknobs.ts`, cited there.
  * - Envelopes: two firmware-authored forms exist. Loading a file runs
  *   `Sound::createParamManagerForLoading` → `initParams` first, so a missing
  *   attribute keeps `initParams`' value — env 2 (firmware `ENV_1`) is user
@@ -28,38 +22,12 @@
 
 import { hexToInt } from '../params/hex'
 import { standardToMenu } from '../params/scale'
-import type { ParamName, SoundParamAttr } from './params'
+import { STOCK_MOD_KNOBS } from './modknobs'
+import type { SoundParamAttr } from './params'
 import { envelopeMenu, lfo, modKnobs, paramMenu } from './sound'
 import type { ModKnobElement, SoundElement } from './types'
-import type { PatchSource } from './enums'
 
-export interface StockModKnob {
-  controlsParam: ParamName
-  patchAmountFromSource?: PatchSource
-}
-
-/**
- * The 16 stock gold-knob assignments in serializer order: 8 pages × 2 knobs,
- * bottom knob (`modKnobs[page][0]`) written first.
- */
-export const STOCK_MOD_KNOBS: readonly StockModKnob[] = [
-  { controlsParam: 'pan' },
-  { controlsParam: 'volumePostFX' },
-  { controlsParam: 'lpfResonance' },
-  { controlsParam: 'lpfFrequency' },
-  { controlsParam: 'env1Release' },
-  { controlsParam: 'env1Attack' },
-  { controlsParam: 'delayFeedback' },
-  { controlsParam: 'delayRate' },
-  { controlsParam: 'reverbAmount' },
-  { controlsParam: 'volumePostReverbSend', patchAmountFromSource: 'compressor' },
-  { controlsParam: 'pitch', patchAmountFromSource: 'lfo1' },
-  { controlsParam: 'lfo1Rate' },
-  { controlsParam: 'portamento' },
-  { controlsParam: 'stutterRate' },
-  { controlsParam: 'bitcrushAmount' },
-  { controlsParam: 'sampleRateReduction' },
-]
+export { STOCK_MOD_KNOBS, type StockModKnob } from './modknobs'
 
 /**
  * The knobs this file reassigned. A knob deviates when its param or its
@@ -81,8 +49,8 @@ export function modKnobDeviations(sound: SoundElement): ModKnobElement[] {
 type EnvN = 1 | 2 | 3 | 4
 type AdsrMenu = readonly [number, number, number, number]
 
-const adsr = (a: string, d: string, s: string, r: string): AdsrMenu =>
-  [a, d, s, r].map((h) => standardToMenu(hexToInt(h))) as unknown as AdsrMenu
+const menu = (hex: string): number => standardToMenu(hexToInt(hex))
+const adsr = (a: string, d: string, s: string, r: string): AdsrMenu => [menu(a), menu(d), menu(s), menu(r)]
 
 /** What a stage holds when the file omits it (`initParams`, else raw 0). */
 const ENV_LOAD_DEFAULT: Record<EnvN, AdsrMenu> = {

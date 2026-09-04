@@ -70,6 +70,17 @@ export function insertChild(parent: XmlElement, child: XmlElement, order?: reado
   else parent.children.splice(at, 0, child)
 }
 
+/**
+ * Put `ordered` — some of `parent`'s children, in the order wanted — into the
+ * slots those same children occupy now, so a sibling not in the list keeps
+ * its place. `ordered` must hold each listed child exactly once.
+ */
+export function reorderChildren(parent: XmlElement, ordered: readonly XmlElement[]): void {
+  const moving = new Set(ordered)
+  let next = 0
+  parent.children = parent.children.map((c) => (moving.has(c) ? ordered[next++] : c))
+}
+
 export function removeChild(parent: XmlElement, child: XmlElement): void {
   const i = parent.children.indexOf(child)
   if (i >= 0) parent.children.splice(i, 1)

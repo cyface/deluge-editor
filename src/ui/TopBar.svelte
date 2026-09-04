@@ -11,23 +11,19 @@
   import Mark from './Mark.svelte'
   import Menu from './controls/Menu.svelte'
   import MenuItem from './controls/MenuItem.svelte'
+  import { takeFiles } from './filepick'
+  import { saveBlob } from './saveblob'
 
   let fileInput: HTMLInputElement | undefined = $state()
   async function pick(e: Event) {
-    const input = e.currentTarget as HTMLInputElement
-    const f = input.files?.[0]
-    if (!f) return
-    editor.load(await f.text(), f.name)
-    input.value = ''
+    const [f] = takeFiles(e)
+    if (f) editor.load(await f.text(), f.name)
   }
   function download() {
-    const blob = new Blob([editor.output], { type: 'application/xml' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = editor.fileName || editor.suggestedFileName || `${editor.preset?.tag === 'kit' ? 'KIT' : 'SYNTH'}.XML`
-    a.click()
-    URL.revokeObjectURL(url)
+    saveBlob(
+      editor.fileName || editor.suggestedFileName || `${editor.preset?.tag === 'kit' ? 'KIT' : 'SYNTH'}.XML`,
+      new Blob([editor.output], { type: 'application/xml' }),
+    )
   }
   const kind = $derived(editor.preset?.tag === 'kit' ? 'Kit' : editor.preset ? 'Synth' : 'Editor')
   /*
@@ -85,7 +81,7 @@
     {/if}
   </div>
   <label class="pill" title={fwTitle}>
-    {#if card.status === 'connected'}<span class="dot" class:pulse={!!card.busy} data-testid="deluge-dot" title={dotTitle}></span>{/if}
+    {#if card.status === 'connected'}<span class="dot" class:amber={!!card.busy} class:pulse={!!card.busy} data-testid="deluge-dot" title={dotTitle}></span>{/if}
     {#if fwLocked}
       <span class="fw" data-testid="firmware-locked">{editor.firmware}</span>
     {:else}
@@ -185,7 +181,7 @@
       title="Listen to the Deluge: shows only the parameters Midi-Follow can reach, and moves them as the Deluge reports a knob turn, a menu edit or a clip opening. Starts a new synth if nothing is loaded."
       onclick={() => { if (!editor.preset) editor.newSynth(); void follow.toggle() }}
     >
-      {#if follow.status === 'listening'}<span class="dot pulse"></span>{/if}Follow Mode
+      {#if follow.status === 'listening'}<span class="dot amber pulse"></span>{/if}Follow Mode
     </button>
   {/if}
   <button type="button" class="btn" class:on={editor.showChanges} disabled={!editor.preset} data-testid="changes-button" onclick={() => (editor.showChanges = !editor.showChanges)}>
@@ -209,11 +205,8 @@
   .pill { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 6px 0 10px; border-radius: 12px; border: 1px solid #2f4a2c; background: #0e1410; flex: none; }
   /* Locked to the connected device: same face as the select, but it is just text. */
   .pill .fw { color: #a9d9a1; font-family: var(--cond); font-size: 12px; letter-spacing: .09em; text-transform: uppercase; }
-  .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 6px var(--ok); flex: none; }
+  /* The dot is theme.css's; a transfer running (even with the dialog closed), or Follow listening, is amber and pulsing. */
   .btn .dot { margin-right: 6px; vertical-align: 1px; }
-  /* A transfer is running (even with the dialog closed), or Follow is listening: amber, pulsing. */
-  .dot.pulse { background: #e8b06a; box-shadow: 0 0 6px #e8b06a; animation: cardbusy 1s ease-in-out infinite; }
-  @keyframes cardbusy { 0%, 100% { opacity: 1; } 50% { opacity: .25; } }
   .pill select { background: transparent; border: 0; color: #a9d9a1; font-family: var(--cond); font-size: 12px; letter-spacing: .09em; text-transform: uppercase; cursor: pointer; }
   .pill select:focus { outline: none; }
   /* Rendered inside the menu's list (the snippet compiles here, so the style reaches it). */

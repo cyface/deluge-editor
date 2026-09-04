@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<midiDevices
+	firmwareVersion="c1.3.0"
+	earliestCompatibleFirmware="4.0.0">
+	<upstreamUSBDevice2 port="upstreamUSB2"
+		sendClock="1"
+		receiveClock="0"
+		is_relative="0">
+		<input>
+			<mpeLowerZone
+				numMemberChannels="7" />
+			<mpeUpperZone
+				numMemberChannels="7" />
+		</input>
+		<output>
+			<mpeLowerZone
+				numMemberChannels="7" />
+			<mpeUpperZone
+				numMemberChannels="7" />
+		</output>
+	</upstreamUSBDevice2>
+</midiDevices>

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { diffFlat, flattenXML, generateXML, parseXML } from '../xml'
-import { isSound } from './index'
+import { fixtureSound, fixtureText } from '../../../tests/helpers/fixtures'
+import { diffFlat, flattenXML, generateXML } from '../xml'
 import {
   addCable,
   cableMenu,
@@ -20,17 +20,7 @@ import {
 import { removeChild } from '../xml/edit'
 import type { SoundElement } from './types'
 
-const fixtures = import.meta.glob<string>('../../../tests/fixtures/**/*.XML', {
-  query: '?raw',
-  import: 'default',
-  eager: true,
-})
-const load = (part: string): { src: string; sound: SoundElement } => {
-  const key = Object.keys(fixtures).find((k) => k.includes(part))!
-  const p = parseXML(fixtures[key])
-  if (!isSound(p)) throw new Error('not a sound')
-  return { src: fixtures[key], sound: p }
-}
+const load = (part: string): { src: string; sound: SoundElement } => ({ src: fixtureText(part), sound: fixtureSound(part) })
 
 describe('reading', () => {
   it('reads params, envelopes and cables as the Deluge shows them', () => {

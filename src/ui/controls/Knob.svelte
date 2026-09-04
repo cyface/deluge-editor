@@ -37,8 +37,12 @@
     disabled?: boolean
     /** Why it is disabled; joined onto the tooltip. */
     disabledNote?: string
+    /** The firmware's default (in knob units), when its source has been cited: named in the absent-attribute hint. */
+    fallback?: number
   }
-  let { label, value, min = 0, max = 50, onchange, format, mod = [], gold = false, param, title, disabled = false, disabledNote }: Props = $props()
+  let { label, value, min = 0, max = 50, onchange, format, mod = [], gold = false, param, title, disabled = false, disabledNote, fallback }: Props = $props()
+  const uid = $props.id()
+  const tipId = `knob-tip-${uid}`
 
   const A_MIN = -135
   const A_SPAN = 270
@@ -71,8 +75,11 @@
    * a `title` used to hide the absent-attribute hint entirely.
    */
   const UNSET = 'Not in the file: the firmware default applies. Adjust to set it.'
+  const unset = $derived(
+    fallback === undefined ? UNSET : `Not in the file: the firmware default (${format ? format(fallback) : fallback}) applies. Adjust to set it.`,
+  )
   const tip = $derived(
-    [title, disabled ? disabledNote : undefined, !disabled && value === undefined ? UNSET : undefined]
+    [title, disabled ? disabledNote : undefined, !disabled && value === undefined ? unset : undefined]
       .filter(Boolean)
       .join('\n\n') || undefined,
   )
@@ -119,6 +126,7 @@
     aria-valuemax={max}
     aria-valuenow={value}
     aria-valuetext={shown}
+    aria-describedby={tip ? tipId : undefined}
     data-param={param}
     onpointerdown={down}
     onpointermove={move}
@@ -135,16 +143,18 @@
     <circle cx="24" cy="24" r="12.6" fill={gold ? 'var(--brass-face)' : '#181511'} stroke={gold ? '#5c4a24' : '#332c22'} />
     <line x1="24" y1="14" x2="24" y2="24" stroke={gold ? 'var(--brass-hi)' : '#e6d6b4'} stroke-width="2" stroke-linecap="round" transform="rotate({angle.toFixed(2)} 24 24)" />
   </svg>
-  <div class="lbl">{label}</div>
+  <div class="name">{label}</div>
   <div class="val">{shown}</div>
+  <!-- The tooltip, reachable without a pointer: the slider is described by it. -->
+  {#if tip}<span id={tipId} hidden>{tip}</span>{/if}
 </div>
 
 <style>
   .k { width: 56px; display: flex; flex-direction: column; align-items: center; gap: 2px; flex: none; }
   .dial { display: block; cursor: ns-resize; touch-action: none; }
-  .lbl { font-family: var(--cond); font-size: 10px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); text-align: center; line-height: 1.15; margin-top: 1px; }
+  .name { font-family: var(--cond); font-size: 10px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); text-align: center; line-height: 1.15; margin-top: 1px; }
   .val { font-family: var(--mono); font-size: 10px; font-weight: 500; color: #ded4c2; font-variant-numeric: tabular-nums; }
-  .gold .lbl { color: #c4b294; }
+  .gold .name { color: #c4b294; }
   .unset .val { color: var(--faint); }
   /* Still legible — the value is real, it is just not being read right now. */
   .off { opacity: .42; }

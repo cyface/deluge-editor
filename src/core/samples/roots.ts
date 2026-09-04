@@ -23,6 +23,8 @@
  * Roots are in cents throughout, the same unit `rootToTransposeCents` takes.
  */
 
+import { compareNatural, stemOf } from '../library/fs'
+
 /** Where a row's root came from, most trusted first. */
 export type RootFrom = 'user' | 'file' | 'name' | 'between' | 'unknown'
 
@@ -71,8 +73,7 @@ export interface RootPlan {
  * are folders where a number that was never a note parses as one.
  */
 export function parseNoteName(fileName: string): number | undefined {
-  const base = (fileName.split('/').pop() ?? '').replace(/\.[^.]*$/, '')
-  const m = /(?:^|[^A-Za-z#b])([A-Ga-g])([#sb]?)(-?\d{1,2})(?!\d)/.exec(base)
+  const m = /(?:^|[^A-Za-z#b])([A-Ga-g])([#sb]?)(-?\d{1,2})(?!\d)/.exec(stemOf(fileName))
   if (!m) return undefined
   const semitone = { c: 0, d: 2, e: 4, f: 5, g: 7, a: 9, b: 11 }[m[1].toLowerCase()] as number
   const accidental = m[2] === '' ? 0 : m[2] === 'b' ? -1 : 1
@@ -83,10 +84,9 @@ export function parseNoteName(fileName: string): number | undefined {
 /**
  * File-name order, which is the order the ranges are built in. Numbers compare
  * as numbers so `A2` sorts before `A10`, which is what a person naming layers
- * means and what plain byte order gets wrong.
+ * means and what plain byte order gets wrong (`compareNatural`).
  */
-export const byFileName = (a: string, b: string): number =>
-  a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
+export const byFileName: (a: string, b: string) => number = compareNatural
 
 /**
  * The device's suspicion, reproduced: more than one file, every one of them

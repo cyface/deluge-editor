@@ -6,6 +6,8 @@
  * names land after everything recognised, alphabetically.
  */
 
+import { compareNatural, stemOf } from '../library/fs'
+
 export type DrumClass =
   | 'kick'
   | 'snare'
@@ -57,15 +59,9 @@ const RULES: readonly [DrumClass, RegExp][] = [
   ['perc', abbr('cb|cl|ma|ag|ws')],
 ]
 
-/** Strip directories and the extension; classification looks at the base name only. */
-const baseName = (path: string): string => {
-  const file = path.slice(path.lastIndexOf('/') + 1)
-  const dot = file.lastIndexOf('.')
-  return dot > 0 ? file.slice(0, dot) : file
-}
-
 export function classifyDrum(fileName: string): DrumClass {
-  const name = baseName(fileName)
+  // Classification looks at the file's own name only, folder and extension dropped.
+  const name = stemOf(fileName)
   // "OpenHat"/"ClosedHat" style names with no separators still need the
   // open/closed decision to run before the generic hat rules do.
   if (HATTY.test(name) && OPEN.test(name)) return 'open-hat'
@@ -75,17 +71,13 @@ export function classifyDrum(fileName: string): DrumClass {
 
 const rank = new Map(DRUM_ORDER.map((c, i) => [c, i]))
 
-/** Numeric-aware name compare, so `Kick 2` sorts before `Kick 10`. */
-const byName = (a: string, b: string): number =>
-  a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
-
 /**
  * Stable kit order for a set of samples: by drum class (kick first), then by
- * name within a class.
+ * name within a class, numbers as numbers so `Kick 2` sorts before `Kick 10`.
  */
 export function orderSamples<T>(items: readonly T[], nameOf: (item: T) => string): T[] {
   return items
     .map((item) => ({ item, name: nameOf(item), cls: rank.get(classifyDrum(nameOf(item)))! }))
-    .sort((a, b) => a.cls - b.cls || byName(a.name, b.name))
+    .sort((a, b) => a.cls - b.cls || compareNatural(a.name, b.name))
     .map((x) => x.item)
 }

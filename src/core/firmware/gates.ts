@@ -13,21 +13,22 @@
  */
 
 import { PATCH_SOURCES, type PatchSource } from '../preset/enums'
+import type { Feature } from './features'
 
 /** Oscillator `type` strings that need a feature. */
-export const OSC_TYPE_FEATURE: Record<string, string> = {
+export const OSC_TYPE_FEATURE: Record<string, Feature> = {
   dx7: 'dx7',
 }
 
 /** LFO `type` strings that need a feature. */
-export const LFO_TYPE_FEATURE: Record<string, string> = {
+export const LFO_TYPE_FEATURE: Record<string, Feature> = {
   sah: 'lfoTypesSahRwalk',
   rwalk: 'lfoTypesSahRwalk',
   warbler: 'modFxWarble',
 }
 
 /** `modFXType` strings that need a feature. */
-export const MOD_FX_FEATURE: Record<string, string> = {
+export const MOD_FX_FEATURE: Record<string, Feature> = {
   StereoChorus: 'modFxStereoChorus',
   grainFX: 'modFxGrain',
   TapeWarble: 'modFxWarble',
@@ -39,7 +40,7 @@ export const MOD_FX_FEATURE: Record<string, string> = {
  * the LPF menu stops at the SVFs — so it is excluded by the select, not gated
  * here.
  */
-export const LPF_MODE_FEATURE: Record<string, string> = {
+export const LPF_MODE_FEATURE: Record<string, Feature> = {
   SVF_Band: 'svfFilterModes',
   SVF_Notch: 'svfFilterModes',
   Off: 'svfFilterModes',
@@ -49,7 +50,7 @@ export const LPF_MODE_FEATURE: Record<string, string> = {
 export const HPF_MODES = ['SVF_Band', 'SVF_Notch', 'HPLadder', 'Off'] as const
 
 /** Which feature a patch source needs, if any. */
-export const SOURCE_FEATURE: Partial<Record<PatchSource, string>> = {
+export const SOURCE_FEATURE: Partial<Record<PatchSource, Feature>> = {
   lfo3: 'lfo3',
   lfo4: 'lfo4',
   envelope3: 'env3',
@@ -57,7 +58,7 @@ export const SOURCE_FEATURE: Partial<Record<PatchSource, string>> = {
 }
 
 /** Which feature a cable destination needs, if any. */
-export const DEST_FEATURE: Record<string, string> = {
+export const DEST_FEATURE: Record<string, Feature> = {
   lpfMorph: 'filterMorph',
   hpfMorph: 'filterMorph',
   waveFold: 'waveFold',
@@ -76,7 +77,7 @@ export const DEST_FEATURE: Record<string, string> = {
  * compressorShape) are the ungated baseline; the rest arrived with the
  * FEATURES entry that introduced the param.
  */
-export const UNPATCHED_KNOB_FEATURE: Record<string, string> = {
+export const UNPATCHED_KNOB_FEATURE: Record<string, Feature> = {
   compressorThreshold: 'audioCompressor',
   ratchetProbability: 'arpModes', ratchetAmount: 'arpModes', sequenceLength: 'arpModes',
   rhythm: 'arpRhythm',
@@ -90,7 +91,7 @@ export const UNPATCHED_KNOB_FEATURE: Record<string, string> = {
  * cable destinations, keyed by the writer's attribute spelling — the two name
  * sets differ (`src/core/preset/params.ts`).
  */
-export const PARAM_ATTR_FEATURE: Record<string, string> = {
+export const PARAM_ATTR_FEATURE: Record<string, Feature> = {
   lpfMorph: 'filterMorph',
   hpfMorph: 'filterMorph',
   waveFold: 'waveFold',
@@ -104,7 +105,12 @@ export const ALL_SOURCES: readonly PatchSource[] = PATCH_SOURCES
 
 type Supports = (feature: string) => boolean
 
-/** Whether the selected firmware can honour `value` under `gates`. */
+/**
+ * Whether the selected firmware can honour `value` under `gates`. The tables
+ * above are `Feature`-typed so a misspelt gate fails to compile; the check
+ * itself takes any string-valued map, since `supports` treats an unknown
+ * feature as unsupported rather than as an error.
+ */
 export const gateAllows = (gates: Record<string, string>, value: string, supports: Supports): boolean => {
   const f = gates[value]
   return f === undefined || supports(f)

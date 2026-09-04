@@ -45,13 +45,14 @@ export interface ImportSample {
 
 /** `loopMode` as the file stores it (`SampleRepeatMode`); `LOOP_MODE_NAMES` in `names.ts` is keyed by these. */
 export const LOOP_MODE = { cut: '0', once: '1', loop: '2', stretch: '3' } as const
+export type LoopMode = (typeof LOOP_MODE)[keyof typeof LOOP_MODE]
 
 export interface ImportResult {
   /** Ranges actually written. */
   written: number
   /** Files left out because their root sits too close to the one below to get a band of its own. */
   crowdedOut: string[]
-  loopMode: string
+  loopMode: LoopMode
 }
 
 /**
@@ -115,7 +116,7 @@ export function midpointTopNotes(roots: readonly number[]): (number | undefined)
  * Without loop points it comes down to length alone: short samples play once,
  * long ones are cut off by the note ending.
  */
-export function inferLoopMode(samples: readonly ImportSample[]): string {
+export function inferLoopMode(samples: readonly ImportSample[]): LoopMode {
   if (samples.length === 0) return LOOP_MODE.cut
   const withLoops = samples.filter((s) => s.loopEnd).length
   const withZoneLoops = samples.filter((s) => importZone(s).endLoopPos).length

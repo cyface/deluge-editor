@@ -4,6 +4,7 @@ import { menuToStandard } from './scale'
 import {
   EXP_TABLE_SMALL,
   LFO_RATE_NEUTRAL,
+  SAMPLE_RATE,
   formatLfoRate,
   getExp,
   lfoMenuRateHz,
@@ -85,19 +86,30 @@ describe('lfoPhaseIncrement', () => {
 })
 
 describe('lfoMenuRateHz', () => {
+  /**
+   * Menu 25 is the neutral value with no exponential adjustment, so its rate
+   * is `LFO_RATE_NEUTRAL` cycles of 2^32 per second: 1.25 Hz (`lfo.ts`).
+   */
+  const NEUTRAL_HZ = (LFO_RATE_NEUTRAL / 2 ** 32) * SAMPLE_RATE
+  /** The adjustment runs to ±2^29 at the int32 extremes, which `getExp` reads as ±8 octaves (`lfo.ts` header: "a shade under sixteen"). */
+  const OCTAVES_EACH_WAY = 8
+  const MENU_STEPS = 50
+
   it('is 1.25 Hz at the middle of the menu', () => {
-    expect(lfoMenuRateHz(25)).toBeCloseTo(1.25, 3)
+    expect(NEUTRAL_HZ).toBeCloseTo(1.25, 3)
+    // menuToStandard(25) is -7, not 0 (25 · 85899345 − 2^31): a hair under neutral.
+    expect(lfoMenuRateHz(25)).toBeCloseTo(NEUTRAL_HZ, 4)
   })
 
   it('spans just under sixteen octaves, 0.0049 Hz to 320 Hz', () => {
-    expect(lfoMenuRateHz(0)).toBeCloseTo(1.25 / 256, 4)
-    expect(lfoMenuRateHz(50)).toBeCloseTo(320, 0)
+    expect(lfoMenuRateHz(0)).toBeCloseTo(NEUTRAL_HZ / 2 ** OCTAVES_EACH_WAY, 4)
+    expect(lfoMenuRateHz(MENU_STEPS)).toBeCloseTo(NEUTRAL_HZ * 2 ** OCTAVES_EACH_WAY, 0)
   })
 
   it('doubles about every three menu steps', () => {
-    // 16 octaves over 50 steps: 2^(8/25) per step.
-    for (let m = 1; m <= 50; m++) {
-      expect(lfoMenuRateHz(m) / lfoMenuRateHz(m - 1)).toBeCloseTo(2 ** (8 / 25), 2)
+    // 16 octaves over 50 steps: 2^(16/50) per step.
+    for (let m = 1; m <= MENU_STEPS; m++) {
+      expect(lfoMenuRateHz(m) / lfoMenuRateHz(m - 1)).toBeCloseTo(2 ** ((2 * OCTAVES_EACH_WAY) / MENU_STEPS), 2)
     }
   })
 })

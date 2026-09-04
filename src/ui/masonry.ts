@@ -132,3 +132,37 @@ function partition(cost: number[], k: number): number[] {
   }
   return bounds
 }
+
+/**
+ * The measuring half, shared by the Overview and Follow Mode's grid: a Svelte
+ * action factory. `const measure = heightMeasurer(heights)` once, then
+ * `use:measure={id}` on each panel's wrapper keeps `heights[id]` at its
+ * rendered height — `heights` being the component's `$state` record, so the
+ * stacks re-balance as panels grow and shrink. Heights only move when the
+ * width or the panel's content does, so the remeasure after a redistribution
+ * reports the same numbers and settles.
+ */
+export function heightMeasurer(heights: Record<string, number>): (node: Element, id: string) => { destroy(): void } {
+  const observed = new Map<Element, string>()
+  const ro =
+    typeof ResizeObserver === 'undefined'
+      ? null
+      : new ResizeObserver((entries) => {
+          for (const e of entries) {
+            const id = observed.get(e.target)
+            if (id === undefined) continue
+            const h = e.contentRect.height
+            if (Math.abs((heights[id] ?? -1) - h) > 0.5) heights[id] = h
+          }
+        })
+  return (node, id) => {
+    observed.set(node, id)
+    ro?.observe(node)
+    return {
+      destroy() {
+        observed.delete(node)
+        ro?.unobserve(node)
+      },
+    }
+  }
+}

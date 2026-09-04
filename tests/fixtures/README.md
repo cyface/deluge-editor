@@ -3,7 +3,9 @@
 **Deluge-authored** preset XML (`*.XML`, any subfolder). Every file is picked
 up by `tests/roundtrip.test.ts`, which parses it, generates it back, and
 requires the flattened path→value maps to match exactly, then requires a second
-generate to be byte-identical to the first.
+generate to be byte-identical to the first. The one exception is `settings/`:
+card `SETTINGS/` files the Deluge wrote (MIDI Follow, MIDI devices), which the
+editor reads but never writes, so the round-trip and enum sweeps skip them.
 
 "Deluge-authored" is the point: the firmware is the ground truth for the format,
 and hand-written XML only tests our own assumptions. Sources, in order of

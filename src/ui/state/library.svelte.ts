@@ -26,9 +26,10 @@ import {
   indexToJSON,
   isRecordingFolder,
   joinPath,
+  movePlan,
+  moveProblem,
   nameProblem,
   parentOf,
-  planMove,
   renamedRef,
   rootOf,
   SAMPLES_ROOT,
@@ -314,11 +315,12 @@ class Library {
   /** Plan the move, say what it touches, and do it on the yes. */
   private proposeMove(e: LibraryEntry, to: string): void {
     if (!this.index) return
-    const plan = planMove(this.index, e.path, to, kindOf(e))
-    if (typeof plan === 'string') {
-      this.error = plan
+    const problem = moveProblem(e.path, to, kindOf(e))
+    if (problem !== null) {
+      this.error = problem
       return
     }
+    const plan = movePlan(this.index, e.path, to, kindOf(e))
     const what = e.dir ? 'folder' : 'sample'
     const n = plan.files.length
     const rename = parentOf(plan.from) === parentOf(plan.to)

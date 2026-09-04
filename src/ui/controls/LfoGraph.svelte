@@ -49,15 +49,9 @@
   const PAD = 10
   const N_POINTS = 480
 
+  /** The box's rendered width; 420 until the binding measures it. */
   let width = $state(420)
-  let box: HTMLDivElement | undefined = $state()
-  $effect(() => {
-    if (!box) return
-    const ro = new ResizeObserver(() => { width = Math.max(200, box!.clientWidth) })
-    ro.observe(box)
-    return () => ro.disconnect()
-  })
-  const W = $derived(width)
+  const W = $derived(Math.max(200, width))
 
   const scopeOf = (n: N) => LFO_SCOPE[`lfo${n}` as keyof typeof LFO_SCOPE]
   const colourOf = (n: N) => (scopeOf(n) === 'global' ? 'var(--lfo1)' : 'var(--lfo2)')
@@ -290,10 +284,17 @@
     s.addEventListener('pointermove', at)
     s.addEventListener('pointerup', up)
   }
+  /** The keyboard's way to the same handle: arrows step the rate (shift, ×5). */
+  function nudge(e: KeyboardEvent) {
+    const by = { ArrowRight: 1, ArrowUp: 1, ArrowLeft: -1, ArrowDown: -1 }[e.key]
+    if (by === undefined) return
+    e.preventDefault()
+    setParamMenu(sound, rateAttrOf(selected), Math.max(0, Math.min(50, sel.rate + by * (e.shiftKey ? 5 : 1))))
+  }
 </script>
 
 <div class="wrap">
-  <div class="graph" bind:this={box} title={synced ? 'Sync sets the speed; the Rate knob is ignored' : 'Drag the handle to set the rate'}>
+  <div class="graph" bind:clientWidth={width} title={synced ? 'Sync sets the speed; the Rate knob is ignored' : 'Drag the handle to set the rate'}>
     <svg bind:this={svg} viewBox="0 0 {W} {H}" height={H} data-testid="lfo-graph">
       {#each [0, 0.25, 0.5, 0.75, 1] as x (x)}<line x1={x * W} y1="0" x2={x * W} y2={PLOT} stroke="#161311" />{/each}
       <line x1="0" y1={MID} x2={W} y2={MID} stroke="#241f1a" />
@@ -307,7 +308,7 @@
       {#if !synced}
         <line x1={PAD} y1={TRACK_Y} x2={W - PAD} y2={TRACK_Y} stroke="#20262a" stroke-width="3" stroke-linecap="round" />
         <line x1={PAD} y1={TRACK_Y} x2={hx.toFixed(1)} y2={TRACK_Y} stroke={colourOf(selected)} stroke-width="3" stroke-linecap="round" opacity=".5" />
-        <g class="handle" onpointerdown={grab} role="slider" aria-label="LFO {selected} rate" aria-valuemin="0" aria-valuemax="50" aria-valuenow={sel.rate} tabindex="-1">
+        <g class="handle" onpointerdown={grab} onkeydown={nudge} role="slider" aria-label="LFO {selected} rate" aria-valuemin="0" aria-valuemax="50" aria-valuenow={sel.rate} tabindex="0">
           <!-- A transparent disc wider than the drawn one: the thing you aim at
                is bigger than the thing you see, which is the point of it. -->
           <circle cx={hx.toFixed(1)} cy={TRACK_Y} r="15" fill="rgba(0,0,0,0)" />

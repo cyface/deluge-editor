@@ -1,7 +1,17 @@
 import { describe, expect, it } from 'vitest'
 import initSynth from '../../assets/templates/Default Synth.XML?raw'
 import official from '../../../tests/fixtures/official-4.0.1/AnalogSaw Patch Cables.XML?raw'
+import { parseSound } from '../../../tests/helpers/fixtures'
 import { supports as featureSupported } from '../firmware/features'
+import {
+  DEST_FEATURE,
+  LFO_TYPE_FEATURE,
+  LPF_MODE_FEATURE,
+  MOD_FX_FEATURE,
+  OSC_TYPE_FEATURE,
+  PARAM_ATTR_FEATURE,
+  SOURCE_FEATURE,
+} from '../firmware/gates'
 import { parseVersion } from '../firmware/version'
 import { hexToInt } from '../params/hex'
 import { pulseWidthOffered } from '../params/pulse'
@@ -35,7 +45,7 @@ const supportsOf = (version: string) => supportsFor(parseVersion(version))
 const community = supportsOf('c1.3.0')
 const legacy = supportsOf('4.1.4')
 
-const load = (src = initSynth): SoundElement => parseXML(src) as SoundElement
+const load = (src = initSynth): SoundElement => parseSound(src)
 
 /** Roll a fresh copy of the template and hand back the sound and its XML. */
 function roll(opts: Parameters<typeof randomizePatch>[1] & { src?: string }) {
@@ -256,14 +266,23 @@ describe('every value the firmware could misread', () => {
 })
 
 describe('firmware gating', () => {
-  /** Names official 4.1.4's serialiser never writes, in any position. */
+  /**
+   * Names official 4.1.4's serialiser never writes, in any position: every
+   * `<defaultParams>` attribute the gates know (`src/core/firmware/gates.ts`),
+   * plus the attributes whose element or name is itself a community feature
+   * (`FEATURES.hpfMode`, `filterRoute`, `unisonSpread`, `maxVoices`, `arpModes`).
+   */
   const COMMUNITY_ONLY_ATTRS = [
-    'hpfMode', 'filterRoute', 'lpfMorph', 'hpfMorph', 'waveFold', 'spread', 'maxVoices',
-    'lfo3Rate', 'lfo4Rate', 'compressorThreshold', 'arpMode', 'noteMode', 'octaveMode',
+    ...Object.keys(PARAM_ATTR_FEATURE),
+    'hpfMode', 'filterRoute', 'spread', 'maxVoices', 'arpMode', 'noteMode', 'octaveMode',
   ]
+  /** Every value the gates hold back, plus `HPLadder`, which is never an LPF mode at all (`gates.ts`). */
   const COMMUNITY_ONLY_VALUES = [
-    'SVF_Band', 'SVF_Notch', 'HPLadder', 'Off', 'sah', 'rwalk', 'warbler',
-    'StereoChorus', 'grainFX', 'TapeWarble', 'dimension', 'dx7',
+    ...Object.keys(OSC_TYPE_FEATURE),
+    ...Object.keys(LFO_TYPE_FEATURE),
+    ...Object.keys(MOD_FX_FEATURE),
+    ...Object.keys(LPF_MODE_FEATURE),
+    'HPLadder',
   ]
 
   it('targeting official 4.1.4 adds no attribute that firmware cannot write', () => {
@@ -305,8 +324,8 @@ describe('firmware gating', () => {
   it('targeting official 4.1.4 uses no patch source that firmware lacks', () => {
     for (const { sound } of everyRoll(legacy, official)) {
       for (const c of cables(sound)) {
-        expect(['lfo3', 'lfo4', 'envelope3', 'envelope4'], c.attrs.source).not.toContain(c.attrs.source)
-        expect(['lpfMorph', 'hpfMorph', 'waveFold', 'lfo3Rate', 'lfo4Rate']).not.toContain(c.attrs.destination)
+        expect(Object.keys(SOURCE_FEATURE), c.attrs.source).not.toContain(c.attrs.source)
+        expect(Object.keys(DEST_FEATURE), c.attrs.destination).not.toContain(c.attrs.destination)
       }
     }
   })

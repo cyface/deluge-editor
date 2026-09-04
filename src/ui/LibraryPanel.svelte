@@ -15,6 +15,9 @@
    * yes.
    */
   import { rootOf, xmlPath } from '../core/library'
+  import CardBrowser, { type BrowserEntry } from './controls/CardBrowser.svelte'
+  import Dialog from './controls/Dialog.svelte'
+  import Status from './controls/Status.svelte'
   import { audio } from './state/audio.svelte'
   import { card } from './state/card.svelte'
   import { library as lib, type LibraryEntry } from './state/library.svelte'
@@ -38,20 +41,21 @@
   const preview = (e: LibraryEntry) => audio.toggle(xmlPath(e.path))
   const mounted = $derived(lib.source === 'mounted')
   const rowActions = (e: LibraryEntry): boolean => !lib.busy && !e.fixed && lib.renaming !== e.name
+  const title = $derived(mounted ? 'Samples on the card' : 'Samples on the Deluge')
+  /** The move picker's folders, as the browser lists them. */
+  const destEntries = $derived<BrowserEntry[]>(lib.destFolders.map((name) => ({ name, dir: true })))
 </script>
 
 {#if lib.open}
-  <div class="veil" role="dialog" aria-modal="true" aria-label={mounted ? 'Samples on the card' : 'Samples on the Deluge'}>
-  <aside class="card" data-testid="library-panel" data-source={lib.source}>
-    <header>
-      <b>{mounted ? 'Samples on the card' : 'Samples on the Deluge'}</b>
+  <Dialog {title} testid="library-panel" data-source={lib.source} width={720} closeDisabled={!!lib.busy} onclose={() => lib.close()}>
+    {#snippet header()}
       {#if mounted}
         <span class="port" data-testid="library-mounted" title="The card's root folder, open in this browser">{lib.mountedName ?? ''}</span>
       {:else if card.status === 'connected'}
         <span class="port" title={card.portName}>{card.portName}{card.identity ? ` · fw ${card.identity}` : ''}</span>
       {/if}
-      <button type="button" class="x" aria-label="Close" disabled={!!lib.busy} onclick={() => lib.close()}>×</button>
-    </header>
+    {/snippet}
+
     <p class="lede">
       Rename, move or delete samples with every song, kit and synth that names them rewritten to follow.
       {#if mounted}
@@ -64,11 +68,11 @@
     </p>
 
     {#if !mounted && card.status === 'error'}
-      <p class="err" role="alert">{card.error}</p>
-      <button type="button" class="btn" onclick={() => lib.openPanel()}>Retry</button>
+      <Status kind="err">{card.error}</Status>
+      <p><button type="button" class="btn" onclick={() => lib.openPanel()}>Retry</button></p>
     {:else if mounted && !lib.ready}
-      {#if lib.error}<p class="err" role="alert" data-testid="library-error">{lib.error}</p>{/if}
-      <button type="button" class="btn" onclick={() => lib.openMounted()}>Choose the card’s folder…</button>
+      {#if lib.error}<Status kind="err" testid="library-error">{lib.error}</Status>{/if}
+      <p><button type="button" class="btn" onclick={() => lib.openMounted()}>Choose the card’s folder…</button></p>
     {:else}
       <div class="status" data-testid="library-index">
         <span class="n">{indexLine}</span>
@@ -98,6 +102,9 @@
         </div>
       {/if}
 
+      <!-- The library's own listing rather than `CardBrowser`: each row
+           carries a usage count, a preview and the rename/move/delete
+           actions, and renames edit in place. -->
       <ul class="list" data-testid="library-list">
         {#each lib.entries as e (e.name)}
           <li class:selected={lib.selected === e.name} data-entry={e.name}>
@@ -150,22 +157,25 @@
 
       {#if lib.moving !== null}
         <div class="picker" data-testid="library-move-picker">
-          <div class="pathbar">
-            <span class="lbl">Move {lib.moving} to</span>
-            <button type="button" class="btn small" onclick={() => lib.destUp()} disabled={lib.destPath === '/SAMPLES' || !!lib.busy} aria-label="Up">↑</button>
-            <span class="path">{lib.destPath}</span>
-          </div>
-          <ul class="folders">
-            {#each lib.destFolders as name (name)}
-              <li><button type="button" disabled={!!lib.busy || name === lib.moving} onclick={() => void lib.browseDest(`${lib.destPath}/${name}`)}>▸ {name}</button></li>
-            {:else}
-              <li class="empty">no folders here</li>
-            {/each}
-          </ul>
-          <div class="editrow">
-            <button type="button" class="btn small go" data-testid="library-move-here" disabled={!!lib.busy || lib.destPath === lib.path} onclick={() => lib.commitMove()}>Move here</button>
-            <button type="button" class="btn small" onclick={() => lib.cancelEdits()}>Cancel</button>
-          </div>
+          <CardBrowser
+            path={lib.destPath}
+            root="/SAMPLES"
+            entries={destEntries}
+            busy={!!lib.busy}
+            disabledEntry={(name) => name === lib.moving}
+            listHeight="140px"
+            emptyText="no folders here"
+            onUp={() => lib.destUp()}
+            onOpen={(name) => void lib.browseDest(`${lib.destPath}/${name}`)}
+          >
+            {#snippet before()}
+              <span class="movelbl">Move {lib.moving} to</span>
+            {/snippet}
+            <div class="editrow">
+              <button type="button" class="btn small go" data-testid="library-move-here" disabled={!!lib.busy || lib.destPath === lib.path} onclick={() => lib.commitMove()}>Move here</button>
+              <button type="button" class="btn small" onclick={() => lib.cancelEdits()}>Cancel</button>
+            </div>
+          </CardBrowser>
         </div>
       {/if}
 
@@ -190,76 +200,51 @@
         </div>
       {/if}
 
-      {#if lib.busy}<p class="busy" data-testid="library-busy">{lib.busy}… {Math.round(lib.progress * 100)}%</p>{/if}
-      {#if lib.notice}<p class="notice" data-testid="library-notice">{lib.notice}</p>{/if}
-      {#if lib.error}<p class="err" role="alert" data-testid="library-error">{lib.error}</p>{/if}
-      {#if audio.error}<p class="err" role="alert">{audio.error}</p>{/if}
+      {#if lib.busy}<Status kind="busy" testid="library-busy">{lib.busy}… {Math.round(lib.progress * 100)}%</Status>{/if}
+      {#if lib.notice}<Status kind="notice" testid="library-notice">{lib.notice}</Status>{/if}
+      {#if lib.error}<Status kind="err" testid="library-error">{lib.error}</Status>{/if}
+      {#if audio.error}<Status kind="err">{audio.error}</Status>{/if}
     {/if}
-  </aside>
-  </div>
+  </Dialog>
 {/if}
 
 <style>
-  .veil { position: fixed; inset: 0; z-index: 70; display: grid; place-items: center; background: rgba(6, 5, 4, .72); }
-  .card {
-    width: min(720px, calc(100vw - 40px)); max-height: min(84vh, calc(100vh - 60px));
-    display: flex; flex-direction: column;
-    background: linear-gradient(180deg, #171412, #100e0d); border: 1px solid var(--edge-hi); border-radius: 5px;
-    box-shadow: 0 18px 50px rgba(0, 0, 0, .5); padding: 12px 14px 14px;
-  }
-  header { display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px; }
-  header b { font-family: var(--cond); font-size: 12.5px; letter-spacing: .13em; text-transform: uppercase; color: var(--brass); }
-  .port { flex: 1; min-width: 0; font-family: var(--mono); font-size: 10px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .x { margin-left: auto; background: none; border: 0; color: var(--faint); font-size: 15px; cursor: pointer; line-height: 1; }
-  .x:hover:not(:disabled) { color: #e9e2d6; }
-  .x:disabled { opacity: .4; cursor: default; }
-  .lede { margin: 0 0 8px; font-family: var(--cond); font-size: 11.5px; line-height: 1.45; color: var(--muted); }
-  .status { display: flex; align-items: center; gap: 7px; margin-bottom: 7px; font-family: var(--mono); font-size: 10px; color: var(--faint); }
+  p { margin: 6px 0 0; }
+  .status { display: flex; align-items: center; gap: 7px; margin-bottom: 7px; font-family: var(--mono); font-size: 10px; color: var(--faint); flex: none; }
   .status .n { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .pathbar { display: flex; align-items: center; gap: 7px; margin-bottom: 7px; }
-  .path { flex: 1; min-width: 0; font-family: var(--mono); font-size: 11px; color: #cfe3c9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .lbl { font-family: var(--cond); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--brass); white-space: nowrap; }
-  .btn.small { height: 22px; padding: 0 8px; font-size: 10px; }
-  .btn.go { border-color: #8a5a2a; color: #e8b06a; }
-  .list { list-style: none; margin: 0 0 8px; padding: 0; overflow-y: auto; min-height: 60px; max-height: 40vh; border: 1px solid var(--edge); border-radius: 3px; background: #0d0b0a; flex: 1; }
+  .pathbar { flex: none; }
+  .movelbl { font-family: var(--cond); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--brass); white-space: nowrap; }
+  .list { list-style: none; margin: 0 0 8px; padding: 0; overflow-y: auto; min-height: 60px; max-height: 40vh; border: 1px solid var(--edge); border-radius: var(--r-s); background: var(--well); flex: none; }
   .list li { display: flex; align-items: center; gap: 4px; border-bottom: 1px solid rgba(255, 255, 255, .04); padding-right: 6px; }
   .list li:last-child { border-bottom: 0; }
   .list li.selected { background: rgba(197, 160, 89, .12); box-shadow: inset 2px 0 0 var(--brass); }
-  .entry { display: flex; flex: 1; min-width: 0; align-items: baseline; gap: 8px; padding: 5px 8px; background: none; border: 0; color: #ddd3c2; font-family: var(--mono); font-size: 11px; text-align: left; cursor: pointer; }
+  .entry { display: flex; flex: 1; min-width: 0; align-items: baseline; gap: 8px; padding: 5px 8px; background: none; border: 0; color: var(--text-list); font-family: var(--mono); font-size: 11px; text-align: left; cursor: pointer; }
   .entry:hover:not(:disabled) { background: rgba(197, 160, 89, .08); }
   .entry .n { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .entry .s { color: var(--faint); font-size: 10px; white-space: nowrap; }
-  .used { min-width: 18px; padding: 0 5px; border-radius: 9px; background: #2f4a2c; color: #a9d9a1; font-size: 9.5px; text-align: center; line-height: 15px; }
+  .used { min-width: 18px; padding: 0 5px; border-radius: 9px; background: var(--ok-edge); color: #a9d9a1; font-size: var(--lbl-s); text-align: center; line-height: 15px; }
   .used.none { background: #1d1a17; color: var(--faint); }
-  .tag { font-family: var(--cond); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; color: #e8b06a; }
+  .tag { font-family: var(--cond); font-size: var(--lbl-s); letter-spacing: .08em; text-transform: uppercase; color: var(--warn-text); }
   .actions { display: flex; gap: 3px; flex: none; }
-  .act { height: 20px; padding: 0 7px; border-radius: 3px; border: 1px solid var(--edge); background: #141210; color: var(--muted); font-family: var(--cond); font-size: 10px; letter-spacing: .06em; text-transform: uppercase; cursor: pointer; }
+  .act { height: 20px; padding: 0 7px; border-radius: var(--r-s); border: 1px solid var(--edge); background: var(--raised); color: var(--muted); font-family: var(--cond); font-size: 10px; letter-spacing: .06em; text-transform: uppercase; cursor: pointer; }
   .act:hover:not(:disabled) { color: var(--text); border-color: var(--brass); }
   .act:disabled { opacity: .4; cursor: default; }
   .act.live { color: var(--brass-hi); border-color: var(--brass); }
-  .act.danger:hover:not(:disabled) { color: #e8a08f; border-color: #8a3a2a; }
+  .act.danger:hover:not(:disabled) { color: var(--bad-text); border-color: #8a3a2a; }
   .editrow { display: flex; gap: 6px; align-items: center; padding: 4px 8px; flex: 1; }
-  .editrow input { flex: 1; min-width: 0; background: #0d0b0a; border: 1px solid var(--edge); border-radius: 3px; color: #efe6d7; font-family: var(--mono); font-size: 11px; padding: 3px 7px; }
+  .editrow input { flex: 1; min-width: 0; background: var(--well); border: 1px solid var(--edge); border-radius: var(--r-s); color: #efe6d7; font-family: var(--mono); font-size: 11px; padding: 3px 7px; }
   .editrow input:focus { outline: 1px solid var(--brass); }
-  .picker { margin: 0 0 8px; padding: 7px 8px; border: 1px solid #6b4a1c; border-radius: 3px; background: #1d1710; }
-  .folders { list-style: none; margin: 0; padding: 0; max-height: 140px; overflow-y: auto; }
-  .folders button { display: block; width: 100%; padding: 3px 6px; background: none; border: 0; color: #ddd3c2; font-family: var(--mono); font-size: 11px; text-align: left; cursor: pointer; }
-  .folders button:hover:not(:disabled) { background: rgba(197, 160, 89, .08); }
-  .folders button:disabled { opacity: .4; cursor: default; }
-  .detail { margin: 0 0 8px; padding: 6px 8px; border: 1px solid var(--edge); border-radius: 3px; background: #0d0b0a; max-height: 20vh; overflow-y: auto; }
+  .picker { margin: 0 0 8px; padding: 7px 8px; border: 1px solid var(--warn-edge); border-radius: var(--r-s); background: var(--warn-bg); flex: none; }
+  .detail { margin: 0 0 8px; padding: 6px 8px; border: 1px solid var(--edge); border-radius: var(--r-s); background: var(--well); max-height: 20vh; overflow-y: auto; flex: none; }
   .dh { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
   .dh b { font-family: var(--mono); font-size: 11px; font-weight: 600; color: #efe6d7; word-break: break-all; }
   .facts { font-family: var(--mono); font-size: 10px; color: var(--faint); white-space: nowrap; }
-  .uses { list-style: none; margin: 5px 0 0; padding: 0; font-family: var(--mono); font-size: 10.5px; color: #ddd3c2; }
+  .uses { list-style: none; margin: 5px 0 0; padding: 0; font-family: var(--mono); font-size: 10.5px; color: var(--text-list); }
   .uses li { display: flex; align-items: baseline; gap: 6px; padding: 1px 0; }
   .root { font-family: var(--cond); font-size: 9px; letter-spacing: .08em; padding: 0 5px; border-radius: 2px; background: #2a2419; color: var(--muted); }
   .root.songs { background: #2a3a5a; color: #b9cff0; }
-  .root.kits { background: #2f4a2c; color: #a9d9a1; }
+  .root.kits { background: var(--ok-edge); color: #a9d9a1; }
   .root.synths { background: #4a3a2a; color: #e8c79a; }
   .hint { margin: 4px 0 0; font-family: var(--cond); font-size: 11px; color: var(--faint); }
   .empty { padding: 7px 8px; color: var(--faint); font-family: var(--mono); font-size: 10.5px; }
-  .busy, .err, .notice { margin: 3px 0; font-family: var(--mono); font-size: 10px; }
-  .busy { color: #cfe3c9; }
-  .notice { color: #9ed492; padding: 5px 7px; border: 1px solid #2f4a2c; background: #101710; border-radius: 3px; word-break: break-word; }
-  .err { color: #e8a08f; padding: 5px 7px; border: 1px solid #5a2a22; background: #1d1210; border-radius: 3px; }
 </style>

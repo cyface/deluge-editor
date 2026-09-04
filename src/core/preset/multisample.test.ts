@@ -7,6 +7,9 @@ import type { OscElement } from './types'
 
 const osc = (): OscElement => element('osc1', { type: 'sample' }) as OscElement
 const at = (note: number) => note * 100
+/** Either side of the two seconds the length rule turns on (`inferLoopMode`: an average under 2002 ms plays once). */
+const SHORT_MS = 900
+const LONG_MS = 4000
 
 describe('midpointTopNotes', () => {
   it('splits each pair of roots down the middle and leaves the top unbounded', () => {
@@ -68,24 +71,24 @@ describe('inferLoopMode', () => {
   const sample = (n: number, extra: object = {}) => ({ fileName: `${n}.wav`, root: at(60 + n), ...extra })
 
   it('loops when most files carry loop points and the loops survive but the set is long', () => {
-    const samples = [0, 1, 2].map((n) => sample(n, { frames: 1000, loopStart: 100, loopEnd: 300, ms: 4000 }))
+    const samples = [0, 1, 2].map((n) => sample(n, { frames: 1000, loopStart: 100, loopEnd: 300, ms: LONG_MS }))
     expect(inferLoopMode(samples)).toBe(LOOP_MODE.loop)
   })
 
   it('plays once when those loops survive and the samples are short', () => {
-    const samples = [0, 1, 2].map((n) => sample(n, { frames: 1000, loopStart: 100, loopEnd: 300, ms: 900 }))
+    const samples = [0, 1, 2].map((n) => sample(n, { frames: 1000, loopStart: 100, loopEnd: 300, ms: SHORT_MS }))
     expect(inferLoopMode(samples)).toBe(LOOP_MODE.once)
   })
 
   it('loops when the loop points were folded into the zone instead of kept', () => {
     // A long loop with a short tail becomes the zone end, so no zone loop survives.
-    const samples = [0, 1, 2].map((n) => sample(n, { frames: 1000, loopStart: 100, loopEnd: 900, ms: 900 }))
+    const samples = [0, 1, 2].map((n) => sample(n, { frames: 1000, loopStart: 100, loopEnd: 900, ms: SHORT_MS }))
     expect(inferLoopMode(samples)).toBe(LOOP_MODE.loop)
   })
 
   it('plays a short unlooped set once and cuts a long one off', () => {
-    expect(inferLoopMode([0, 1].map((n) => sample(n, { ms: 500 })))).toBe(LOOP_MODE.once)
-    expect(inferLoopMode([0, 1].map((n) => sample(n, { ms: 5000 })))).toBe(LOOP_MODE.cut)
+    expect(inferLoopMode([0, 1].map((n) => sample(n, { ms: SHORT_MS })))).toBe(LOOP_MODE.once)
+    expect(inferLoopMode([0, 1].map((n) => sample(n, { ms: LONG_MS })))).toBe(LOOP_MODE.cut)
   })
 
   it('cuts an empty set, the oscillator’s own default', () => {
@@ -121,7 +124,7 @@ describe('buildMultisample', () => {
 
   it('sets the repeat mode as part of the build', () => {
     const o = osc()
-    buildMultisample(o, [{ fileName: 'a.wav', root: at(60), ms: 5000 }])
+    buildMultisample(o, [{ fileName: 'a.wav', root: at(60), ms: LONG_MS }])
     expect(o.attrs.loopMode).toBe(LOOP_MODE.cut)
   })
 

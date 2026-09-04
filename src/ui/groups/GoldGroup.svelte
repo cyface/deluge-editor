@@ -1,3 +1,8 @@
+<script lang="ts" module>
+  /* The open slot survives the panel being re-dealt into another masonry stack (see `ModsGroup`). */
+  let open = $state<number | null>(null)
+</script>
+
 <script lang="ts">
   /**
    * The 16 gold-encoder assignments: 8 mod-button pages × 2 knobs, bottom
@@ -20,8 +25,6 @@
   const knobs = $derived(modKnobs(sound))
   const paramOpts = $derived(knobParamOptions(editor.supports))
   const sourceOpts = $derived([{ value: '', label: 'Direct' }, ...sourceOptions(editor.supports)])
-  let open = $state<number | null>(null)
-
   // The volume family is one knob target the firmware disambiguates by source
   // (ensureKnobReferencesCorrectVolume, sound.cpp:1317); the select shows the
   // canonical name and setModKnob writes the right string for the source.

@@ -5,7 +5,7 @@
  * Deluge. Nothing here knows about MIDI beyond recognising its error type.
  */
 
-import { SysexError } from '../sysex'
+import { SysexError, type Progress, type ReadHandle } from '../sysex'
 
 /**
  * Why a card operation failed, as far as the two backends can tell apart.
@@ -59,15 +59,11 @@ export interface CardEntry {
   dir: boolean
 }
 
-export type CardProgress = (done: number, total: number) => void
+/** `(done, total)` in bytes — the SysEx client's own progress shape, which both backends report. */
+export type CardProgress = Progress
 
-/** An open file for ranged reads — a WAV header without the audio behind it. Always `close()`. */
-export interface RangedFile {
-  size: number
-  /** Up to `length` bytes at `offset`; shorter only at end of file. */
-  read(offset: number, length: number): Promise<Uint8Array>
-  close(): Promise<void>
-}
+/** An open file for ranged reads — a WAV header without the audio behind it. Always `close()`. The SysEx client's `ReadHandle`, which the local backend implements as well. */
+export type RangedFile = ReadHandle
 
 export interface CardFS {
   /** The folder's entries; throws when it does not exist. */
@@ -93,13 +89,27 @@ export const parentOf = (path: string): string => {
 /** `/SAMPLES/Drums/Kick.wav` → `Kick.wav`. */
 export const baseName = (path: string): string => path.slice(path.lastIndexOf('/') + 1)
 
+/** `/SAMPLES/Drums/Kick.wav` → `Kick`: the name without its folder or extension. A leading dot is not an extension. */
+export const stemOf = (path: string): string => {
+  const file = baseName(path)
+  const dot = file.lastIndexOf('.')
+  return dot > 0 ? file.slice(0, dot) : file
+}
+
 export const joinPath = (dir: string, name: string): string => (dir === '/' ? `/${name}` : `${dir}/${name}`)
 
-/** The protocol form of a path the XML carries: one leading slash. */
-export const cardPath = (p: string): string => `/${p.replace(/\\/g, '/').replace(/^\/+/, '')}`
+/**
+ * Name order as a person means it: numbers compare as numbers, so `Kick 2`
+ * sorts before `Kick 10` and `A2` before `A10`, and case does not separate.
+ */
+export const compareNatural = (a: string, b: string): number =>
+  a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
 
-/** The XML form of a card path: no leading slash. */
-export const xmlPath = (p: string): string => p.replace(/^\/+/, '')
+/** The XML form of a card path: forward slashes, no leading slash. */
+export const xmlPath = (p: string): string => p.replace(/\\/g, '/').replace(/^\/+/, '')
+
+/** The protocol form of a path the XML carries: one leading slash. */
+export const cardPath = (p: string): string => `/${xmlPath(p)}`
 
 /**
  * Bytes to text and back without loss. A file the Deluge wrote is UTF-8 —

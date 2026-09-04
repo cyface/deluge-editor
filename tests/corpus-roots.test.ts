@@ -34,6 +34,7 @@ import type { XmlElement } from '../src/core/xml/element'
 
 const CARD = join(process.env.HOME ?? '', 'Documents/Music/Deluge/TimCardBU')
 const present = existsSync(join(CARD, 'SYNTHS'))
+if (!present) console.log(`corpus-roots: skipped — no card backup at ${CARD} (a check on the design, not a gate on the build)`)
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir)) {

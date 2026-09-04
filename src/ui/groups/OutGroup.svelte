@@ -119,7 +119,3 @@
     <NumberField label="Note" name="midiOutput.noteForDrum" value={midi?.attrs.noteForDrum} min={0} max={255} fallback={255} format={(n) => (n === 255 ? 'as played' : String(n))} title={HELP['midiOutput.noteForDrum']} onchange={(v) => setAttr(MIDI(), 'noteForDrum', String(v), MIDI_OUTPUT_ATTR_ORDER)} />
   </div>
 {/if}
-
-<style>
-  .lbl { font-family: var(--cond); font-size: 10px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
-</style>

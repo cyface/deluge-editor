@@ -5,9 +5,16 @@
    * or, when that exact source → destination pair already exists (the
    * firmware's matrix holds one entry per pair), the existing row is
    * revealed instead of duplicated.
+   *
+   * A menu in the WAI-ARIA sense, like the top bar's (`Menu.svelte`): focus
+   * lands on the first item, the arrows move, Escape or a click outside
+   * closes it and puts focus back where the right-click came from.
    */
+  import { tick } from 'svelte'
   import { paramLabel, type ParamName, type PatchSource } from '../core/preset'
   import { addCable, cablesTo } from '../core/preset/sound'
+  import MenuItem from './controls/MenuItem.svelte'
+  import { menuItems, menuListKey } from './menukeys'
   import { sourceOptions } from './options'
   import { sourceColor } from './sources'
   import { editor } from './state/editor.svelte'
@@ -27,6 +34,15 @@
         },
   )
 
+  let list: HTMLDivElement | undefined = $state()
+  let before: HTMLElement | null = null
+  $effect(() => {
+    if (req === null) return
+    before = document.activeElement as HTMLElement | null
+    void tick().then(() => menuItems(list)[0]?.focus())
+    return () => before?.focus?.()
+  })
+
   function pick(source: string): void {
     const sound = editor.sound
     const dest = req?.destination
@@ -38,30 +54,25 @@
     editor.reveal = { source, destination: dest }
   }
 
-  function key(e: KeyboardEvent): void {
-    if (e.key === 'Escape') picker.hide()
-  }
+  const onListKey = (e: KeyboardEvent): void => menuListKey(e, list, { onEscape: () => picker.hide(), onTab: () => picker.hide() })
 </script>
 
-<svelte:window onkeydown={key} />
-
 {#if req && pos}
-  <div class="backdrop" role="presentation" onpointerdown={picker.hide.bind(picker)} oncontextmenu={(e) => { e.preventDefault(); picker.hide() }}></div>
-  <div class="menu" role="menu" data-testid="cable-picker" style="left: {pos.x}px; top: {pos.y}px;">
+  <div class="backdrop" role="presentation" onpointerdown={() => picker.hide()} oncontextmenu={(e) => { e.preventDefault(); picker.hide() }}></div>
+  <div class="menu" role="menu" tabindex="-1" aria-label="Patch source" data-testid="cable-picker" style="left: {pos.x}px; top: {pos.y}px;" bind:this={list} onkeydown={onListKey}>
     <div class="hd">Patch → {req.label || paramLabel(req.destination)}</div>
     {#each options as o (o.value)}
-      <button type="button" role="menuitem" onclick={() => pick(o.value)}>
-        <i style="background: {sourceColor(o.value)}"></i>{o.label}
-      </button>
+      <MenuItem label={o.label} dot={sourceColor(o.value)} onclick={() => pick(o.value)} />
     {/each}
   </div>
 {/if}
 
 <style>
   .backdrop { position: fixed; inset: 0; z-index: 90; }
+  /* The same face as the top bar's menus (`Menu.svelte`): the app has one kind of menu. */
   .menu {
-    position: fixed; z-index: 91; width: 172px; max-height: 78vh; overflow: auto;
-    background: #1b1815; border: 1px solid var(--edge-hi); border-radius: 4px;
+    position: fixed; z-index: 91; width: 172px; max-height: 78vh; overflow: auto; outline: none;
+    background: var(--raised-hi); border: 1px solid var(--edge-hi); border-radius: 4px;
     box-shadow: 0 12px 34px rgba(0,0,0,.6); padding: 4px;
   }
   .hd {
@@ -69,11 +80,4 @@
     text-transform: uppercase; color: var(--brass-hi); padding: 4px 6px 5px; border-bottom: 1px solid var(--edge);
     margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
-  button {
-    display: flex; align-items: center; gap: 7px; width: 100%; padding: 4px 6px;
-    background: transparent; border: 0; border-radius: 3px; cursor: pointer;
-    font-family: var(--cond); font-size: 12px; letter-spacing: .04em; color: #ddd4c4; text-align: left;
-  }
-  button:hover { background: #2a2419; color: var(--brass-hi); }
-  i { flex: none; width: 7px; height: 7px; border-radius: 50%; }
 </style>

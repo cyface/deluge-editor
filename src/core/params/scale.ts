@@ -10,10 +10,8 @@
  * the one that doesn't (`menuToCable`) uses BigInt.
  */
 
+import { TWO31, TWO32 } from './fixedpoint'
 import { INT32_MAX, INT32_MIN } from './hex'
-
-const TWO31 = 2147483648
-const TWO32 = 4294967296
 
 // ---- standard 0..50 ------------------------------------------------------
 // computeCurrentValueForStandardMenuItem / computeFinalValueForStandardMenuItem.
@@ -118,7 +116,7 @@ export const menuToSidechainRelease = (m: number): number => RELEASE_RATE_TABLE[
 // 128, written as ONE_Q31.
 
 export const compressorToKnob = (v: number): number => (v >>> 0) >>> 24
-export const knobToCompressor = (k: number): number => Math.min(127, Math.max(0, k)) << 24
+export const knobToCompressor = (k: number): number => clamp(k, 0, 127) << 24
 export const blendToKnob = (v: number): number => (v === INT32_MAX ? 128 : compressorToKnob(v))
 export const knobToBlend = (k: number): number => (k >= 128 ? INT32_MAX : knobToCompressor(k))
 

@@ -42,6 +42,51 @@ or artist names. Two things to know when comparing captures:
   and `polarity` first. Same version string, different serialiser — the
   editor must not assume element order from `firmwareVersion`.
 
+## `community-c1.3.0-beta-6e5f2b2/` — DelugEmu, community beta 1.3.0 (2026-09-04)
+
+Firmware: `deluge-v1_3_0-beta+2026_09_04-6e5f2b2.bin` from the rolling `beta`
+release of SynthstromAudible/DelugeFirmware as downloaded on 2026-09-04
+(`strings` reports `1.3.0-beta-6e5f2b2`; writes `firmwareVersion="c1.3.0"`).
+The 3f898e9 binary above is no longer on this machine and the `beta` release
+only ever holds its latest build, hence the second folder. Same capture
+process (`.claude/skills/deluge-fixtures/`, `synth:`/`kit:` jobs). This build
+serialises exactly as 3f898e9 did: every synth below came back byte-identical
+to its input apart from `notePattern` (and, in one case, patch-cable order).
+
+The point of these files is the **enum string tables**: every value here is one
+no earlier fixture wrote, so a transcription typo in `src/core/preset/enums.ts`
+would otherwise pass every test. The inputs were `Default Synth.XML` with the
+enum attributes edited (editing the input is fine — the input is never the
+fixture); the firmware loaded them and wrote each string back as it spells it.
+One `modFXType`, `lpfMode`, `hpfMode`, `filterRoute` and `polyphonic` fits per
+file, so the values are spread across five. `tests/enums.test.ts` and
+`src/core/firmware/gates.test.ts` ("says which gated values no firmware-written
+file exercises yet") are what these serve.
+
+| File | Values the firmware wrote (all as given in the input) | Also |
+|---|---|---|
+| `Community Enums.XML` | `polyphonic="legato"`, `modFXType="grainFX"`, `lpfMode="SVF_Band"`, `hpfMode="SVF_Notch"`, `filterRoute="L2H"`, LFOs `sah`/`rwalk`/`saw`/`square`, arp on (`mode="arp"`, `arpMode="arp"`) with `noteMode="down"`, `octaveMode="alt"`, `mpeVelocity="y"` | |
+| `Community Enums Input Osc.XML` | `osc1 type="inLeft"`, `osc2 type="inStereo"`, `polyphonic="mono"`, `modFXType="phaser"`, `lpfMode="SVF_Notch"`, `hpfMode="SVF_Band"`, `filterRoute="PARA"`, LFOs `sine`/`saw`/`sah`/`rwalk`, `noteMode="upDown"`, `octaveMode="random"`, `mpeVelocity="z"` | a synth whose oscillators are the audio inputs loads and saves in the emulator with no audio hardware |
+| `Community Enums More.XML` | `osc1 type="inRight"`, `osc2 type="analogSquare"`, `polyphonic="choke"` (accepted and written back for a synth), `modFXType="TapeWarble"`, `lpfMode="Off"`, `hpfMode="Off"`, LFOs `square`/`sine`/`warbler`/`sine`, `noteMode="pattern"`, `octaveMode="upDown"` | the firmware **reordered the four patch cables** on save (the two `lpfFrequency` cables moved after the `volume` ones — both filters are `Off`); the editor must not assume cable order survives a Deluge save |
+| `Community Enums Dimension.XML` | `osc1 type="analogSquare"`, `modFXType="dimension"`, `lpfMode="24dBDrive"`, `noteMode="asPlayed"`, `octaveMode="down"` | |
+| `Community Enums StereoChorus.XML` | `modFXType="StereoChorus"`, `lpfMode="12dB"` with `hpfMode="SVF_Notch"`, `filterRoute="PARA"`, LFOs `warbler`/`sah`/`rwalk`/`saw`, `noteMode="walk1"` | |
+| `Kit MIDI CV Rows.XML` | a `<kit>` with one sample row (`KICK`, `Kit Sample Rows.XML`'s first row over `SAMPLES/Fixtures/kick.wav`), one MIDI row `<midiOutput name="CLAP" channel="9" note="39">` and one CV/gate row `<gateOutput name="GATE" channel="2">`; kit-level `modFXCurrentParam="offset"`, `currentFilterType="hpf"`, `modFXType="phaser"`, `lpfMode="SVF_Notch"`, `hpfMode="SVF_Band"`, `filterRoute="L2H"` | the input rows were bare `<midiOutput name channel note />` / `<gateOutput name channel />`; the firmware writes each with a nested `<arpeggiator>` (`MIDIDrum::writeToFile`, `GateDrum::writeToFile` → `NonAudioDrum::writeArpeggiatorToFile`, with `gate`/`rate`/probability attributes the sound rows keep in `<defaultParams>`), so the element is open/close, not self-closing — `src/core/xml/generate.test.ts` "lays out a kit MIDI row" models the childless case only |
+
+## `community-c1.2.1-release_1_2_1/` — DelugEmu, community release 1.2.1
+
+Firmware: `deluge-c1_2_1.bin` as shipped inside DelugEmu
+(`~/Library/Application Support/DelugEmu/firmware/`; the launcher calls it
+"Deluge community firmware 1.2.1 (Chopin)"; `strings` reports only `c1.2.1`,
+which is what it writes as `firmwareVersion`). Tag `release_1_2_1` in
+SynthstromAudible/DelugeFirmware is `c23bc2fe`. Captured with the skill's
+`init` job: empty `SYNTHS/`, the firmware built its default synth and saved it
+as `0.XML`. It pins the 1.2→1.3 line in `src/core/firmware/features.ts` from
+the writing side.
+
+| File | Input the firmware loaded | Covers |
+|---|---|---|
+| `Init Synth.XML` | nothing — the built-in default synth | what 1.2.1 does **not** write: no `<lfo3>`/`<lfo4>`, `<envelope3>`/`<envelope4>`, `lfo3Rate`/`lfo4Rate`, no `polarity` on patch cables, no `<midiOutput>` or `<stutter>` in a synth, no note/bass/swap/glide/reverse/chord probabilities or spreads and no `chordPolyphony` (only `ratchetProbability`, `ratchetAmount`, `sequenceLength`, `rhythm`); an `<arpeggiator>` of just `mode numOctaves syncLevel syncType arpMode noteMode octaveMode mpeVelocity`. Its layout is neither the 3f898e9 beta's nor the hardware c1.3.0 one (`src/core/preset/order.test.ts`, `UNPLACED`) |
+
 ## `community-c1.3.0/` — real hardware, community 1.3.0
 
 Tim's own presets, saved on his Deluge and copied from the card
@@ -66,6 +111,25 @@ Originals: `SYNTHS/Famous/KRAF/MODE/BASS.XML` and `LEAD.XML`.
 |---|---|
 | `Attribute Format Baseline.XML` | the 4.x attribute format as written before `hpfMode`/`filterRoute`/`maxVoices` existed, `<compressor>` instead of `<sidechain>`; saw/saw poly, 5 cables |
 | `AnalogSaw Patch Cables.XML` | same format, `analogSaw` oscillators, 9 patch cables |
+
+## `official-3.1.1/` — real hardware, official 3.1.1 (not yet in the repo)
+
+Held back pending a licensing check: the candidate is a preset from a
+third-party pack, and it is not committed until its terms allow
+redistribution. `tests/enums.test.ts` already carries the allowance the folder
+will need. The candidate is one preset from Tim's card (`SYNTHS/Muted IO/Dream.XML`,
+1969 timestamp, `firmwareVersion="3.1.1"`,
+`earliestCompatibleFirmware="3.1.0-beta"`). It is the only pre-3.2 attribute-
+format file on this machine and is here for one idiom: before 3.2 a cable's
+depth was itself patched with `destination="range"`, paired with
+`rangeAdjustable="1"` on the cable it deepens. `src/core/preset/summary.test.ts`
+("a pre-3.2 range destination") describes that shape from this file;
+`tests/enums.test.ts` allows `range` for this folder only. The pack is another
+sound designer's content — its terms decide whether it can be published here.
+
+| File | Original name on the card | Covers |
+|---|---|---|
+| `Range Destination.XML` | `Muted IO/Dream.XML` | 3.1.1 attribute format: `<compressor>` not `<sidechain>`, no `hpfMode`/`filterRoute`, `lfo1 → range` cable + `rangeAdjustable="1"` on `lfo1 → pitch`, `analogSaw`, 5 unison |
 
 ## `official-2.x-old-format/` — factory card, firmware 1.x–2.1.0
 
@@ -121,10 +185,28 @@ which the firmware's serializer never emits. Only songs the device re-saved
 (`SONGS/Tim/Kaunaz 2.XML` and friends, 1969 stamps) carry firmware-written
 velocity ranges. Hence the capture: the fixture had to be made, not copied.
 
+## `settings/` — real hardware, community 1.3.0 (card `SETTINGS/`)
+
+Not presets: the two files a Deluge writes into `SETTINGS/` that
+`src/core/midi/followsettings.ts` reads. Copied from Tim's card backup
+(`~/Documents/Music/Deluge/TimCardBU/SETTINGS/`, backup folder dated
+2026-08-27; both files carry the 1969 stamp). `MIDIDevices.XML` says
+`firmwareVersion="c1.3.0"`; `MIDIFollow.XML` (`<defaults>`, written by
+`MidiFollow::writeDefaultsToFile`) carries no version at all, and was saved by
+the same c1.3.0 build during the same session. Both sweeps
+(`tests/roundtrip.test.ts`, `tests/enums.test.ts`) skip this folder — the
+editor does not write settings files.
+
+| File | Covers |
+|---|---|
+| `MIDIFollow.XML` | the full `<cc_mappings>` table (every follow CC the firmware maps), follow channel A on the MPE lower zone (`<channel>17</channel>`) pinned to `<device port="upstreamUSB2" />`, B/C unassigned (`256`), feedback, kit root note, display settings |
+| `MIDIDevices.XML` | `<midiDevices>` with `upstreamUSBDevice2` (port 2): MPE lower and upper zones on both input and output with `numMemberChannels="7"`, `sendClock="1"` |
+
 ## Not covered
 
 - **Official 4.1.x** — no 4.1.x-written file exists on this machine and there
   is no official binary DelugEmu can run. Needs a preset saved on a Deluge
   running 4.1.4 (Tim's is on community firmware).
-- **Community 1.2.x release** — DelugEmu ships `deluge-c1_2_1.bin`; add with
-  the skill if a 1.2-specific difference ever matters.
+- **Community 1.0.x–1.2.0, and 1.2.1 beyond the init synth** — 1.2.1 is
+  covered by one `init` capture above; DelugEmu ships no other release binary,
+  and the GitHub `beta` release only ever holds its latest build.

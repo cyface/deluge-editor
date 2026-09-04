@@ -14,47 +14,18 @@
  * around.
  */
 import { beforeEach, describe, expect, it } from 'vitest'
+import { monoWav as wav } from '../../../tests/helpers/wav'
 import synthTemplate from '../../assets/templates/Default Synth.XML?raw'
 import { removeRange, sampleRanges, setRangeFileName } from '../../core/preset/ranges'
+import { OSC_ATTR_ORDER } from '../../core/preset/order'
 import { osc as oscOf } from '../../core/preset/sound'
 import type { SoundElement } from '../../core/preset/types'
+import { setAttr } from '../../core/xml/edit'
 import { editor } from './editor.svelte'
 import { multisample as ms } from './multisample.svelte'
 import { samples } from './samples.svelte'
 
-/**
- * A minimal 16-bit mono WAV of `frames` frames at 44.1 kHz, optionally
- * declaring `root` as its MIDI unity note in a `smpl` chunk — the strongest
- * signal in the cascade, and the one a file name can't stand in for.
- */
-function wav(frames: number, root?: number): Uint8Array {
-  const data = frames * 2
-  const smpl = root === undefined ? 0 : 44
-  const b = new Uint8Array(44 + data + smpl)
-  const view = new DataView(b.buffer)
-  const ascii = (at: number, s: string) => [...s].forEach((c, i) => (b[at + i] = c.charCodeAt(0)))
-  ascii(0, 'RIFF')
-  view.setUint32(4, 36 + data + smpl, true)
-  ascii(8, 'WAVEfmt ')
-  view.setUint32(16, 16, true)
-  view.setUint16(20, 1, true)
-  view.setUint16(22, 1, true)
-  view.setUint32(24, 44100, true)
-  view.setUint32(28, 88200, true)
-  view.setUint16(32, 2, true)
-  view.setUint16(34, 16, true)
-  ascii(36, 'data')
-  view.setUint32(40, data, true)
-  if (root !== undefined) {
-    // `smpl` is 36 bytes: MIDIUnityNote is the fourth field, the loop count the eighth.
-    ascii(44 + data, 'smpl')
-    view.setUint32(48 + data, 36, true)
-    view.setUint32(52 + data + 12, root, true)
-  }
-  return b
-}
-
-/** A dropped folder. A name paired with a note gets that note in its header. */
+/** A dropped folder. A name paired with a note gets that note in its header (a `smpl` chunk, the cascade's strongest signal). */
 const drop = (...names: (string | [string, number])[]) =>
   names.map((entry) => {
     const relPath = typeof entry === 'string' ? entry : entry[0]
@@ -96,7 +67,7 @@ describe('the source question', () => {
 
 /** Stand in for the user pointing the oscillator at a file through the picker. */
 function sampleRangesAssign(): void {
-  osc1().attrs.fileName = 'SAMPLES/elsewhere.wav'
+  setAttr(osc1(), 'fileName', 'SAMPLES/elsewhere.wav', OSC_ATTR_ORDER)
 }
 
 describe('reading a folder', () => {

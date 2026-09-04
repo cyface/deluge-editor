@@ -4,8 +4,10 @@ import { diffFlat, flattenXML, generateXML, isClean, parseXML } from '../src/cor
 // Every Deluge-authored file under tests/fixtures/, as raw text — plus the
 // New-button templates, which are Deluge-authored under the same rules
 // (issue #25; see src/assets/templates/SOURCES.md).
+// tests/fixtures/settings/ holds card SETTINGS files, not presets; the
+// generator does not claim to write them (src/core/midi/followsettings.test.ts).
 const fixtures = import.meta.glob<string>(
-  ['./fixtures/**/*.{xml,XML}', '../src/assets/templates/*.{xml,XML}'],
+  ['./fixtures/**/*.{xml,XML}', '!./fixtures/settings/**', '../src/assets/templates/*.{xml,XML}'],
   { query: '?raw', import: 'default', eager: true },
 )
 

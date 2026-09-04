@@ -1,14 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { FakeDeluge, OTHER_CLIENT_TAG, type FakeOptions } from './fake-deluge'
-import { isDirectory, SHORT_WRITE, SmsClient, SysexError, type SmsClientOptions } from './client'
-
-/** A client wired straight to a fake Deluge. Short timeouts: replies are synchronous. */
-function rig(fakeOpts: FakeOptions = {}, clientOpts: SmsClientOptions = {}): { client: SmsClient; fake: FakeDeluge } {
-  let client: SmsClient
-  const fake = new FakeDeluge((bytes) => client!.receive(bytes), fakeOpts)
-  client = new SmsClient((bytes) => fake.receive(bytes), { timeouts: [20, 20, 50, 100], ...clientOpts })
-  return { client, fake }
-}
+import { rig } from '../../../tests/helpers/rig'
+import { FakeDeluge, OTHER_CLIENT_TAG } from './fake-deluge'
+import { isDirectory, SHORT_WRITE, SmsClient, SysexError } from './client'
 
 const bytes = (n: number): Uint8Array => Uint8Array.from({ length: n }, (_, i) => (i * 31 + 0x80) & 0xff)
 
@@ -128,8 +121,16 @@ describe('SmsClient', () => {
     const { client, fake } = rig({ dropRequests: 2 })
     fake.putFile('/SYNTHS/A.XML', bytes(10))
     expect((await client.readFile('/SYNTHS/A.XML')).length).toBe(10)
-    // The dropped requests were re-sent: more requests seen than answered ops.
-    expect(fake.requests.filter((r) => 'open' in r).length).toBeGreaterThanOrEqual(1)
+    // A one-chunk read is four operations — session, open, read, close — and
+    // each drop cost exactly one resend of the same operation, no more.
+    const ops = fake.requests.map((r) => Object.keys(r)[0])
+    expect(ops.length).toBe(4 + 2)
+    expect(ops).toEqual(['session', 'session', 'session', 'open', 'read', 'close'])
+    // Every request after negotiation rode a distinct msgId in the granted block.
+    const ids = fake.msgIds.filter((id) => id !== 0)
+    expect(ids.length).toBe(3)
+    expect(new Set(ids).size).toBe(3)
+    expect(ids.every((id) => id >= 9 && id <= 15)).toBe(true)
   })
 
   it('a short write (err 0, smaller size) is rewritten, not trusted', async () => {
@@ -216,6 +217,11 @@ describe('SmsClient', () => {
     expect((await client.readFile('/SYNTHS/A.XML')).length).toBe(3)
     // msgIds must stay inside (15<<3)+1 … (15<<3)+7 — the block the firmware
     // reclaims last — and never (sid<<3)+0, which is not a valid message id.
+    const LAST_SID = 15
+    const ids = fake.msgIds.filter((id) => id !== 0) // 0 is the session request itself
+    expect(ids.length).toBeGreaterThanOrEqual(3) // open, read, close
+    expect(ids.every((id) => id >= (LAST_SID << 3) + 1 && id <= (LAST_SID << 3) + 7)).toBe(true)
+    expect(ids).not.toContain(LAST_SID << 3)
   })
 
   it('openRead serves ranged reads without pulling the whole file', async () => {
@@ -287,7 +293,13 @@ describe('SmsClient', () => {
     const { client, fake } = rig()
     fake.putFile('/SYNTHS/A.XML', bytes(1))
     for (let i = 0; i < 4; i++) await client.readFile('/SYNTHS/A.XML')
-    // Fake grants sid 1 → msgIds 9..15; nothing to assert beyond it all worked
-    // (a wrong id would never be answered and every call would time out).
+    // The fake grants sid 1 → msgIds 9..15. Four reads are twelve requests
+    // (open, read, close each), more than the block holds, so the ids must
+    // step through the block and wrap back to its start, never leaving it.
+    const ids = fake.msgIds.filter((id) => id !== 0)
+    expect(ids.length).toBe(12)
+    expect(ids.every((id) => id >= 9 && id <= 15)).toBe(true)
+    expect(new Set(ids).size).toBe(7) // every id in the block got used
+    for (let i = 1; i < ids.length; i++) expect(ids[i]).toBe(ids[i - 1] === 15 ? 9 : ids[i - 1] + 1)
   })
 })

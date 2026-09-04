@@ -14,15 +14,9 @@
   const H = 74, pad = 4
   const TOTAL = 80 + 90 + 70 + 90 // max ta + td + hold + tr
 
+  /** The box's rendered width; 300 until the binding measures it. */
   let width = $state(300)
-  let box: HTMLDivElement | undefined = $state()
-  $effect(() => {
-    if (!box) return
-    const ro = new ResizeObserver(() => { width = Math.max(200, box!.clientWidth) })
-    ro.observe(box)
-    return () => ro.disconnect()
-  })
-  const W = $derived(width)
+  const W = $derived(Math.max(200, width))
   const sc = $derived((W - 2 * pad) / TOTAL)
 
   const y = (v: number) => H - pad - (v / 50) * (H - 2 * pad)
@@ -77,23 +71,39 @@
       s.addEventListener('pointerup', up)
     }
   }
+
+  /** The keyboard's way to the same handles: arrows nudge a stage by one step (shift, five). */
+  function nudge(which: 'attack' | 'decay' | 'release') {
+    return (e: KeyboardEvent) => {
+      const by = { ArrowRight: 1, ArrowUp: 1, ArrowLeft: -1, ArrowDown: -1 }[e.key]
+      if (by === undefined) return
+      e.preventDefault()
+      const step = by * (e.shiftKey ? 5 : 1)
+      const n = selected as 1 | 2 | 3 | 4
+      const g = geom(n)
+      // The decay corner moves two ways: sideways is decay, up and down is sustain.
+      const stage = which === 'decay' && (e.key === 'ArrowUp' || e.key === 'ArrowDown') ? 'sustain' : which
+      const cur = stage === 'attack' ? g.A : stage === 'decay' ? g.D : stage === 'sustain' ? g.S : g.R
+      setEnvelopeMenu(sound, n, stage, clamp(cur + step, 0, 50))
+    }
+  }
 </script>
 
-<div class="graph" bind:this={box} title="Drag the points: attack peak sideways, decay/sustain corner any way, release end sideways">
+<div class="graph" bind:clientWidth={width} title="Drag the points: attack peak sideways, decay/sustain corner any way, release end sideways">
   <!-- overflow visible so the edge handles (attack at the top, release on the floor) don't clip -->
   <svg bind:this={svg} viewBox="0 0 {W} {H}" height={H} style="overflow:visible" data-testid="env-graph">
     {#each curves as c (c.n)}
       <path d={c.d} fill={c.n === selected ? 'rgba(147,209,82,.13)' : 'none'} stroke="var(--env)" stroke-width={c.n === selected ? 2 : 1} opacity={c.n === selected ? 1 : 0.28} />
     {/each}
-    <g class="handle" onpointerdown={grab('attack')} role="slider" aria-label="Attack" aria-valuenow={sel.A} tabindex="-1">
+    <g class="handle" onpointerdown={grab('attack')} onkeydown={nudge('attack')} role="slider" aria-label="Attack" aria-valuemin="0" aria-valuemax="50" aria-valuenow={sel.A} tabindex="0">
       <circle cx={sel.x1} cy={y(50)} r="6" fill="#131a10" stroke="var(--env)" stroke-width="2" />
       <circle cx={sel.x1} cy={y(50)} r="1.8" fill="var(--env)" />
     </g>
-    <g class="handle" onpointerdown={grab('decay')} role="slider" aria-label="Decay and sustain" aria-valuenow={sel.D} tabindex="-1">
+    <g class="handle" onpointerdown={grab('decay')} onkeydown={nudge('decay')} role="slider" aria-label="Decay and sustain" aria-valuemin="0" aria-valuemax="50" aria-valuenow={sel.D} aria-valuetext="decay {sel.D}, sustain {sel.S}" tabindex="0">
       <circle cx={sel.x2} cy={y(sel.S)} r="6" fill="#131a10" stroke="var(--env)" stroke-width="2" />
       <circle cx={sel.x2} cy={y(sel.S)} r="1.8" fill="var(--env)" />
     </g>
-    <g class="handle" onpointerdown={grab('release')} role="slider" aria-label="Release" aria-valuenow={sel.R} tabindex="-1">
+    <g class="handle" onpointerdown={grab('release')} onkeydown={nudge('release')} role="slider" aria-label="Release" aria-valuemin="0" aria-valuemax="50" aria-valuenow={sel.R} tabindex="0">
       <circle cx={sel.x4} cy={y(0)} r="6" fill="#131a10" stroke="var(--env)" stroke-width="2" />
       <circle cx={sel.x4} cy={y(0)} r="1.8" fill="var(--env)" />
     </g>

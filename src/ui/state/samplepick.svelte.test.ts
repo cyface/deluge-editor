@@ -8,6 +8,7 @@
  * a claim about what the firmware writes.
  */
 import { beforeEach, describe, expect, it } from 'vitest'
+import { monoWav as wav } from '../../../tests/helpers/wav'
 import kitTemplate from '../../assets/templates/Default Kit.XML?raw'
 import synthTemplate from '../../assets/templates/Default Synth.XML?raw'
 import { OSC_ATTR_ORDER } from '../../core/preset/order'
@@ -18,27 +19,6 @@ import { setAttr } from '../../core/xml/edit'
 import { editor } from './editor.svelte'
 import { samplePick as pick } from './samplepick.svelte'
 import { samples } from './samples.svelte'
-
-/** A 16-bit mono WAV of `frames` frames at 44.1 kHz. */
-function wav(frames: number): Uint8Array {
-  const data = frames * 2
-  const b = new Uint8Array(44 + data)
-  const view = new DataView(b.buffer)
-  const ascii = (at: number, s: string) => [...s].forEach((c, i) => (b[at + i] = c.charCodeAt(0)))
-  ascii(0, 'RIFF')
-  view.setUint32(4, 36 + data, true)
-  ascii(8, 'WAVEfmt ')
-  view.setUint32(16, 16, true)
-  view.setUint16(20, 1, true)
-  view.setUint16(22, 1, true)
-  view.setUint32(24, 44100, true)
-  view.setUint32(28, 88200, true)
-  view.setUint16(32, 2, true)
-  view.setUint16(34, 16, true)
-  ascii(36, 'data')
-  view.setUint32(40, data, true)
-  return b
-}
 
 const file = (name: string, frames: number) => new File([wav(frames) as BlobPart], name)
 const osc1 = (): OscElement => oscOf(editor.sound as SoundElement, 1)!

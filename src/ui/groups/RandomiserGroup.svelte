@@ -57,7 +57,6 @@
 <style>
   /* Still editable — values load with the preset and wake when the arp is
      turned on — but visibly dormant while it's off. */
-  .lbl { font-family: var(--cond); font-size: 10px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
   .asleep { opacity: .55; }
   .note { font-family: var(--mono); font-size: 9px; letter-spacing: 0; text-transform: none; color: var(--faint); }
 </style>

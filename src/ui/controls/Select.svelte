@@ -16,16 +16,30 @@
     fallback?: string
     /** What the control does; sits on the field so the label carries it too (issue #20). */
     title?: string
+    /** On the select, for tests. */
+    testid?: string
+    /** In a table cell: the label names the select for assistive tech but is not drawn. */
+    compact?: boolean
   }
-  let { label, value, options, onchange, name, fallback, title }: Props = $props()
-  const id = `sel-${Math.random().toString(36).slice(2, 8)}`
+  let { label, value, options, onchange, name, fallback, title, testid, compact = false }: Props = $props()
+  const uid = $props.id()
+  const id = `sel-${uid}`
   const known = $derived(value === undefined || options.some((o) => o.value === value))
   const fallbackLabel = $derived(fallback === undefined ? undefined : (options.find((o) => o.value === fallback)?.label ?? fallback))
 </script>
 
-<div class="f" {title}>
-  <label for={id}>{label}</label>
-  <select {id} data-attr={name} class:default={value === undefined} value={value ?? ''} onchange={(e) => onchange((e.currentTarget as HTMLSelectElement).value)}>
+<div class="f" class:compact {title}>
+  <label for={id} hidden={compact}>{label}</label>
+  <select
+    {id}
+    data-attr={name}
+    data-testid={testid}
+    class:default={value === undefined}
+    value={value ?? ''}
+    aria-label={compact ? label : undefined}
+    aria-describedby={title ? `${id}-tip` : undefined}
+    onchange={(e) => onchange((e.currentTarget as HTMLSelectElement).value)}
+  >
     {#if value === undefined}
       <option value="" disabled>{fallbackLabel === undefined ? 'default' : `default · ${fallbackLabel}`}</option>
     {/if}
@@ -36,4 +50,11 @@
       <option value={o.value}>{o.label}</option>
     {/each}
   </select>
+  <!-- The tooltip, reachable without a pointer. -->
+  {#if title}<span id="{id}-tip" hidden>{title}</span>{/if}
 </div>
+
+<style>
+  .compact { display: inline-block; width: auto; }
+  .compact select { height: auto; width: auto; line-height: normal; padding: 2px 3px; font-size: 10.5px; border-color: var(--edge); }
+</style>

@@ -28,6 +28,8 @@
  * dropped — the XML never carries one, the SysEx protocol always does.
  */
 
+import { xmlPath } from './fs'
+
 export type RefAttr = 'fileName' | 'filePath'
 
 export interface SampleRef {
@@ -40,7 +42,7 @@ export interface SampleRef {
 }
 
 /** The path as the card compares it: case folded, forward slashes, no leading slash. */
-export const foldPath = (p: string): string => p.replace(/\\/g, '/').replace(/^\/+/, '').toLowerCase()
+export const foldPath = (p: string): string => xmlPath(p).toLowerCase()
 
 /** Two paths that name the same card entry. */
 export const samePath = (a: string, b: string): boolean => foldPath(a) === foldPath(b)
@@ -101,9 +103,9 @@ export const refersTo = (value: string, target: string, kind: TargetKind): boole
  */
 export function renamedRef(value: string, from: string, to: string, kind: TargetKind): string | null {
   if (!refersTo(value, from, kind)) return null
-  if (kind === 'file') return to.replace(/^\/+/, '')
-  const tail = value.replace(/\\/g, '/').replace(/^\/+/, '').slice(foldPath(from).replace(/\/+$/, '').length)
-  return `${to.replace(/^\/+/, '').replace(/\/+$/, '')}${tail}`
+  if (kind === 'file') return xmlPath(to)
+  const tail = xmlPath(value).slice(foldPath(from).replace(/\/+$/, '').length)
+  return `${xmlPath(to).replace(/\/+$/, '')}${tail}`
 }
 
 /**

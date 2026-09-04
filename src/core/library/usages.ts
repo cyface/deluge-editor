@@ -9,6 +9,7 @@
  * folder covering everything beneath it (`refs.ts`).
  */
 
+import { xmlPath } from './fs'
 import { refersTo, type TargetKind } from './refs'
 
 export interface IndexedFile {
@@ -28,7 +29,7 @@ export const PRESET_ROOTS = ['/SONGS', '/KITS', '/SYNTHS'] as const
 export type PresetRoot = (typeof PRESET_ROOTS)[number]
 
 /** The root folder a card path sits under, for the badge colour: `SONGS`, `KITS`, `SYNTHS`. */
-export const rootOf = (path: string): string => path.replace(/^\/+/, '').split('/')[0]?.toUpperCase() ?? ''
+export const rootOf = (path: string): string => xmlPath(path).split('/')[0]?.toUpperCase() ?? ''
 
 /** The files that reference `target` — a sample, or anything under a folder — in path order. */
 export function usagesOf(index: ReferenceIndex, target: string, kind: TargetKind): string[] {
@@ -56,22 +57,28 @@ export function usageCounts(
 /** The index as plain data, for a cache; `fromJSON` takes it back. */
 export const indexToJSON = (index: ReferenceIndex): IndexedFile[] => [...index.values()]
 
+/** One cached record with every field the shape it was written in; anything else is dropped. */
+const isIndexedFile = (f: unknown): f is IndexedFile =>
+  typeof f === 'object' &&
+  f !== null &&
+  'path' in f &&
+  typeof f.path === 'string' &&
+  'size' in f &&
+  typeof f.size === 'number' &&
+  'date' in f &&
+  typeof f.date === 'number' &&
+  'time' in f &&
+  typeof f.time === 'number' &&
+  'refs' in f &&
+  Array.isArray(f.refs) &&
+  f.refs.every((r: unknown) => typeof r === 'string')
+
 export function indexFromJSON(data: unknown): ReferenceIndex {
   const index: ReferenceIndex = new Map()
   if (!Array.isArray(data)) return index
-  for (const f of data) {
-    if (
-      f &&
-      typeof f === 'object' &&
-      typeof f.path === 'string' &&
-      typeof f.size === 'number' &&
-      typeof f.date === 'number' &&
-      typeof f.time === 'number' &&
-      Array.isArray(f.refs) &&
-      f.refs.every((r: unknown) => typeof r === 'string')
-    ) {
-      index.set(f.path, { path: f.path, size: f.size, date: f.date, time: f.time, refs: [...f.refs] })
-    }
+  const records: readonly unknown[] = data
+  for (const f of records) {
+    if (isIndexedFile(f)) index.set(f.path, { path: f.path, size: f.size, date: f.date, time: f.time, refs: [...f.refs] })
   }
   return index
 }

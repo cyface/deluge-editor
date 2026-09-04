@@ -13,6 +13,7 @@
   import NumberField from '../controls/NumberField.svelte'
   import PulseGraph from '../controls/PulseGraph.svelte'
   import Select from '../controls/Select.svelte'
+  import Status from '../controls/Status.svelte'
   import Toggle from '../controls/Toggle.svelte'
   import { HELP } from '../help'
   import { loopModeOptions, oscTypeOptions, synthModeOptions } from '../options'
@@ -136,9 +137,9 @@
            with no file has nothing to render (`Source::loadAllSamples`,
            processing/source.cpp:105). Silence is the hardest fault to find on
            the instrument, so it is called out here. -->
-      <p class="caution" data-testid="osc-no-sample-{n}">
+      <Status kind="caution" testid="osc-no-sample-{n}">
         This oscillator is set to Sample but has no sample — it will be silent on the Deluge.
-      </p>
+      </Status>
     {:else if list.length > 1}
       <!-- Only where there are boundaries to read. One sample spans the whole
            keyboard, so its map is a single band saying nothing the line above
@@ -216,9 +217,4 @@
 
 <style>
   .rangeact { display: flex; gap: 6px; margin: 8px 0 0 4px; }
-  .caution {
-    margin: 8px 0 0 4px; padding: 5px 7px; border: 1px solid #6b4a1c; background: #1d1710; border-radius: 3px;
-    font-family: var(--cond); font-size: 11px; line-height: 1.3; color: #e8b06a;
-  }
-  .lbl { font-family: var(--cond); font-size: 10px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
 </style>

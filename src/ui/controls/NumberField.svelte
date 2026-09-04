@@ -15,7 +15,8 @@
     title?: string
   }
   let { label, value, min, max, onchange, name, format, fallback, title }: Props = $props()
-  const id = `num-${Math.random().toString(36).slice(2, 8)}`
+  const uid = $props.id()
+  const id = `num-${uid}`
   const shown = $derived(value === undefined ? '' : String(value))
   const ph = $derived(fallback === undefined ? 'default' : `default · ${format ? format(fallback) : fallback}`)
   // The description and "what happens if you leave it blank" are separate
@@ -32,7 +33,9 @@
 
 <div class="f" title={tip}>
   <label for={id}>{label}{#if format && value !== undefined}<span class="fmt"> · {format(Number(value))}</span>{/if}</label>
-  <input {id} type="number" data-attr={name} value={shown} placeholder={ph} {min} {max} step="1" onchange={change} />
+  <input {id} type="number" data-attr={name} value={shown} placeholder={ph} {min} {max} step="1" aria-describedby={tip ? `${id}-tip` : undefined} onchange={change} />
+  <!-- The tooltip, reachable without a pointer. -->
+  {#if tip}<span id="{id}-tip" hidden>{tip}</span>{/if}
 </div>
 
 <style>

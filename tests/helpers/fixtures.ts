@@ -12,8 +12,11 @@ import { isKit, isSound } from '../../src/core/preset'
 import type { KitElement, Preset, SoundElement } from '../../src/core/preset/types'
 import { parseXML } from '../../src/core/xml'
 
-/** `tests/fixtures/<writer>/<name>.XML` → raw text, keyed by the path relative to `tests/`. */
-export const FIXTURES: Readonly<Record<string, string>> = import.meta.glob<string>('../fixtures/**/*.XML', {
+/**
+ * `tests/fixtures/<writer>/<name>.XML` → raw text, keyed by the path relative
+ * to `tests/`. `fixtures/settings/` (card SETTINGS files, not presets) is left out.
+ */
+export const FIXTURES: Readonly<Record<string, string>> = import.meta.glob<string>(['../fixtures/**/*.XML', '!../fixtures/settings/**'], {
   query: '?raw',
   import: 'default',
   eager: true,
@@ -28,9 +31,17 @@ export const allFixtures = (): [string, string][] =>
     .map(([k, v]): [string, string] => [fixtureName(k), v])
     .sort(([a], [b]) => a.localeCompare(b))
 
-/** The one fixture whose path contains `part`. Throws when none or several do. */
+/**
+ * The one fixture whose path contains `part`; when several do, the one whose
+ * file name is exactly `part` (`'Sample Ranges'` over `Nested Sample Ranges`).
+ * Throws when that still leaves none or several.
+ */
 export function fixtureText(part: string): string {
-  const hits = Object.keys(FIXTURES).filter((k) => k.includes(part))
+  let hits = Object.keys(FIXTURES).filter((k) => k.includes(part))
+  if (hits.length > 1) {
+    const exact = hits.filter((k) => k.endsWith(`/${part}.XML`) || k.endsWith(`/${part}`))
+    if (exact.length) hits = exact
+  }
   if (hits.length === 0) throw new Error(`no fixture matching "${part}"`)
   if (hits.length > 1) throw new Error(`"${part}" matches ${hits.length} fixtures: ${hits.map(fixtureName).join(', ')}`)
   return FIXTURES[hits[0]]

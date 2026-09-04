@@ -8,7 +8,8 @@
   import type { HexParam } from '../../core/params/hex'
   import { paramNameOfAttr, type SoundElement } from '../../core/preset'
   import { cableMenu, cablesTo, goldParams, hexToMenu, menuToHex, type ParamScale } from '../../core/preset/sound'
-  import { setAttr, type XmlElement } from '../../core/xml'
+  import type { XmlElement } from '../../core/xml'
+  import { writeAttr } from '../attrs'
   import { paramHelp } from '../help'
   import { isPatchableDestination } from '../options'
   import { sourceColor, sourceName } from '../sources'
@@ -37,8 +38,10 @@
     disabled?: boolean
     /** Why it is disabled; joined onto the tooltip. */
     disabledNote?: string
+    /** The firmware's default, in menu units, when its source has been cited. */
+    fallback?: number
   }
-  let { el, ensure, attr, label, scale = 'standard', order, sound, dest, extraDest, title, disabled = false, disabledNote }: Props = $props()
+  let { el, ensure, attr, label, scale = 'standard', order, sound, dest, extraDest, title, disabled = false, disabledNote, fallback }: Props = $props()
 
   const range = $derived(scale === 'pan' ? { min: -25, max: 25 } : { min: 0, max: 50 })
   const hex = $derived(el?.attrs[attr])
@@ -59,11 +62,7 @@
   const tip = $derived(title ?? paramHelp(destination))
   const format = $derived(scale === 'pan' ? (n: number) => (n === 0 ? 'CTR' : `${n < 0 ? 'L' : 'R'}${Math.abs(n)}`) : undefined)
 
-  function set(n: number) {
-    const target = el ?? ensure?.()
-    if (!target) return
-    setAttr(target, attr, menuToHex(n, scale) as HexParam, order)
-  }
+  const set = (n: number) => writeAttr(el, ensure, attr, menuToHex(n, scale) as HexParam, order)
 
   // Right-click starts a cable into this param (issue #13). Only params the
   // firmware can patch get the menu — an unpatchable one gets nothing, not a
@@ -80,5 +79,5 @@
 </script>
 
 <span style="display: contents" role="presentation" oncontextmenu={context}>
-  <Knob {label} {value} min={range.min} max={range.max} onchange={set} {format} {mod} {gold} param={attr} title={tip} {disabled} {disabledNote} />
+  <Knob {label} {value} min={range.min} max={range.max} onchange={set} {format} {mod} {gold} param={attr} title={tip} {disabled} {disabledNote} {fallback} />
 </span>

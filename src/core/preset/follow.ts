@@ -30,22 +30,34 @@ import {
   PARAMS_CHILD_ORDER,
   SOUND_CHILD_ORDER,
 } from './order'
-import { KIT_PARAM_ATTRS, SOUND_PARAM_ATTRS } from './params'
+import { KIT_PARAM_ATTRS, SOUND_PARAM_ATTRS, type KitParamAttr, type SoundParamAttr } from './params'
 import { paramScale, type ParamScale } from './sound'
-import type { KitElement, SoundElement } from './types'
+import type { EnvelopeAttrs, EqualizerAttrs, KitElement, KitParamsChildren, SoundElement } from './types'
+
+/** The `<defaultParams>` child a slot can hang off. */
+export type FollowUnder = 'envelope1' | 'envelope2' | 'envelope3' | 'envelope4' | 'equalizer' | 'lpf' | 'hpf' | 'delay'
+
+/** An attribute a slot can name: one of `<defaultParams>` itself, of either kind, or one on a child it hangs off. */
+export type FollowAttr =
+  | SoundParamAttr
+  | KitParamAttr
+  | keyof EnvelopeAttrs
+  | keyof EqualizerAttrs
+  | keyof KitParamsChildren['lpf']['attrs']
+  | keyof KitParamsChildren['delay']['attrs']
 
 /**
  * One controllable value: the attribute, and the `<defaultParams>` child it
  * hangs off when it is not a flat attribute of `<defaultParams>` itself.
  */
 export interface FollowSlot {
-  attr: string
-  /** `envelope1`…`envelope4`, `equalizer`, `lpf`, `hpf`, `delay`; absent = `<defaultParams>` itself. */
-  under?: string
+  attr: FollowAttr
+  /** Absent = `<defaultParams>` itself. */
+  under?: FollowUnder
 }
 
-const env = (n: 1 | 2 | 3 | 4, attr: string): FollowSlot => ({ attr, under: `envelope${n}` })
-const eq = (attr: string): FollowSlot => ({ attr, under: 'equalizer' })
+const env = (n: 1 | 2 | 3 | 4, attr: keyof EnvelopeAttrs): FollowSlot => ({ attr, under: `envelope${n}` })
+const eq = (attr: keyof EqualizerAttrs): FollowSlot => ({ attr, under: 'equalizer' })
 
 /**
  * Sound parameters, for a synth and for a kit row (a kit clip with AFFECT
@@ -179,11 +191,13 @@ export function slotOrder(slot: FollowSlot, kit: boolean): readonly string[] {
   return ENVELOPE_ATTR_ORDER
 }
 
-const paramsOf = (root: SoundElement | KitElement): XmlElement | undefined =>
-  child(root as unknown as XmlElement, 'defaultParams')
+/** Either root, as the plain element it is: `child` over a union picks the tags they share, which is not what a slot asks for. */
+const asElement = (root: SoundElement | KitElement): XmlElement => root
+
+const paramsOf = (root: SoundElement | KitElement): XmlElement | undefined => child(asElement(root), 'defaultParams')
 
 const ensureParamsOf = (root: SoundElement | KitElement, kit: boolean): XmlElement =>
-  ensureChild(root as unknown as XmlElement, 'defaultParams', kit ? KIT_CHILD_ORDER : SOUND_CHILD_ORDER)
+  ensureChild(asElement(root), 'defaultParams', kit ? KIT_CHILD_ORDER : SOUND_CHILD_ORDER)
 
 /** The element holding the slot's attribute, or undefined while the file has none. */
 export function slotElement(root: SoundElement | KitElement, slot: FollowSlot): XmlElement | undefined {

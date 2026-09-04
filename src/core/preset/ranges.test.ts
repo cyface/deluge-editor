@@ -9,9 +9,10 @@ import rangesFixture from '../../../tests/fixtures/community-c1.3.0-beta-3f898e9
 import nestedFixture from '../../../tests/fixtures/official-2.x-old-format/Nested Sample Ranges.XML?raw'
 import velocityFixture from '../../../tests/fixtures/fork-c1.3.0-local-fixes-fbba6b4f/Kit Velocity Layers.XML?raw'
 import synthTemplate from '../../assets/templates/Default Synth.XML?raw'
+import { parseSound as load } from '../../../tests/helpers/fixtures'
 import { generateXML, parseXML } from '../xml'
 import { element } from '../xml/element'
-import { drumRows, isKit, isSound } from './index'
+import { drumRows, isKit } from './index'
 import { osc } from './sound'
 import {
   addRange,
@@ -38,12 +39,6 @@ import {
   wavetableRanges,
 } from './ranges'
 import type { OscElement, SoundElement } from './types'
-
-const load = (text: string): SoundElement => {
-  const p = parseXML(text)
-  if (!isSound(p)) throw new Error('fixture is not a sound')
-  return p
-}
 
 const osc1 = (text: string): OscElement => {
   const o = osc(load(text), 1)

@@ -23,19 +23,32 @@ export interface ElementRef {
 
 const SEG = /^([^[\]]+)(?:\[(\d+)\])?$/
 
+/** One path segment parsed: `sampleRange[2]` → tag `sampleRange`, index 2; a bare tag has no index. */
+export interface PathSegment {
+  tag: string
+  index?: number
+}
+
+/** Parse one segment of a flattened path, or null when it isn't one. */
+export function parseSegment(seg: string): PathSegment | null {
+  const m = SEG.exec(seg)
+  if (!m) return null
+  return m[2] === undefined ? { tag: m[1] } : { tag: m[1], index: Number(m[2]) }
+}
+
 function walkElements(root: XmlElement, segs: string[], create: boolean): ElementRef | null {
-  if (SEG.exec(segs[0])?.[1] !== root.tag) return null
+  if (parseSegment(segs[0])?.tag !== root.tag) return null
   let el = root
   const lineage = [root]
   for (const s of segs.slice(1)) {
-    const m = SEG.exec(s)
+    const m = parseSegment(s)
     if (!m) return null
-    const matches = el.children.filter((c) => c.tag === m[1])
-    const i = m[2] === undefined ? 0 : Number(m[2])
+    const matches = el.children.filter((c) => c.tag === m.tag)
+    const i = m.index ?? 0
     let next = matches[i]
     if (!next) {
       if (!create || i > matches.length) return null
-      next = element(m[1])
+      next = element(m.tag)
       el.children.push(next) // appended: value-correct; layout may differ until saved by a Deluge
     }
     el = next

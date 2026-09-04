@@ -116,7 +116,11 @@ Verified in the `beta` tag of SynthstromAudible/DelugeFirmware, 2026-08-29:
 - Community releases and the rolling beta:
   `gh release download beta -R SynthstromAudible/DelugeFirmware -p '*.zip'`.
   `strings deluge.bin | grep -E '^c?1\.[0-9]'` prints the version and commit
-  (e.g. `1.3.0-beta-3f898e9`) — check it before trusting any `.bin`.
+  (e.g. `1.3.0-beta-3f898e9`) — check it before trusting any `.bin`. The
+  `beta` release is replaced by every build, so a binary that is not kept
+  cannot be fetched again: name the fixture folder after the commit the
+  binary reports and keep the `.bin` if more captures from that build are
+  likely (the repo does not track it; `fw/` is a fine place).
 - DelugEmu ships `deluge-c1_2_1.bin` in its `firmware/` folder.
 - A local build of `~/WebstormProjects/DelugeFirmwareTW` works too, but its
   `local-fixes` branch has fork-only features; a fixture from it does not show

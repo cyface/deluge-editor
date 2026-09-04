@@ -27,7 +27,7 @@
     {#each d.changed as c (c.path)}
       <div class="row changed" data-change={c.path} title="{c.path}&#10;{c.expected} → {c.actual}">
         <div class="what">
-          <span class="lbl">{label(c.path)}</span>
+          <span class="name">{label(c.path)}</span>
           <span class="v"><s>{val(c.path, c.expected)}</s> → <b>{val(c.path, c.actual)}</b></span>
         </div>
         <button type="button" class="x" title="Revert to the file's value" aria-label="Revert {label(c.path)}" onclick={() => editor.revert(c.path)}>×</button>
@@ -36,7 +36,7 @@
     {#each d.addedGroups as g (g.prefix)}
       <div class="row added" data-change={g.prefix} title="{g.prefix}&#10;+ {g.paths.length} values">
         <div class="what">
-          <span class="lbl">{elabel(g.prefix)}</span>
+          <span class="name">{elabel(g.prefix)}</span>
           <span class="v">+ {#if nameOf(g.prefix)}<b>{nameOf(g.prefix)}</b> {/if}<em>added · {g.paths.length} values</em></span>
         </div>
         <button type="button" class="x" title="Remove it again, as the file had it" aria-label="Remove {elabel(g.prefix)}" onclick={() => editor.revertGroup(g.prefix, 'added')}>×</button>
@@ -45,7 +45,7 @@
     {#each d.added as p (p)}
       <div class="row added" data-change={p} title="{p}&#10;+ {editor.flatOutput?.get(p)}">
         <div class="what">
-          <span class="lbl">{label(p)}</span>
+          <span class="name">{label(p)}</span>
           <span class="v">+ <b>{val(p, editor.flatOutput?.get(p) ?? '')}</b> <em>added</em></span>
         </div>
         <button type="button" class="x" title="Remove again, as the file had it" aria-label="Revert {label(p)}" onclick={() => editor.revert(p)}>×</button>
@@ -54,7 +54,7 @@
     {#each d.missingGroups as g (g.prefix)}
       <div class="row missing" data-change={g.prefix} title="{g.prefix}&#10;− {g.paths.length} values">
         <div class="what">
-          <span class="lbl">{elabel(g.prefix)}</span>
+          <span class="name">{elabel(g.prefix)}</span>
           <span class="v">− {#if nameOf(g.prefix)}<s>{nameOf(g.prefix)}</s> {/if}<em>removed · {g.paths.length} values</em></span>
         </div>
         {#if editor.canRestoreGroup(g.prefix)}
@@ -65,7 +65,7 @@
     {#each d.missing as p (p)}
       <div class="row missing" data-change={p} title="{p}&#10;− {editor.flatSource?.get(p)}">
         <div class="what">
-          <span class="lbl">{label(p)}</span>
+          <span class="name">{label(p)}</span>
           <span class="v">− <s>{val(p, editor.flatSource?.get(p) ?? '')}</s> <em>removed</em></span>
         </div>
         <button type="button" class="x" title="Restore the file's value" aria-label="Revert {label(p)}" onclick={() => editor.revert(p)}>×</button>
@@ -75,16 +75,16 @@
 </aside>
 
 <style>
-  .dock { position: fixed; right: var(--cheek); top: 48px; bottom: 0; width: 360px; max-width: 88vw; background: #141210; border-left: 1px solid var(--edge); padding: 12px; overflow: auto; z-index: 60; transform: translateX(102%); transition: transform .18s ease; }
+  .dock { position: fixed; right: var(--cheek); top: 48px; bottom: 0; width: 360px; max-width: 88vw; background: var(--raised); border-left: 1px solid var(--edge); padding: 12px; overflow: auto; z-index: 60; transform: translateX(102%); transition: transform .18s ease; }
   .dock.open { transform: none; box-shadow: -20px 0 44px rgba(0,0,0,.55); }
-  .ph { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin: 0 0 8px; }
-  .ph h2 { margin: 0; font-family: var(--cond); font-size: 12px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: #e2d9ca; }
-  .row { display: flex; align-items: center; gap: 6px; padding: 6px 6px 6px 8px; border-radius: 3px; background: #1b1815; border: 1px solid var(--edge); margin-bottom: 5px; border-left-width: 3px; }
+  /* The header is theme.css's .ph; here it sits flush with the dock's edge. */
+  .dock :global(.ph) { margin: 0 0 8px; }
+  .row { display: flex; align-items: center; gap: 6px; padding: 6px 6px 6px 8px; border-radius: var(--r-s); background: var(--raised-hi); border: 1px solid var(--edge); margin-bottom: 5px; border-left-width: 3px; }
   .row.changed { border-left-color: var(--brass); }
   .row.added { border-left-color: var(--ok); }
   .row.missing { border-left-color: var(--bad); }
   .what { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
-  .lbl { font-family: var(--cond); font-size: 12px; font-weight: 600; letter-spacing: .05em; color: #ddd4c4; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .name { font-family: var(--cond); font-size: 12px; font-weight: 600; letter-spacing: .05em; color: var(--text-list); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .v { font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
   .v s { color: var(--faint); }
   .v b { color: var(--brass-hi); font-weight: 500; }

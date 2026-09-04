@@ -25,14 +25,9 @@
   let { filters }: Props = $props()
 
   const H = 150
+  /** The box's rendered width; 420 until the binding measures it. */
   let width = $state(420)
-  let box: HTMLDivElement | undefined = $state()
-  $effect(() => {
-    if (!box) return
-    const ro = new ResizeObserver(() => { width = Math.max(200, box!.clientWidth) })
-    ro.observe(box)
-    return () => ro.disconnect()
-  })
+  const W = $derived(Math.max(200, width))
 
   const lpfMode = $derived(filters.attr('lpfMode') ?? '24dB')
   const hpfMode = $derived(filters.attr('hpfMode') ?? 'HPLadder')
@@ -85,7 +80,6 @@
     return d
   }
   const combined = (fr: number) => (para ? Math.min(2, lpfMag(fr) + hpfMag(fr)) : lpfMag(fr) * hpfMag(fr))
-  const W = $derived(width)
   const xLpf = $derived((lpfFreq / 50) * W)
   const xHpf = $derived((hpfFreq / 50) * W)
   const cross = $derived(hpfOn && lpfOn ? (xLpf + xHpf) / 2 : hpfOn ? W : 0)
@@ -121,10 +115,24 @@
       s.addEventListener('pointerup', up)
     }
   }
+
+  /** The keyboard's way to the same dots: left and right for cutoff, up and down for resonance (shift, ×5). */
+  function nudge(which: 'lpf' | 'hpf') {
+    return (e: KeyboardEvent) => {
+      const dx = { ArrowRight: 1, ArrowLeft: -1 }[e.key]
+      const dy = { ArrowUp: 1, ArrowDown: -1 }[e.key]
+      if (dx === undefined && dy === undefined) return
+      e.preventDefault()
+      const step = e.shiftKey ? 5 : 1
+      const clamp = (v: number) => Math.max(0, Math.min(50, v))
+      if (dx !== undefined) filters.write(which === 'lpf' ? 'lpfFrequency' : 'hpfFrequency', clamp((which === 'lpf' ? lpfFreq : hpfFreq) + dx * step))
+      if (dy !== undefined) filters.write(which === 'lpf' ? 'lpfResonance' : 'hpfResonance', clamp((which === 'lpf' ? lpfRes : hpfRes) + dy * step))
+    }
+  }
 </script>
 
 <div class="wrap">
-  <div class="graph" bind:this={box} title="Drag a dot: sideways for cutoff, up and down for resonance">
+  <div class="graph" bind:clientWidth={width} title="Drag a dot: sideways for cutoff, up and down for resonance">
     <!-- overflow visible so a handle at full cutoff or zero resonance isn't clipped at the edge -->
     <svg bind:this={svg} viewBox="0 0 {W} {H}" height={H} style="overflow:visible" data-testid="filter-graph">
       {#each [0, 0.25, 0.5, 0.75, 1] as x (x)}<line x1={x * W} y1="0" x2={x * W} y2={H} stroke="#161311" />{/each}
@@ -145,13 +153,13 @@
       {#if lpfOn}<line x1={xLpf} y1="0" x2={xLpf} y2={H} stroke="var(--flt)" stroke-width="1" opacity=".35" />{/if}
       {#if hpfOn}<line x1={xHpf} y1="0" x2={xHpf} y2={H} stroke="var(--hpf)" stroke-width="1" opacity=".3" />{/if}
       {#if lpfOn}
-        <g class="handle" onpointerdown={grab('lpf')} role="slider" aria-label="LPF cutoff and resonance" aria-valuenow={lpfFreq} tabindex="-1">
+        <g class="handle" onpointerdown={grab('lpf')} onkeydown={nudge('lpf')} role="slider" aria-label="LPF cutoff and resonance" aria-valuemin="0" aria-valuemax="50" aria-valuenow={lpfFreq} aria-valuetext="cutoff {lpfFreq}, resonance {lpfRes}" tabindex="0">
           <circle cx={xLpf} cy={yRes(lpfRes)} r="6" fill="#1a1610" stroke="var(--flt)" stroke-width="2" />
           <circle cx={xLpf} cy={yRes(lpfRes)} r="1.8" fill="var(--flt)" />
         </g>
       {/if}
       {#if hpfOn}
-        <g class="handle" onpointerdown={grab('hpf')} role="slider" aria-label="HPF cutoff and resonance" aria-valuenow={hpfFreq} tabindex="-1">
+        <g class="handle" onpointerdown={grab('hpf')} onkeydown={nudge('hpf')} role="slider" aria-label="HPF cutoff and resonance" aria-valuemin="0" aria-valuemax="50" aria-valuenow={hpfFreq} aria-valuetext="cutoff {hpfFreq}, resonance {hpfRes}" tabindex="0">
           <circle cx={xHpf} cy={yRes(hpfRes)} r="6" fill="#0f1618" stroke="var(--hpf)" stroke-width="2" />
           <circle cx={xHpf} cy={yRes(hpfRes)} r="1.8" fill="var(--hpf)" />
         </g>

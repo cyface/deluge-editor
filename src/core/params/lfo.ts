@@ -38,7 +38,10 @@
  * compute and the caller shows the note length instead (`sync.ts`).
  */
 
+import type { LfoType } from '../preset/enums'
+import { mulRshift32, TWO32 } from './fixedpoint'
 import { INT32_MAX, INT32_MIN } from './hex'
+import { menuToStandard } from './scale'
 
 /** `kSampleRate`, `src/definitions_cxx.hpp`. */
 export const SAMPLE_RATE = 44100
@@ -76,13 +79,6 @@ export const EXP_TABLE_SMALL: readonly number[] = [
   64830, 65006, 65182, 65359, 65535,
 ]
 
-/**
- * `multiply_32x32_rshift32` (`util/fixedpoint.h`): the top 32 bits of a signed
- * 64-bit product. BigInt because the product reaches 2^62, as `menuToCable`
- * does in `scale.ts`.
- */
-const mulRshift32 = (a: number, b: number): number => Number((BigInt(a) * BigInt(b)) >> 32n)
-
 /** `interpolateTable` (`util/functions.cpp`) for a uint16 table of 2^8 + 1 entries. */
 function interpolateTable(input: number, numBitsInInput: number, table: readonly number[]): number {
   const which = input >>> (numBitsInInput - 8)
@@ -116,15 +112,10 @@ export const lfoPhaseIncrement = (paramValue: number): number =>
   getExp(LFO_RATE_NEUTRAL, mulRshift32(paramValue, PARAM_RANGE))
 
 /** The same, in Hz: `phaseIncrement` cycles of 2^32 per second at 44.1 kHz. */
-export const lfoRateHz = (paramValue: number): number =>
-  (lfoPhaseIncrement(paramValue) / 4294967296) * SAMPLE_RATE
-
-/** `menuToStandard` without importing it, so a menu number can be asked directly. */
-const menuValue = (menu: number): number =>
-  menu >= 50 ? INT32_MAX : menu <= 0 ? INT32_MIN : menu * 85899345 - 2147483648
+export const lfoRateHz = (paramValue: number): number => (lfoPhaseIncrement(paramValue) / TWO32) * SAMPLE_RATE
 
 /** An unsynced LFO's frequency in Hz for a 0–50 menu rate. */
-export const lfoMenuRateHz = (menu: number): number => lfoRateHz(menuValue(menu))
+export const lfoMenuRateHz = (menu: number): number => lfoRateHz(menuToStandard(menu))
 
 /**
  * A rate as a line of text: fast rates in Hz, slow ones as the seconds a cycle
@@ -148,11 +139,11 @@ export function formatLfoRate(menu: number): string {
  * The firmware's own note: phase 0 is the negative extreme for triangle but
  * the *positive* extreme for square, and it leaves it that way.
  */
-export function lfoStartPhase(type: string, scope: 'global' | 'voice'): number {
+export function lfoStartPhase(type: LfoType, scope: 'global' | 'voice'): number {
   if (scope === 'global' && (type === 'sine' || type === 'triangle')) {
-    return type === 'triangle' ? 1073741824 / 4294967296 : 0
+    return type === 'triangle' ? 1073741824 / TWO32 : 0
   }
   if (type === 'saw') return 0.5
-  if (type === 'sine') return 3221225472 / 4294967296
+  if (type === 'sine') return 3221225472 / TWO32
   return 0
 }

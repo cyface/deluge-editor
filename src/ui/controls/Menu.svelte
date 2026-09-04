@@ -9,6 +9,7 @@
    * they do.
    */
   import { tick, type Snippet } from 'svelte'
+  import { menuItems, menuListKey } from '../menukeys'
 
   interface Props {
     label: string
@@ -24,12 +25,10 @@
   let button: HTMLButtonElement | undefined = $state()
   let list: HTMLDivElement | undefined = $state()
 
-  const items = (): HTMLButtonElement[] => [...(list?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not(:disabled)') ?? [])]
-
   async function show(): Promise<void> {
     open = true
     await tick()
-    items()[0]?.focus()
+    menuItems(list)[0]?.focus()
   }
   function hide(refocus = true): void {
     if (!open) return
@@ -50,23 +49,7 @@
     }
   }
 
-  function onListKey(e: KeyboardEvent): void {
-    const all = items()
-    if (!all.length) return
-    const at = all.indexOf(document.activeElement as HTMLButtonElement)
-    const go = (i: number) => {
-      e.preventDefault()
-      all[(i + all.length) % all.length]?.focus()
-    }
-    if (e.key === 'ArrowDown') go(at + 1)
-    else if (e.key === 'ArrowUp') go(at - 1)
-    else if (e.key === 'Home') go(0)
-    else if (e.key === 'End') go(all.length - 1)
-    else if (e.key === 'Escape') {
-      e.preventDefault()
-      hide()
-    } else if (e.key === 'Tab') hide(false)
-  }
+  const onListKey = (e: KeyboardEvent): void => menuListKey(e, list, { onEscape: () => hide(), onTab: () => hide(false) })
 
   /** Choosing an item is what closes the menu; a disabled item is not a choice. */
   function onListClick(e: MouseEvent): void {
@@ -122,7 +105,7 @@
    */
   .list {
     position: absolute; top: calc(100% + 5px); left: 0; z-index: 60; min-width: 196px;
-    background: #1b1815; border: 1px solid var(--edge-hi); border-radius: 4px;
+    background: var(--raised-hi); border: 1px solid var(--edge-hi); border-radius: 4px;
     box-shadow: 0 12px 34px rgba(0,0,0,.6); padding: 4px;
   }
 </style>

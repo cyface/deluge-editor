@@ -2,8 +2,9 @@ import { describe, expect, it } from 'vitest'
 import kitFixture from '../../../tests/fixtures/community-c1.3.0-beta-3f898e9/Kit Sample Rows.XML?raw'
 import rangesFixture from '../../../tests/fixtures/community-c1.3.0-beta-3f898e9/Sample Ranges.XML?raw'
 import synthTemplate from '../../assets/templates/Default Synth.XML?raw'
-import { FakeDeluge } from '../sysex/fake-deluge'
-import { SmsClient, SysexError } from '../sysex/client'
+import { rig as sysexRig } from '../../../tests/helpers/rig'
+import type { FakeDeluge } from '../sysex/fake-deluge'
+import { SysexError } from '../sysex/client'
 import { CardError, decodeXml, isNotFound, type CardFS } from './fs'
 import { applyMove, applyMoveToIndex, deleteProblem, deleteTree, planMove, type MovePlan } from './move'
 import { referencedPaths } from './refs'
@@ -13,9 +14,7 @@ import { indexFromJSON, indexToJSON, usageCounts, usagesOf, type ReferenceIndex 
 
 /** A fake card with the fixtures on it, through the real client. */
 function rig(): { fs: CardFS; fake: FakeDeluge; text: (p: string) => string } {
-  let client: SmsClient
-  const fake = new FakeDeluge((bytes) => client!.receive(bytes))
-  client = new SmsClient((bytes) => fake.receive(bytes), { timeouts: [20, 20, 50, 100] })
+  const { client, fake } = sysexRig()
   fake.putFile('/KITS/Fixtures Kit.XML', kitFixture)
   fake.putFile('/SYNTHS/Piano.XML', rangesFixture)
   fake.putFile('/SYNTHS/Sub/Init.XML', synthTemplate)
@@ -63,9 +62,7 @@ describe('scanReferences', () => {
   it('a listing that fails for any other reason rejects the scan rather than indexing an empty root', async () => {
     // FR_DISK_ERR on every `dir`: an index built anyway would say every
     // sample is used by 0 files, and deleteProblem would let a delete through.
-    let client: SmsClient
-    const fake = new FakeDeluge((bytes) => client!.receive(bytes), { failDir: 1 })
-    client = new SmsClient((bytes) => fake.receive(bytes), { timeouts: [20, 20, 50, 100] })
+    const { client, fake } = sysexRig({ failDir: 1 })
     fake.putFile('/KITS/Fixtures Kit.XML', kitFixture)
     const err = await scanReferences(smsFS(client)).catch((e: unknown) => e)
     expect(err).toBeInstanceOf(CardError)
@@ -75,9 +72,7 @@ describe('scanReferences', () => {
   })
 
   it('a listing that times out rejects too', async () => {
-    let client: SmsClient
-    const fake = new FakeDeluge((bytes) => client!.receive(bytes), { dropRequests: 99 })
-    client = new SmsClient((bytes) => fake.receive(bytes), { timeouts: [10, 10] })
+    const { client, fake } = sysexRig({ dropRequests: 99 }, { timeouts: [10, 10] })
     fake.putFile('/KITS/Fixtures Kit.XML', kitFixture)
     const err = await scanReferences(smsFS(client)).catch((e: unknown) => e)
     expect(err).toBeInstanceOf(CardError)
@@ -101,9 +96,7 @@ describe('smsFS errors', () => {
   })
 
   it('a write whose read-back differs is a verify error', async () => {
-    let client: SmsClient
-    const fake = new FakeDeluge((bytes) => client!.receive(bytes), { corruptWrites: true })
-    client = new SmsClient((bytes) => fake.receive(bytes), { timeouts: [20, 20, 50, 100] })
+    const { client } = sysexRig({ corruptWrites: true })
     const err = await smsFS(client)
       .write('/SYNTHS/New.XML', new TextEncoder().encode(synthTemplate))
       .catch((e: unknown) => e)

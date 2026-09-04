@@ -22,7 +22,7 @@
   import RandomiserGroup from './groups/RandomiserGroup.svelte'
   import VoiceGroup from './groups/VoiceGroup.svelte'
   import { gridBlocks, gridGroups, type Group } from './groups'
-  import { columnCount, splitStacks, GAP, MAX_COL } from './masonry'
+  import { columnCount, heightMeasurer, splitStacks, GAP, MAX_COL } from './masonry'
   import { editor } from './state/editor.svelte'
 
   interface Props { sound: SoundElement; kit?: KitElement }
@@ -48,27 +48,7 @@
     return splitStacks(blocks, costs, cols, kitAt).map((stack) => stack.flat())
   })
 
-  const observed = new Map<Element, string>()
-  const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver((entries) => {
-    for (const e of entries) {
-      const id = observed.get(e.target)
-      if (id === undefined) continue
-      const h = e.contentRect.height
-      // Heights only move when the width or the panel's content does, so the
-      // remeasure after a redistribution reports the same numbers and settles.
-      if (Math.abs((heights[id] ?? -1) - h) > 0.5) heights[id] = h
-    }
-  })
-  function measure(node: HTMLElement, id: string) {
-    observed.set(node, id)
-    ro?.observe(node)
-    return {
-      destroy() {
-        observed.delete(node)
-        ro?.unobserve(node)
-      },
-    }
-  }
+  const measure = heightMeasurer(heights)
 </script>
 
 {#if collapsed.length}

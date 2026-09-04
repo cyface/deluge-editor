@@ -47,6 +47,7 @@
  * warn that two editors can overwrite each other's saves (issue #8).
  */
 
+import { clamp } from '../params/scale'
 import { fresultMessage, fresultName } from './fatfs'
 import { buildJsonFrame, MAX_REQUEST_BYTES, parseReply, type SysexReply } from './frame'
 
@@ -331,7 +332,7 @@ export class SmsClient {
     const fid = open.fid as number
     const size = open.size as number
     const read = async (offset: number, length: number): Promise<Uint8Array> => {
-      const out = new Uint8Array(Math.max(0, Math.min(length, size - offset)))
+      const out = new Uint8Array(clamp(size - offset, 0, length))
       let done = 0
       while (done < out.length) {
         const want = Math.min(this.opts.readChunk, out.length - done)
@@ -438,7 +439,13 @@ export class SmsClient {
     }
   }
 
-  /** The whole directory, paged through the firmware's 25-line limit. */
+  /**
+   * The whole directory, paged through the firmware's 25-line limit. `err`
+   * in a `^dir` reply is `f_opendir`'s result (`getDirEntries`, smsysex.cpp),
+   * never a normal end of listing — that is a short or empty page with
+   * `err: 0` — so an error on any page, first or later, fails the whole call
+   * rather than passing off the entries so far as the folder's contents.
+   */
   async listDirectory(path: string): Promise<DirEntry[]> {
     const all: DirEntry[] = []
     for (;;) {
@@ -446,10 +453,10 @@ export class SmsClient {
       const body = r.json['^dir'] as { list?: DirEntry[]; err?: number } | undefined
       if (!body) throw new SysexError('dir', path, NO_REPLY)
       const err = body.err ?? 0
-      if (err !== 0 && all.length === 0) throw new SysexError('dir', path, err)
+      if (err !== 0) throw new SysexError('dir', path, err)
       const page = body.list ?? []
       all.push(...page)
-      if (err !== 0 || page.length < MAX_DIR_LINES) return all
+      if (page.length < MAX_DIR_LINES) return all
     }
   }
 
@@ -603,6 +610,9 @@ export class SmsClient {
     }
     // A firmware that never answered has told us nothing about its ring: serial.
     this.session = { midMin: (15 << 3) + 1, midMax: (15 << 3) + 7, pipe: 1 }
+    this.opts.debug(
+      `session: no grant after ${this.opts.timeouts.length} attempts — using the last session block (sid 15) unnegotiated, serial`,
+    )
     return this.session
   }
 

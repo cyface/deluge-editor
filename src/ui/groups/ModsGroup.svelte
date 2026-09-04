@@ -1,5 +1,16 @@
+<script lang="ts" module>
+  /*
+   * Which envelope and LFO tab is open lives at module level: the Overview
+   * re-deals its panels into stacks as the window resizes, and a keyed panel
+   * that moves between stacks is remounted, which would throw a component's
+   * own selection away. There is one Overview, so one selection is right.
+   */
+  let envPick = $state(1)
+  let lfoPick = $state(1)
+</script>
+
 <script lang="ts">
-  import { LFO_SCOPE } from '../../core/firmware/features'
+  import { LFO_SCOPE, type Feature } from '../../core/firmware/features'
   import { ENVELOPE_ATTR_ORDER, LFO_ATTR_ORDER, paramLabel, SOUND_CHILD_ORDER, SOUND_PARAM_ATTRS, type SoundElement } from '../../core/preset'
   import { cablesFrom, ensureEnvelope, ensureParams, envelope, lfo, params } from '../../core/preset/sound'
   import { ensureChild, setAttr } from '../../core/xml'
@@ -15,13 +26,15 @@
 
   interface Props { sound: SoundElement }
   let { sound }: Props = $props()
-  let envSel = $state(1)
-  let lfoSel = $state(1)
   type N = 1 | 2 | 3 | 4
-  const envs = $derived([1, 2, 3, 4].filter((n) => n <= 2 || editor.supports(`env${n}`)))
-  const lfos = $derived([1, 2, 3, 4].filter((n) => n <= 2 || editor.supports(`lfo${n}`)))
-  $effect(() => { if (!envs.includes(envSel)) envSel = 1 })
-  $effect(() => { if (!lfos.includes(lfoSel)) lfoSel = 1 })
+  // Two of each on every firmware; the third and fourth are features by name,
+  // spelled out so a typo is a type error rather than a silently absent tab.
+  const EXTRA: Record<3 | 4, { env: Feature; lfo: Feature }> = { 3: { env: 'env3', lfo: 'lfo3' }, 4: { env: 'env4', lfo: 'lfo4' } }
+  const envs = $derived([1, 2, 3, 4].filter((n) => n <= 2 || editor.supports(EXTRA[n as 3 | 4].env)))
+  const lfos = $derived([1, 2, 3, 4].filter((n) => n <= 2 || editor.supports(EXTRA[n as 3 | 4].lfo)))
+  // The selection is the pick clamped to the tabs this firmware has — never a frame late.
+  const envSel = $derived(envs.includes(envPick) ? envPick : 1)
+  const lfoSel = $derived(lfos.includes(lfoPick) ? lfoPick : 1)
 
   const envItems = $derived(
     envs.map((n) => ({
@@ -65,7 +78,7 @@
 </script>
 
 <div class="h3">Envelopes</div>
-<Seg items={envItems} selected={envSel} onselect={(n) => (envSel = n)} />
+<Seg items={envItems} selected={envSel} onselect={(n) => (envPick = n)} />
 <EnvGraph {sound} selected={envSel} available={envs} />
 <div class="knobrow">
   {#each ENVELOPE_ATTR_ORDER as stage (stage)}
@@ -74,7 +87,7 @@
 </div>
 
 <div class="h3">LFOs</div>
-<Seg items={lfoItems} selected={lfoSel} onselect={(n) => (lfoSel = n)} />
+<Seg items={lfoItems} selected={lfoSel} onselect={(n) => (lfoPick = n)} />
 <p class="lfonote">{lfoNote}</p>
 <!-- Absent-attribute defaults: shape stays LFOConfig()'s TRIANGLE
      (modulation/lfo.h, tag `beta`); the <lfoN> readers preset

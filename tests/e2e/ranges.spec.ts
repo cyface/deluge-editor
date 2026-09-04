@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { choose } from './bar.js'
+import { asciiWav } from '../helpers/wav.js'
 import path from 'node:path'
 
 const FIXTURE = path.resolve('tests/fixtures/community-c1.3.0-beta-3f898e9/Sample Ranges.XML')
@@ -117,29 +118,6 @@ test('the editor closes and the panel button says so', async ({ page }) => {
   await page.getByTestId('edit-ranges-1').click()
   await expect(page.getByTestId('range-editor')).toHaveCount(0)
 })
-
-/**
- * A PCM WAV whose bytes all stay ≤ 0x7F, as a latin1 string — the fake card's
- * seed crosses into the page as JSON text (see card.spec.ts).
- */
-function asciiWav(frames: number): string {
-  const dataBytes = frames * 2
-  const b = Buffer.alloc(44 + dataBytes)
-  b.write('RIFF', 0)
-  b.writeUInt32LE(36 + dataBytes, 4)
-  b.write('WAVE', 8)
-  b.write('fmt ', 12)
-  b.writeUInt32LE(16, 16)
-  b.writeUInt16LE(1, 20)
-  b.writeUInt16LE(1, 22)
-  b.writeUInt32LE(4096, 24)
-  b.writeUInt32LE(4096 * 2, 28)
-  b.writeUInt16LE(2, 32)
-  b.writeUInt16LE(16, 34)
-  b.write('data', 36)
-  b.writeUInt32LE(dataBytes, 40)
-  return b.toString('latin1')
-}
 
 test('assign a range a sample browsed on the card, zone and all', async ({ page }) => {
   await page.addInitScript((seed) => {

@@ -24,6 +24,7 @@ export {
   SysexError,
   type DirEntry,
   type Progress,
+  type ReadHandle,
   type SmsClientOptions,
   type VerifyMode,
 } from './client'

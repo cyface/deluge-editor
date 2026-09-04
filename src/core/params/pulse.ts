@@ -24,13 +24,8 @@
  * doubles it once more — landing back on the number in the file.
  */
 
+import { mulRshift32, TWO31, TWO32 } from './fixedpoint'
 import { INT32_MAX, INT32_MIN } from './hex'
-
-const TWO31 = 2147483648
-const TWO32 = 4294967296
-
-/** `multiply_32x32_rshift32`; BigInt because the product reaches 2^62. */
-const mulRshift32 = (a: number, b: number): number => Number((BigInt(a) * BigInt(b)) >> 32n)
 
 /** ARM's SSAT, as `signed_saturate<bits>` (`util/functions.h`). */
 const signedSaturate = (v: number, bits: number): number =>

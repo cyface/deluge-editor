@@ -6,18 +6,10 @@
 import { describe, expect, it } from 'vitest'
 import community from '../../../tests/fixtures/community-c1.3.0-beta-3f898e9/Default Synth.XML?raw'
 import baseline from '../../../tests/fixtures/official-4.0.1/Attribute Format Baseline.XML?raw'
-import { parseXML } from '../xml'
+import { parseSound as load } from '../../../tests/helpers/fixtures'
 import { setAttr } from '../xml/edit'
-import { isSound } from './index'
 import { envelopeIsStock, lfoIsStock, modKnobDeviations, STOCK_MOD_KNOBS } from './stock'
 import { modKnobs, setEnvelopeMenu, setParamMenu } from './sound'
-import type { SoundElement } from './types'
-
-const load = (text: string): SoundElement => {
-  const p = parseXML(text)
-  if (!isSound(p)) throw new Error('fixture is not a sound')
-  return p
-}
 
 describe('stock mod knobs (issue #14)', () => {
   it('matches the 16 knobs the firmware writes for the init synth', () => {

@@ -1,33 +1,9 @@
 import { expect, test, type Page } from '@playwright/test'
 import { choose } from './bar.js'
+import { monoWav as wavBytes } from '../helpers/wav.js'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-
-/**
- * A minimal PCM WAV (16-bit mono). Not a fixture: the fixture rule covers
- * Deluge preset XML, and these bytes only exercise the RIFF walk. They carry
- * no embedded root note on purpose — the file names carry this import, which
- * is the case the review table exists for.
- */
-function wavBytes(frames: number): Buffer {
-  const dataBytes = frames * 2
-  const b = Buffer.alloc(44 + dataBytes)
-  b.write('RIFF', 0)
-  b.writeUInt32LE(36 + dataBytes, 4)
-  b.write('WAVE', 8)
-  b.write('fmt ', 12)
-  b.writeUInt32LE(16, 16)
-  b.writeUInt16LE(1, 20) // PCM
-  b.writeUInt16LE(1, 22) // mono
-  b.writeUInt32LE(44100, 24)
-  b.writeUInt32LE(44100 * 2, 28)
-  b.writeUInt16LE(2, 32) // block align
-  b.writeUInt16LE(16, 34)
-  b.write('data', 36)
-  b.writeUInt32LE(dataBytes, 40)
-  return b
-}
 
 /**
  * Drop a folder on the page, the way a file manager does: the directory

@@ -12,6 +12,7 @@
    * keeps its panel in the grid; this one never uses that word.
    */
   import { INTENSITIES, RANDOM_SECTIONS } from '../core/random'
+  import Seg from './controls/Seg.svelte'
   import { HELP } from './help'
   import { editor } from './state/editor.svelte'
   import { INTENSITY_LABELS, SECTION_LABELS, randomizer } from './state/randomize.svelte'
@@ -22,15 +23,13 @@
     <div class="grp">
       <span class="lab" title={HELP['randomize.intensity']}>Intensity</span>
       <div class="levels" data-testid="randomize-intensity">
-        {#each INTENSITIES as level (level)}
-          <button
-            type="button"
-            class:on={randomizer.intensity === level}
-            data-level={level}
-            aria-pressed={randomizer.intensity === level}
-            onclick={() => (randomizer.intensity = level)}
-          >{INTENSITY_LABELS[level]}</button>
-        {/each}
+        <Seg
+          items={INTENSITIES.map((level) => ({ id: level, label: INTENSITY_LABELS[level], attrs: { 'data-level': level } }))}
+          selected={randomizer.intensity}
+          onselect={(level) => (randomizer.intensity = level)}
+          label="Intensity"
+          flush
+        />
       </div>
     </div>
 
@@ -56,7 +55,7 @@
     <div class="grp go">
       <button
         type="button"
-        class="btn roll"
+        class="btn go"
         data-testid="randomize-roll"
         disabled={!randomizer.ready}
         title={HELP['randomize.roll']}
@@ -121,16 +120,10 @@
   .grp { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
   .grp.scope { flex: 1; min-width: 260px; }
   .lab { font-family: var(--cond); font-size: 10px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin-right: 4px; }
-  /* Not `.seg`: the app-wide one (`theme.css`) carries a top margin for the panels it lives in. */
-  .levels { display: flex; gap: 3px; }
-  .levels button {
-    height: 23px; padding: 0 9px; border: 1px solid var(--edge); background: #1b1815; color: var(--muted);
-    border-radius: 3px; font-family: var(--cond); font-size: 10.5px; letter-spacing: .07em; text-transform: uppercase; cursor: pointer;
-  }
-  .levels button:hover { color: var(--text); }
-  .levels button.on { border-color: var(--brass); color: var(--brass-hi); background: #241d13; }
+  /* The segmented control's buttons are the height of every other first-row control. */
+  .levels :global(.seg button) { height: 23px; padding: 0 9px; }
   .chk {
-    height: 23px; padding: 0 8px; border: 1px solid var(--edge); background: #1b1815; color: var(--faint);
+    height: 23px; padding: 0 8px; border: 1px solid var(--edge); background: var(--raised-hi); color: var(--faint);
     border-radius: 3px; font-family: var(--cond); font-size: 10.5px; letter-spacing: .05em; white-space: nowrap; cursor: pointer;
   }
   .chk:hover { color: var(--muted); }
@@ -139,16 +132,11 @@
   .acts button { background: none; border: 0; padding: 0; color: var(--faint); font-family: var(--cond); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; cursor: pointer; }
   .acts button:hover { color: var(--brass); }
   .go { gap: 6px; }
-  .btn {
-    height: 23px; padding: 0 14px; border: 1px solid var(--edge-hi); background: #1b1815; color: var(--muted);
-    border-radius: 3px; font-family: var(--cond); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; cursor: pointer;
-  }
-  .btn:hover:not(:disabled) { color: var(--text); border-color: var(--brass); }
-  .btn:disabled { opacity: .4; cursor: default; }
-  .btn.roll { border-color: #8a5a2a; color: #e8b06a; }
+  /* theme.css's .btn, at the strip's 23px row height. */
+  .btn { height: 23px; padding: 0 14px; font-size: 11px; }
   .seed { display: flex; align-items: center; gap: 5px; }
   .seed input {
-    width: 82px; height: 23px; padding: 0 7px; border: 1px solid var(--edge); background: #100e0d; color: #ddd4c4;
+    width: 82px; height: 23px; padding: 0 7px; border: 1px solid var(--edge); background: #100e0d; color: var(--text-list);
     border-radius: 3px; font-family: var(--mono); font-size: 11px; letter-spacing: .06em;
   }
   .seed input:focus { outline: none; border-color: var(--brass); }

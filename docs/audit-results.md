@@ -77,9 +77,61 @@ Updated as work lands. Line numbers in the sections below are still as of
   randomizer's exclusions, plus the Arp Only row as the second deliberate
   greyed control. §2 "minor wording": done.
 
-**Not started:** §1 item 10 / §8 (the two fakes, fixture captures, table
-tests, CI), §4 copy pass, §5 UI components, §6 state layer, §7 core, §9 dead
-code, §10 citations. §11 steps 4–9.
+**Done (2026-09-04, second pass):**
+
+- §1 item 10 / §8 "the two fakes": `tests/e2e/fake-deluge.js` is generated
+  from the TS fake by a `pretest:e2e` esbuild step (`fake-deluge.entry.ts`),
+  so e2e runs the pipelined grant and real dir timestamps; the TS fake's
+  grant and timestamps are pinned in `fake-deluge.test.ts`.
+- §8 fixtures: `settings/` (MIDIFollow.XML, MIDIDevices.XML from the card
+  backup), five "Community Enums" synths and `Kit MIDI CV Rows.XML` written by
+  the current c1.3.0 beta (`community-c1.3.0-beta-6e5f2b2/`; the 3f898e9
+  binary is no longer on this machine), and the c1.2.1 init synth
+  (`community-c1.2.1-release_1_2_1/`). The 3.1.1 `destination="range"` file
+  exists on the card backup but is third-party content and is held back until
+  its terms are checked. Findings from the captures: the firmware reorders
+  patch cables on save; MIDI/gate drum rows carry a full `<arpeggiator>`
+  child that `order.ts` has no table for; c1.2.1 is a third serializer
+  layout. Executable bits removed from the three XML files.
+- §8 tests: table tests for gates, options, names, order, fatfs, sync,
+  library fs/nameProblem, xml path, dropdir; `tests/helpers/` (fixtures, wav,
+  rig) replace the copied loaders and WAV builders; `client.test.ts` asserts
+  what its comments claimed; `card.spec.ts` in `test.step`s;
+  `library.spec.ts` parameterised over both backends (`library-mounted.spec.ts`
+  folded in); attrs pokes in tests go through the accessors; magic numbers
+  cited; `corpus-roots` logs its skip; `forbidOnly` + traces; CI on every
+  push and PR. Gaps the tests found: `PARAM_LABELS` lacks the four
+  `*PitchAdjust` names; `ARP_ATTR_ORDER` stops at `kitArp` while community
+  files continue with the `locked*` attributes; `SOURCES.md`'s "two layouts"
+  note is inverted against the fixtures (beta writes `polarity` before
+  `amount`, Tim's hardware the reverse) and there are more than two.
+- §7 core: the `sound.ts` ↔ `stock.ts` cycle broken (`modknobs.ts`); barrels
+  for `firmware/`, `params/`, `midi/`, `kit/`, `samples/`, and `preset/`
+  completed; `stemOf`/`compareNatural` in `library/fs.ts`,
+  `params/fixedpoint.ts`, `clamp`, `parseSegment`, `isHexParam`,
+  `preset/rows.ts`; `ranges.ts` split into `rangemodel.ts` / `tuning.ts` /
+  `rangeedit.ts`, `midi/followmaps.ts`, `followfile.ts` / `mpezones.ts` /
+  `followadvice.ts`, all behind re-exporting barrels; `listDirectory` throws
+  on a failed page; corrupt `rangeTopNote` locks the range writers
+  (`rangesLocked`); loose strings typed (`LoopMode`, `FollowAttr`,
+  `ParamName` maps, `FeedbackChannelType`, `Feature` gates); the pan display
+  strings are cited and noted as the knob's spelling, not the 7-segment's.
+  Left: `pulse.ts` osc type and `gateAllows` stay `string` (tests and UI pass
+  plain strings); `DirEntry`/`CardEntry` are not identical.
+- §5 UI: `Dialog`, `Status`, `CardBrowser`, `Panel` with `title`/`actions`,
+  `FollowHeader`, `KitRow`, `RangeImport`/`RangeRedetect`,
+  `FilterModeFields`/`DelayFields`, `Seg` with `aria-pressed`, `filepick.ts`,
+  `saveblob.ts`, `menukeys.ts`, `attrs.ts`, `heightMeasurer`; theme tokens
+  for the repeated surfaces, status colours, radii and label sizes; `.btn.go`
+  in theme; `$derived` clamps; `bind:clientWidth` graphs; module-level state
+  for the Overview remount problem; keyboard row selection, reachable graph
+  handles, `aria-describedby` tips; `$props.id()`. Left for other owners: the
+  LFO-sync rule into `core/firmware` (both call sites still differ),
+  `kit.svelte.ts` to use `saveBlob`, the pure formatters listed in §5 "Size"
+  into core.
+
+**Not started:** §4 copy pass, §6 state layer, the §9 "exported but used only
+in-file" group. Follow-ups above.
 
 ---
 

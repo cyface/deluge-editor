@@ -4,15 +4,13 @@
   import { setAttr } from '../../core/xml'
   import FilterGraph, { type FilterBinding } from '../controls/FilterGraph.svelte'
   import HexKnob from '../controls/HexKnob.svelte'
-  import Select from '../controls/Select.svelte'
   import { HELP } from '../help'
-  import { hpfModeOptions, lpfModeOptions, routeOptions } from '../options'
   import { editor } from '../state/editor.svelte'
+  import FilterModeFields from './FilterModeFields.svelte'
 
   interface Props { sound: SoundElement }
   let { sound }: Props = $props()
   const P = () => ensureParams(sound)
-  const set = (name: string) => (v: string) => setAttr(sound, name, v, SOUND_ATTR_ORDER)
   const filters: FilterBinding = {
     attr: (name) => sound.attrs[name],
     read: (p) => paramMenu(sound, p),
@@ -21,15 +19,7 @@
 </script>
 
 <FilterGraph {filters} />
-<div class="fields">
-  <Select label="LPF Mode" name="lpfMode" value={sound.attrs.lpfMode} options={lpfModeOptions(editor.supports)} title={HELP['sound.lpfMode']} onchange={set('lpfMode')} />
-  {#if editor.supports('hpfMode')}
-    <Select label="HPF Mode" name="hpfMode" value={sound.attrs.hpfMode} options={hpfModeOptions()} title={HELP['sound.hpfMode']} onchange={set('hpfMode')} />
-  {/if}
-  {#if editor.supports('filterRoute')}
-    <Select label="Routing" name="filterRoute" value={sound.attrs.filterRoute} options={routeOptions()} title={HELP['sound.filterRoute']} onchange={set('filterRoute')} />
-  {/if}
-</div>
+<FilterModeFields attrs={sound.attrs} tip={(k) => HELP[k]} onchange={(name, v) => setAttr(sound, name, v, SOUND_ATTR_ORDER)} />
 <div class="knobrow">
   <HexKnob el={params(sound)} ensure={P} attr="lpfFrequency" label="LPF Freq" order={SOUND_PARAM_ATTRS} {sound} />
   <HexKnob el={params(sound)} ensure={P} attr="lpfResonance" label="LPF Res" order={SOUND_PARAM_ATTRS} {sound} />

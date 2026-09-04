@@ -12,20 +12,15 @@
  * the samples it actually holds.
  */
 
-import { child } from '../xml/element'
-import type { KitElement, Preset, SoundElement } from './types'
-
-/** Every sound in the preset: a kit's rows, or the synth itself. */
-const soundsOf = (preset: Preset): SoundElement[] =>
-  preset.tag === 'kit'
-    ? ((child(preset as KitElement, 'soundSources')?.children ?? []).filter(
-        (r): r is SoundElement => r.tag === 'sound',
-      ) as SoundElement[])
-    : [preset as SoundElement]
+import { stemOf } from '../library/fs'
+import { setAttr } from '../xml/edit'
+import { child, type XmlElement } from '../xml/element'
+import { soundsOf } from './rows'
+import type { Preset } from './types'
 
 /** Every element that can carry a `fileName`, in file order. */
-function fileHosts(preset: Preset): { attrs: { fileName?: string } }[] {
-  const hosts: { attrs: { fileName?: string } }[] = []
+function fileHosts(preset: Preset): XmlElement[] {
+  const hosts: XmlElement[] = []
   for (const sound of soundsOf(preset)) {
     for (const tag of ['osc1', 'osc2'] as const) {
       const o = child(sound, tag)
@@ -63,18 +58,11 @@ export function retargetSampleFiles(
     if (!from) continue
     const to = map(from)
     if (to !== null && to !== from) {
-      host.attrs.fileName = to // the attribute exists, so assignment keeps its place
+      setAttr(host, 'fileName', to) // the attribute exists, so it keeps its place
       moved.push({ from, to })
     }
   }
   return moved
-}
-
-/** The file's own name, without its folder or extension. */
-const stemOf = (fileName: string): string => {
-  const file = fileName.slice(fileName.lastIndexOf('/') + 1)
-  const dot = file.lastIndexOf('.')
-  return dot > 0 ? file.slice(0, dot) : file
 }
 
 /**

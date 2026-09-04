@@ -10,6 +10,8 @@ import kitXml from '../../../tests/fixtures/community-c1.3.0-beta-3f898e9/Kit Sa
 import { FOLLOW_SOUND_CC_C13, paramValueToCc } from '../../core/midi/follow'
 import { hexToInt } from '../../core/params/hex'
 import { SOUND_FOLLOW_SLOTS, KIT_FOLLOW_SLOTS, slotHex, slotScale } from '../../core/preset/follow'
+import { setEnvelopeMenu, setParamHex } from '../../core/preset/sound'
+import type { HexParam } from '../../core/params/hex'
 import { isKit } from '../../core/preset'
 import { editor, FALLBACK_FIRMWARE } from './editor.svelte'
 import { follow } from './follow.svelte'
@@ -152,9 +154,7 @@ describe('aiming a send', () => {
   })
 
   /** Move a value here, the way a knob drag would. */
-  const moveLpf = (hex: string) => {
-    editor.sound!.children.find((c) => c.tag === 'defaultParams')!.attrs.lpfFrequency = hex
-  }
+  const moveLpf = (hex: HexParam) => setParamHex(editor.sound!, 'lpfFrequency', hex)
 
   it('sends nothing at all until the instrument has been heard', () => {
     const sent = fakeOutput()
@@ -278,7 +278,7 @@ describe('sending moves back to the instrument', () => {
   it('sends nothing until asked to', () => {
     const sent = fakeOutput()
     follow.push(snapshot(), 'a')
-    editor.sound!.children.find((c) => c.tag === 'defaultParams')!.attrs.lpfFrequency = '0x7FFFFFFF'
+    setParamHex(editor.sound!, 'lpfFrequency', '0x7FFFFFFF')
     follow.push(snapshot(), 'a')
     expect(sent).toEqual([])
     expect(follow.sent).toBe(0)
@@ -289,7 +289,7 @@ describe('sending moves back to the instrument', () => {
     follow.sending = true
     follow.push(snapshot(), 'a') // first offer is the baseline, never a send
     expect(sent).toEqual([])
-    editor.sound!.children.find((c) => c.tag === 'defaultParams')!.attrs.lpfFrequency = '0x7FFFFFFF'
+    setParamHex(editor.sound!, 'lpfFrequency', '0x7FFFFFFF')
     follow.push(snapshot(), 'a')
     expect(sent.map((b) => [...b])).toEqual([[0xb0, 74, 127]])
     expect(follow.sent).toBe(1)
@@ -300,7 +300,7 @@ describe('sending moves back to the instrument', () => {
     follow.sending = true
     follow.sendChannel = 9
     follow.push(snapshot(), 'a')
-    editor.sound!.children.find((c) => c.tag === 'defaultParams')!.attrs.pan = '0x7FFFFFFF'
+    setParamHex(editor.sound!, 'pan', '0x7FFFFFFF')
     follow.push(snapshot(), 'a')
     expect([...sent[0]]).toEqual([0xb8, 10, 127])
   })
@@ -321,7 +321,7 @@ describe('sending moves back to the instrument', () => {
     const sent = fakeOutput()
     follow.sending = true
     follow.push(snapshot(), 'a')
-    editor.sound!.children.find((c) => c.tag === 'defaultParams')!.attrs.lpfFrequency = '0x7FFFFFFF'
+    setParamHex(editor.sound!, 'lpfFrequency', '0x7FFFFFFF')
     follow.push(snapshot(), 'a')
     expect(follow.sent).toBe(1)
     follow.receive(cc(74, 127)) // the echo
@@ -348,9 +348,7 @@ describe('sending moves back to the instrument', () => {
     follow.sending = true
     follow.push(snapshot(), 'a')
     // An envelope stage lives inside <envelope1>; the snapshot reaches it.
-    editor.sound!.children
-      .find((c) => c.tag === 'defaultParams')!
-      .children.find((c) => c.tag === 'envelope1')!.attrs.attack = '0x7FFFFFFF'
+    setEnvelopeMenu(editor.sound!, 1, 'attack', 50) // menu 50 is INT32_MAX, 0x7FFFFFFF
     follow.push(snapshot(), 'a')
     const attackCc = Number(Object.keys(FOLLOW_SOUND_CC_C13).find((k) => FOLLOW_SOUND_CC_C13[Number(k)] === 'env1Attack'))
     expect(sent.map((b) => [...b])).toEqual([[0xb0, attackCc, 127]])

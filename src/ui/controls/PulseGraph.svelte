@@ -39,15 +39,9 @@
   const PAD = 10
   const N = 480
 
+  /** The box's rendered width; 300 until the binding measures it. */
   let width = $state(300)
-  let box: HTMLDivElement | undefined = $state()
-  $effect(() => {
-    if (!box) return
-    const ro = new ResizeObserver(() => { width = Math.max(200, box!.clientWidth) })
-    ro.observe(box)
-    return () => ro.disconnect()
-  })
-  const W = $derived(width)
+  const W = $derived(Math.max(200, width))
 
   const attr = $derived(`osc${n === 1 ? 'A' : 'B'}PulseWidth` as SoundParamAttr)
   const menu = $derived(paramMenu(sound, attr) ?? 0)
@@ -127,10 +121,17 @@
     s.addEventListener('pointermove', at)
     s.addEventListener('pointerup', up)
   }
+  /** The keyboard's way to the same handle: arrows step the width (shift, ×5). */
+  function nudge(e: KeyboardEvent) {
+    const by = { ArrowRight: 1, ArrowUp: 1, ArrowLeft: -1, ArrowDown: -1 }[e.key]
+    if (by === undefined) return
+    e.preventDefault()
+    setParamMenu(sound, attr, Math.max(0, Math.min(50, menu + by * (e.shiftKey ? 5 : 1))))
+  }
 </script>
 
 <div class="wrap">
-  <div class="graph" bind:this={box} title={heard ? 'Drag the handle to set pulse width' : 'Osc Sync takes this control away from every shape but the mathematical square'}>
+  <div class="graph" bind:clientWidth={width} title={heard ? 'Drag the handle to set pulse width' : 'Osc Sync takes this control away from every shape but the mathematical square'}>
     <svg bind:this={svg} viewBox="0 0 {W} {H}" height={H} data-testid="pulse-graph-{n}">
       <line x1="0" y1={MID} x2={W} y2={MID} stroke="#241f1a" />
       <line x1={W / 2} y1="0" x2={W / 2} y2={H} stroke="#161311" />
@@ -141,7 +142,7 @@
       {#if heard}
         <line x1={PAD} y1={TRACK_Y} x2={W - PAD} y2={TRACK_Y} stroke="#2b2420" stroke-width="3" stroke-linecap="round" />
         <line x1={PAD} y1={TRACK_Y} x2={hx.toFixed(1)} y2={TRACK_Y} stroke="var(--osc)" stroke-width="3" stroke-linecap="round" opacity=".5" />
-        <g class="handle" onpointerdown={grab} role="slider" aria-label="Osc {n === 1 ? 'A' : 'B'} pulse width" aria-valuemin="0" aria-valuemax="50" aria-valuenow={menu} tabindex="-1">
+        <g class="handle" onpointerdown={grab} onkeydown={nudge} role="slider" aria-label="Osc {n === 1 ? 'A' : 'B'} pulse width" aria-valuemin="0" aria-valuemax="50" aria-valuenow={menu} tabindex="0">
           <!-- A transparent disc wider than the drawn one: the thing you aim at
                is bigger than the thing you see, which is the point of it. -->
           <circle cx={hx.toFixed(1)} cy={TRACK_Y} r="15" fill="rgba(0,0,0,0)" />

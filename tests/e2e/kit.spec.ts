@@ -1,38 +1,15 @@
 import { expect, test } from '@playwright/test'
 import { choose } from './bar.js'
+import { monoWav as wavBytes } from '../helpers/wav.js'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-
-/**
- * A minimal PCM WAV (16-bit mono) with the given frame count. Not a fixture:
- * the fixture rule covers Deluge preset XML; these bytes only exercise the
- * builder's RIFF walk, and their frame counts must land in `endSamplePos`.
- */
-function wavBytes(frames: number): Buffer {
-  const dataBytes = frames * 2
-  const b = Buffer.alloc(44 + dataBytes)
-  b.write('RIFF', 0)
-  b.writeUInt32LE(36 + dataBytes, 4)
-  b.write('WAVE', 8)
-  b.write('fmt ', 12)
-  b.writeUInt32LE(16, 16)
-  b.writeUInt16LE(1, 20) // PCM
-  b.writeUInt16LE(1, 22) // mono
-  b.writeUInt32LE(44100, 24)
-  b.writeUInt32LE(44100 * 2, 28)
-  b.writeUInt16LE(2, 32) // block align
-  b.writeUInt16LE(16, 34)
-  b.write('data', 36)
-  b.writeUInt32LE(dataBytes, 40)
-  return b
-}
 
 test('build a kit from a sample folder: guessed order, reorder, rename, share zip (issue #10)', async ({ page }) => {
   const dir = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'deluge-kit-')), 'My Kit')
   fs.mkdirSync(dir)
   fs.writeFileSync(path.join(dir, 'Open Hat.wav'), wavBytes(400))
-  fs.writeFileSync(path.join(dir, 'Kick.wav'), wavBytes(1000))
+  fs.writeFileSync(path.join(dir, 'Kick.wav'), wavBytes(66150)) // 1.5 s: long enough to be seen playing, short enough for Once
   fs.writeFileSync(path.join(dir, 'Perc Loop.wav'), wavBytes(800))
   fs.writeFileSync(path.join(dir, 'Snare.wav'), wavBytes(600))
 
@@ -54,10 +31,15 @@ test('build a kit from a sample folder: guessed order, reorder, rename, share zi
   await expect(page.getByTestId('row-wave')).toHaveCount(4)
 
   // Regression: previewing after that background decode must not die on a
-  // missing playback context ("Cannot read properties of null").
-  await rows.nth(0).getByTestId('row-play').click()
-  await page.waitForTimeout(150)
+  // missing playback context ("Cannot read properties of null"). The button
+  // becoming a stop button is the preview having started; an error would
+  // land in `p.err` instead and the button would stay a play button.
+  const play = rows.nth(0).getByTestId('row-play')
+  await play.click()
+  await expect(play).toHaveText('■')
   await expect(page.locator('p.err')).toHaveCount(0)
+  await play.click() // stop, so nothing is playing under the rest of the test
+  await expect(play).toHaveText('▶')
 
   // The Mode column edits loopMode in place; built rows start at Once.
   const mode = rows.nth(0).getByTestId('row-mode')

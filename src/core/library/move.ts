@@ -60,11 +60,11 @@ export interface MovePlan {
 }
 
 /**
- * What moving `from` to `to` would touch, or a reason it can't be done.
- * Both paths are the full new locations: a rename keeps the folder, a move
- * keeps the name.
+ * Why `from` can't be moved to `to`, or null when it can — the check to make
+ * before `movePlan`, as `deleteProblem` is before `deleteTree`. Both paths are
+ * the full new locations: a rename keeps the folder, a move keeps the name.
  */
-export function planMove(index: ReferenceIndex, from: string, to: string, kind: TargetKind): MovePlan | string {
+export function moveProblem(from: string, to: string, kind: TargetKind): string | null {
   from = cardPath(from)
   to = cardPath(to)
   if (!underFolder(from, SAMPLES_ROOT) || samePath(from, SAMPLES_ROOT)) return `${from} is not a sample`
@@ -72,9 +72,24 @@ export function planMove(index: ReferenceIndex, from: string, to: string, kind: 
   if (isRecordingFolder(from)) return `${baseName(from)} is where the Deluge records — leave it where it is`
   if (from === to) return 'that is where it already is' // a change of case alone is a rename FAT allows
   if (kind === 'folder' && underFolder(to, from)) return 'a folder cannot be moved into itself'
-  const problem = nameProblem(baseName(to))
-  if (problem) return problem
+  return nameProblem(baseName(to))
+}
+
+/**
+ * What moving `from` to `to` touches. Throws the `moveProblem` when there is
+ * one, so a plan for a move the card would refuse can never be handed on.
+ */
+export function movePlan(index: ReferenceIndex, from: string, to: string, kind: TargetKind): MovePlan {
+  const problem = moveProblem(from, to, kind)
+  if (problem !== null) throw new Error(problem)
+  from = cardPath(from)
+  to = cardPath(to)
   return { kind, from, to, files: usagesOf(index, from, kind) }
+}
+
+/** @deprecated The plan or the problem in one value; call `moveProblem` then `movePlan`. Kept for callers that still take the union. */
+export function planMove(index: ReferenceIndex, from: string, to: string, kind: TargetKind): MovePlan | string {
+  return moveProblem(from, to, kind) ?? movePlan(index, from, to, kind)
 }
 
 export interface MoveOutcome {

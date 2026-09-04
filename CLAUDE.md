@@ -31,7 +31,10 @@ issues in dependency order (`gh issue list`).
   graphs; `groups/` one panel per block. Values are read and written only
   through `src/core/preset/sound.ts` and `src/core/xml/edit.ts`, never by
   poking `attrs` directly, so a new attribute lands where the firmware writes it.
-- `tests/` — cross-cutting tests and the Deluge-authored XML fixtures.
+- `tests/` — cross-cutting tests and the Deluge-authored XML fixtures. Test
+  placement: unit tests sit beside their module (`foo.test.ts`), cross-cutting
+  sweeps in `tests/`, Playwright specs in `tests/e2e/`, shared test helpers
+  (fixture loader, WAV builder, fake-Deluge rig) in `tests/helpers/`.
 
 ```sh
 pnpm test    # vitest, once      pnpm check   # svelte-check + tsc

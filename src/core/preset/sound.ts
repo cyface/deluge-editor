@@ -18,10 +18,10 @@ import {
 } from '../params/scale'
 import { child, childrenOf, element } from '../xml/element'
 import { ensureChild, insertChild, removeAttr, removeChild, setAttr } from '../xml/edit'
-import type { ParamName, PatchSource, Polarity } from './index'
+import type { PatchSource, Polarity } from './enums'
+import { STOCK_MOD_KNOBS, type ModKnobAssign } from './modknobs'
 import { CABLE_ATTR_ORDER, ENVELOPE_ATTR_ORDER, MOD_KNOB_ATTR_ORDER, PARAMS_CHILD_ORDER, SOUND_CHILD_ORDER } from './order'
-import { STOCK_MOD_KNOBS } from './stock'
-import { SOUND_PARAM_ATTRS, type SoundParamAttr } from './params'
+import { SOUND_PARAM_ATTRS, type ParamName, type SoundParamAttr } from './params'
 import type {
   EnvelopeElement,
   LfoElement,
@@ -181,12 +181,7 @@ export function goldParams(sound: SoundElement): Set<string> {
   )
 }
 
-/** One knob's assignment: a param, or a patch cable's strength (param + source(s)). */
-export interface ModKnobAssign {
-  controlsParam: ParamName
-  patchAmountFromSource?: PatchSource
-  patchAmountFromSecondSource?: PatchSource
-}
+export type { ModKnobAssign } from './modknobs'
 
 /**
  * The full 16-entry `<modKnobs>` array, created in serializer position when

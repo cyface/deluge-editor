@@ -6,6 +6,11 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import community from '../../../tests/fixtures/community-c1.3.0-beta-3f898e9/Default Synth.XML?raw' // firmwareVersion="c1.3.0"
 import official from '../../../tests/fixtures/official-4.0.1/Attribute Format Baseline.XML?raw' // firmwareVersion="4.0.1"
+import blankKit from '../../assets/templates/Default Kit.XML?raw'
+import { addSampleRows, rowTemplateFrom } from '../../core/kit/build'
+import { drumRows, isKit, isSound } from '../../core/preset'
+import { setParamMenu } from '../../core/preset/sound'
+import { child, ensureChild, removeAttr, removeChild, setAttr } from '../../core/xml'
 import { editor, FALLBACK_FIRMWARE } from './editor.svelte'
 
 beforeEach(() => {
@@ -141,9 +146,7 @@ describe('retargeting never restamps the file (issue #28)', () => {
 })
 
 describe('per-change revert', () => {
-  it('a changed value goes back to the file, byte-identically', async () => {
-    const { setParamMenu } = await import('../../core/preset/sound')
-    const { isSound } = await import('../../core/preset')
+  it('a changed value goes back to the file, byte-identically', () => {
     editor.load(community, 'Default Synth.XML')
     const sound = editor.preset!
     if (!isSound(sound)) throw new Error('fixture is a synth')
@@ -154,9 +157,7 @@ describe('per-change revert', () => {
     expect(editor.identical).toBe(true)
   })
 
-  it('an added value is removed, and a container it created is pruned', async () => {
-    const { ensureChild, setAttr } = await import('../../core/xml')
-    const { isSound } = await import('../../core/preset')
+  it('an added value is removed, and a container it created is pruned', () => {
     editor.load(official, 'Baseline.XML') // official 4.0.1 writes no <stutter>
     if (!isSound(editor.preset!)) throw new Error('fixture is a synth')
     setAttr(ensureChild(editor.preset, 'stutter'), 'quantized', '1')
@@ -167,10 +168,7 @@ describe('per-change revert', () => {
     expect(editor.identical).toBe(true)
   })
 
-  it('a built kit collapses to one entry per row, and a group revert removes the row whole', async () => {
-    const { addSampleRows, rowTemplateFrom } = await import('../../core/kit/build')
-    const { default: blankKit } = await import('../../assets/templates/Default Kit.XML?raw')
-    const { isKit, drumRows } = await import('../../core/preset')
+  it('a built kit collapses to one entry per row, and a group revert removes the row whole', () => {
     editor.newKit()
     if (!isKit(editor.preset!)) throw new Error('template is a kit')
     addSampleRows(editor.preset, rowTemplateFrom(blankKit), [
@@ -195,9 +193,7 @@ describe('per-change revert', () => {
     expect(editor.grouped!.changed.map((c) => c.path)).toContain('kit/soundSources/sound@name')
   })
 
-  it('a removed element is rebuilt from the file, value-identically', async () => {
-    const { removeChild, child } = await import('../../core/xml')
-    const { isSound } = await import('../../core/preset')
+  it('a removed element is rebuilt from the file, value-identically', () => {
     editor.load(community, 'Default Synth.XML')
     if (!isSound(editor.preset!)) throw new Error('fixture is a synth')
     removeChild(editor.preset, child(editor.preset, 'arpeggiator')!)
@@ -207,9 +203,7 @@ describe('per-change revert', () => {
     expect(editor.changeCount).toBe(0) // every value is the file's again; only layout may differ
   })
 
-  it('a removed value is restored from the file', async () => {
-    const { removeAttr, child } = await import('../../core/xml')
-    const { isSound } = await import('../../core/preset')
+  it('a removed value is restored from the file', () => {
     editor.load(community, 'Default Synth.XML')
     if (!isSound(editor.preset!)) throw new Error('fixture is a synth')
     const osc1 = child(editor.preset, 'osc1')!

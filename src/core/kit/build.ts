@@ -9,12 +9,13 @@
  * bef6d9df), the mode every factory drum row uses.
  */
 
-import { drumRows, isKit } from '../preset'
+import { stemOf } from '../library/fs'
 import { KIT_CHILD_ORDER, OSC_ATTR_ORDER, SOUND_ATTR_ORDER, ZONE_ATTR_ORDER } from '../preset/order'
+import { drumRows, isKit, soundRows } from '../preset/rows'
 import type { DrumRow, KitElement, SoundElement } from '../preset/types'
 import { parseXML } from '../xml'
 import { child, cloneElement } from '../xml/element'
-import { ensureChild, moveChild, removeChild, setAttr } from '../xml/edit'
+import { ensureChild, insertChild, moveChild, removeChild, setAttr } from '../xml/edit'
 
 export interface SampleRowSpec {
   /** As the kit XML wants it: `SAMPLES/<folder>/<file>.wav`, no leading slash. */
@@ -26,11 +27,7 @@ export interface SampleRowSpec {
 }
 
 /** The row name a sample file suggests: its base name, extension dropped. */
-export function rowNameFor(fileName: string): string {
-  const file = fileName.slice(fileName.lastIndexOf('/') + 1)
-  const dot = file.lastIndexOf('.')
-  return (dot > 0 ? file.slice(0, dot) : file).trim()
-}
+export const rowNameFor = (fileName: string): string => stemOf(fileName).trim()
 
 /**
  * A row the new-kit gesture made and nothing has touched: a sound row whose
@@ -39,7 +36,7 @@ export function rowNameFor(fileName: string): string {
  */
 export function isBlankRow(row: DrumRow): boolean {
   if (row.tag !== 'sound') return false
-  const o = child(row as SoundElement, 'osc1')
+  const o = child(row, 'osc1')
   return o?.attrs.type === 'sample' && !o.attrs.fileName && child(o, 'sampleRanges') === undefined
 }
 
@@ -50,7 +47,7 @@ export function isBlankRow(row: DrumRow): boolean {
 export function rowTemplateFrom(blankKitXml: string): SoundElement {
   const kit = parseXML(blankKitXml)
   if (!isKit(kit)) throw new Error('the kit template is not a <kit>')
-  const row = drumRows(kit).find((r): r is SoundElement => r.tag === 'sound')
+  const [row] = soundRows(kit)
   if (!row) throw new Error('the kit template has no sound row')
   return cloneElement(row) as SoundElement
 }
@@ -82,7 +79,7 @@ export function addSampleRows(kit: KitElement, template: SoundElement, specs: re
     const zone = ensureChild(o, 'zone')
     setAttr(zone, 'startSamplePos', '0', ZONE_ATTR_ORDER)
     setAttr(zone, 'endSamplePos', String(spec.frames), ZONE_ATTR_ORDER)
-    sources.children.push(row)
+    insertChild(sources, row) // no order: rows are pads, and a new one is the last
     added.push(row)
   }
   return added
@@ -106,7 +103,7 @@ export function addBlankRow(kit: KitElement, template: SoundElement): SoundEleme
   while (taken.has(name.toLowerCase())) name = `U${++n}`
   const row = cloneElement(template) as SoundElement
   setAttr(row, 'name', name, SOUND_ATTR_ORDER)
-  sources.children.push(row)
+  insertChild(sources, row)
   return row
 }
 

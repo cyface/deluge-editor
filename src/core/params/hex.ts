@@ -9,12 +9,15 @@ export type HexParam = `0x${string}`
 
 const HEX_RE = /^0x[0-9A-Fa-f]{1,8}$/
 
+/** Whether `s` has the shape of a stored param (`0x` and one to eight hex digits). */
+export const isHexParam = (s: string): s is HexParam => HEX_RE.test(s)
+
 export const INT32_MIN = -0x80000000
 export const INT32_MAX = 0x7fffffff
 
 /** Parse Deluge hex into a signed 32-bit integer. Throws on anything else. */
 export function hexToInt(hex: string): number {
-  if (!HEX_RE.test(hex)) throw new RangeError(`not a Deluge hex param: ${JSON.stringify(hex)}`)
+  if (!isHexParam(hex)) throw new RangeError(`not a Deluge hex param: ${JSON.stringify(hex)}`)
   // `| 0` reinterprets the unsigned parse as two's-complement int32.
   return parseInt(hex.slice(2), 16) | 0
 }

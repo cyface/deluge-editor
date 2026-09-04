@@ -1,18 +1,8 @@
 import { describe, expect, it } from 'vitest'
+import { allFixtures, fixturePreset as load } from '../../../tests/helpers/fixtures'
 import { parseXML } from '../xml'
 import { isKit, isSound } from './index'
 import { cablePhrase, cablePhrases, envelopeWord, summarise, summariseSound } from './summary'
-
-const fixtures = import.meta.glob<string>('../../../tests/fixtures/**/*.XML', {
-  query: '?raw',
-  import: 'default',
-  eager: true,
-})
-const load = (part: string) => {
-  const key = Object.keys(fixtures).find((k) => k.includes(part))
-  if (!key) throw new Error(`no fixture matching ${part}`)
-  return parseXML(fixtures[key])
-}
 
 describe('summariseSound', () => {
   it('reads the default synth', () => {
@@ -41,7 +31,7 @@ describe('summariseSound', () => {
     expect(summariseSound(p).sentence).toMatch(/^Sample range-/)
   })
   it('does not throw on any fixture, and never returns an empty sentence', () => {
-    for (const [name, xml] of Object.entries(fixtures)) {
+    for (const [name, xml] of allFixtures()) {
       const s = summarise(parseXML(xml))
       expect(s.sentence, name).toMatch(/\.$/)
       expect(s.chips.length, name).toBeGreaterThan(0)

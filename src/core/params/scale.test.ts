@@ -83,13 +83,25 @@ describe('sidechain rates', () => {
 })
 
 describe('audio compressor knobs', () => {
+  // `CompressorValue::readCurrentValue` is `value >> 24`, `writeCurrentValue`
+  // is `lshiftAndSaturate<24>(min(value, kMaxKnobPos - 1))` with `kMaxKnobPos`
+  // 128 (`gui/menu_item/audio_compressor/compressor_values.h`,
+  // `definitions_cxx.hpp:349`, DelugeFirmware `beta`): a knob position is the
+  // q31's top byte. The kit fixture's `<audioCompressor attack="83886080"
+  // ratio="1073741824" compBlend="2147483647">` are 5, 64 and the blend's 128.
   it('reads q31 values as knob positions', () => {
-    expect(compressorToKnob(83886080)).toBe(5)
-    expect(compressorToKnob(1073741824)).toBe(64)
-    expect(blendToKnob(2147483647)).toBe(128)
-    expect(knobToCompressor(5)).toBe(83886080)
+    expect(compressorToKnob(5 << 24)).toBe(5)
+    expect(compressorToKnob(64 << 24)).toBe(64)
+    expect(blendToKnob(INT32_MAX)).toBe(128)
+    expect(knobToCompressor(5)).toBe(5 << 24)
     expect(knobToBlend(128)).toBe(INT32_MAX)
-    expect(knobToBlend(64)).toBe(1073741824)
+    expect(knobToBlend(64)).toBe(64 << 24)
+  })
+  it('clamps a knob to 0..127, the blend alone reaching 128 as ONE_Q31', () => {
+    expect(knobToCompressor(127)).toBe(127 << 24)
+    expect(knobToCompressor(128)).toBe(127 << 24)
+    expect(knobToCompressor(-1)).toBe(0)
+    expect(blendToKnob(127 << 24)).toBe(127)
   })
 })
 

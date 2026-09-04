@@ -6,35 +6,27 @@
    * SAMPLES/<folder>/ and packaged into a share zip; browsing the card's own
    * SAMPLES/ builds rows from files already on the instrument.
    */
+  import CardBrowser from './controls/CardBrowser.svelte'
+  import Panel from './controls/Panel.svelte'
+  import Status from './controls/Status.svelte'
+  import { pickedFolder, takeFiles } from './filepick'
   import { card } from './state/card.svelte'
   import { editor } from './state/editor.svelte'
   import { kit } from './state/kit.svelte'
   import { samples } from './state/samples.svelte'
 
   let folderInput: HTMLInputElement | undefined = $state()
+  const isWav = (name: string) => /\.wav$/i.test(name)
 
   async function pickFolder(e: Event) {
-    const input = e.currentTarget as HTMLInputElement
-    const files = [...(input.files ?? [])]
-    input.value = ''
-    if (files.length === 0) return
-    // webkitRelativePath is `<folder>/<sub…>/<file>`; the first segment names the folder
-    const folder = files[0].webkitRelativePath.split('/')[0] || 'Kit'
-    await kit.addLocalSamples(
-      folder,
-      files.map((file) => ({ relPath: file.webkitRelativePath.split('/').slice(1).join('/') || file.name, file })),
-    )
+    const picked = pickedFolder(takeFiles(e), 'Kit')
+    if (picked) await kit.addLocalSamples(picked.folder, picked.files)
   }
 
   const pushCount = $derived(samples.pushable.length)
 </script>
 
-<section class="panel" data-testid="kit-builder">
-  <div class="ph">
-    <h2>Build from samples</h2>
-    <span class="sub">rows land kick → snare → closed hat → open hat, guessed from file names · {editor.rows.length} of 128 rows used</span>
-  </div>
-
+<Panel title="Build from samples" sub="rows land kick → snare → closed hat → open hat, guessed from file names · {editor.rows.length} of 128 rows used" flow testid="kit-builder">
   <div class="ways">
     <div class="dropzone" role="note">Drop a folder of WAVs anywhere on the page</div>
     <input bind:this={folderInput} type="file" webkitdirectory hidden data-testid="folder-input" onchange={pickFolder} />
@@ -64,29 +56,27 @@
   </div>
 
   {#if kit.cardPath !== null}
-    <div class="browser" data-testid="card-sample-browser">
-      <div class="pathbar">
-        <button type="button" class="btn small" onclick={() => kit.cardUp()} disabled={kit.cardPath === '/SAMPLES'} aria-label="Up">↑</button>
-        <span class="path">{kit.cardPath}</span>
-        <button type="button" class="btn small" onclick={() => kit.closeCardBrowser()} aria-label="Close">×</button>
-      </div>
-      <ul class="list">
-        {#each kit.cardEntries as e (e.name)}
-          <li>
-            {#if e.dir}
-              <button type="button" onclick={() => kit.browseCard(`${kit.cardPath}/${e.name}`)}>▸ {e.name}</button>
-            {:else}
-              <span class:wav={/\.wav$/i.test(e.name)}>{e.name}</span>
-            {/if}
-          </li>
-        {:else}
-          <li class="none">empty</li>
-        {/each}
-      </ul>
-      <button type="button" class="btn" data-testid="add-card-folder" disabled={!!kit.busy || !kit.cardEntries.some((e) => !e.dir && /\.wav$/i.test(e.name))} onclick={() => kit.addCardFolder()}>
-        Add the WAVs in this folder
-      </button>
-      <p class="hint">Samples stay on the Deluge.</p>
+    <div class="browse">
+      <CardBrowser
+        path={kit.cardPath}
+        root="/SAMPLES"
+        entries={kit.cardEntries}
+        busy={!!kit.busy}
+        pickable={isWav}
+        testid="card-sample-browser"
+        boxed
+        listHeight="180px"
+        onUp={() => kit.cardUp()}
+        onOpen={(name) => kit.browseCard(`${kit.cardPath}/${name}`)}
+      >
+        {#snippet actions()}
+          <button type="button" class="btn small" onclick={() => kit.closeCardBrowser()} aria-label="Close">×</button>
+        {/snippet}
+        <button type="button" class="btn" data-testid="add-card-folder" disabled={!!kit.busy || !kit.cardEntries.some((e) => !e.dir && isWav(e.name))} onclick={() => kit.addCardFolder()}>
+          Add the WAVs in this folder
+        </button>
+        <p class="hint">Samples stay on the Deluge.</p>
+      </CardBrowser>
     </div>
   {/if}
 
@@ -95,13 +85,13 @@
          as long as the files are big, and the other one can truncate any of
          them mid-flight. Shown here too — a push from this panel does not
          need the card panel open. -->
-    <p class="caution" data-testid="kit-other-editor">
+    <Status kind="caution" testid="kit-other-editor">
       Another editor is talking to this Deluge. Samples written from both overwrite each other — last one wins.
-    </p>
+    </Status>
   {/if}
-  {#if kit.busy}<p class="busy" data-testid="kit-busy">{kit.busy}… {Math.round(kit.progress * 100)}%</p>{/if}
-  {#if kit.error}<p class="err" role="alert">{kit.error}</p>{/if}
-  {#if kit.notice}<p class="okline" data-testid="kit-notice">{kit.notice}</p>{/if}
+  {#if kit.busy}<Status kind="busy" testid="kit-busy">{kit.busy}… {Math.round(kit.progress * 100)}%</Status>{/if}
+  {#if kit.error}<Status kind="err">{kit.error}</Status>{/if}
+  {#if kit.notice}<Status kind="ok" testid="kit-notice">{kit.notice}</Status>{/if}
 
   <div class="h3">Share</div>
   <div class="fields">
@@ -109,35 +99,14 @@
     <div class="f"><label for="kit-license">Sample licensing</label><input id="kit-license" bind:value={kit.license} placeholder="e.g. CC0, own recordings" spellcheck="false" /></div>
     <div class="f"><label for="kit-source">Sample source</label><input id="kit-source" bind:value={kit.source} placeholder="where the samples came from" spellcheck="false" /></div>
   </div>
-</section>
+</Panel>
 
 <style>
-  .panel { margin: 10px 0 0; background: linear-gradient(180deg, var(--panel2), var(--panel)); border: 1px solid var(--edge); border-radius: 4px; padding: 9px 11px 12px; }
-  .ph { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin: 0 0 4px 4px; }
-  .ph h2 { margin: 0; font-family: var(--cond); font-size: 12px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: #e2d9ca; }
   .ways { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 8px 0 0 4px; }
   .dropzone {
-    flex: 1; min-width: 200px; padding: 6px 10px; border: 1px dashed var(--edge-hi); border-radius: 3px;
+    flex: 1; min-width: 200px; padding: 6px 10px; border: 1px dashed var(--edge-hi); border-radius: var(--r-s);
     font-family: var(--cond); font-size: 11px; letter-spacing: .06em; color: var(--faint); text-align: center;
   }
-  .browser { margin: 8px 0 0 4px; border: 1px solid var(--edge); border-radius: 3px; padding: 7px 8px; background: #0d0b0a; max-width: 440px; }
-  .pathbar { display: flex; align-items: center; gap: 7px; margin-bottom: 6px; }
-  .path { flex: 1; min-width: 0; font-family: var(--mono); font-size: 11px; color: #cfe3c9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .list { list-style: none; margin: 0 0 7px; padding: 0; max-height: 180px; overflow-y: auto; }
-  .list li { border-bottom: 1px solid rgba(255,255,255,.04); }
-  .list li:last-child { border-bottom: 0; }
-  .list button, .list span { display: block; width: 100%; padding: 4px 6px; background: none; border: 0; color: #ddd3c2; font-family: var(--mono); font-size: 11px; text-align: left; box-sizing: border-box; }
-  .list button { cursor: pointer; }
-  .list button:hover { background: rgba(197,160,89,.08); }
-  .list span { color: var(--faint); }
-  .list span.wav { color: #ddd3c2; }
-  .none { padding: 4px 6px; color: var(--faint); font-family: var(--mono); font-size: 10.5px; }
-  .busy, .okline, .err { margin: 8px 0 0 4px; font-family: var(--mono); font-size: 10.5px; }
-  .busy { color: #cfe3c9; }
-  .okline { color: #9ed492; }
-  .err { color: #e8a08f; padding: 5px 7px; border: 1px solid #5a2a22; background: #1d1210; border-radius: 3px; }
-  .caution {
-    margin: 8px 0 0 4px; padding: 5px 7px; border: 1px solid #6b4a1c; background: #1d1710; border-radius: 3px;
-    font-family: var(--cond); font-size: 11px; line-height: 1.3; color: #e8b06a;
-  }
+  .browse { margin: 8px 0 0 4px; max-width: 440px; }
+  .hint { margin: 6px 0 0; font-family: var(--cond); font-size: 11px; color: var(--faint); }
 </style>

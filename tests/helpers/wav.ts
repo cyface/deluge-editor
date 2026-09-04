@@ -44,6 +44,14 @@ export function smplChunk({
   return body
 }
 
+/** An `inst` chunk body: note, fineTune, gain, then the key and velocity span. */
+export function instChunk({ note = 60, fineTune = 0 }): Uint8Array {
+  const body = new Uint8Array(7)
+  body[0] = note
+  new DataView(body.buffer).setInt8(1, fineTune)
+  return body
+}
+
 /** PCM WAV bytes. Defaults: stereo 16-bit at 44.1 kHz, 100 frames, canonical header. */
 export function wavBytes({
   channels = 2,
@@ -98,14 +106,14 @@ export function wavBytes({
 export const monoWav = (frames: number, root?: number): Uint8Array => wavBytes({ channels: 1, frames, root })
 
 /**
- * A WAV whose every byte is ≤ 0x7F, as a latin1 string — the e2e fake card's
- * seed crosses into the page as JSON text and is UTF-8 encoded there, so only
- * ASCII-safe bytes survive. 4096 Hz mono 16-bit keeps every header word under
- * 0x80; `frames` must stay ≤ 45 so the RIFF size does too.
+ * A small mono 16-bit WAV at 4096 Hz as a latin1 string, for the e2e fake
+ * card's seed. The seed crosses into the page as JSON text and is UTF-8
+ * encoded there, so a header byte over 0x7F comes out as two bytes: up to 45
+ * frames every byte stays ASCII and the file arrives exact; past that the
+ * RIFF and data size fields arrive mangled. The one spec that seeds longer
+ * files (the multi-sample import in card.spec.ts) never asserts on their
+ * sizes, and its inline predecessor had the same behaviour.
  */
 export function asciiWav(frames: number): string {
-  const bytes = wavBytes({ channels: 1, sampleRate: 4096, frames })
-  const high = bytes.findIndex((b) => b > 0x7f)
-  if (high >= 0) throw new Error(`asciiWav(${frames}): byte ${high} is 0x${bytes[high].toString(16)}; keep frames ≤ 45`)
-  return String.fromCharCode(...bytes)
+  return String.fromCharCode(...wavBytes({ channels: 1, sampleRate: 4096, frames }))
 }

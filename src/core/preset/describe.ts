@@ -10,7 +10,7 @@
  * no pretty name.
  */
 
-import { hexToInt } from '../params/hex'
+import { hexToInt, isHexParam } from '../params/hex'
 import {
   blendToKnob,
   cableToMenu,
@@ -23,6 +23,7 @@ import {
   standardToMenu,
 } from '../params/scale'
 import type { FlatXML } from '../xml/flatten'
+import { parseSegment } from '../xml/path'
 import {
   ARP_MODE_NAMES,
   ARP_MPE_NAMES,
@@ -121,7 +122,9 @@ const prettyAttr = (a: string): string =>
     .map((w) => (ACRONYMS.has(w.toLowerCase()) ? w.toUpperCase() : w.charAt(0).toUpperCase() + w.slice(1)))
     .join(' ')
 
-const SEG = /^([^[\]]+)(?:\[(\d+)\])?$/
+/** The tag of a path segment, or undefined when it isn't one. */
+const tagOf = (seg: string | undefined): string | undefined => (seg === undefined ? undefined : parseSegment(seg)?.tag)
+
 const CABLE_ATTR_WORDS: Record<string, string> = {
   amount: 'Amount',
   polarity: 'Polarity',
@@ -145,7 +148,7 @@ const cableLabel = (prefix: string, segs: string[], maps: Array<FlatXML | null |
   const dst = lookup(`${prefix}@destination`, maps)
   const from = src ? (PATCH_SOURCE_NAMES[src as keyof typeof PATCH_SOURCE_NAMES] ?? src) : '?'
   const to = dst ? paramLabel(dst) : '?'
-  const outer = segs.some((s) => SEG.exec(s)?.[1] === 'depthControlledBy') ? 'Depth of ' : ''
+  const outer = segs.some((s) => tagOf(s) === 'depthControlledBy') ? 'Depth of ' : ''
   return `${outer}${from} → ${to}`
 }
 
@@ -153,16 +156,16 @@ const cableLabel = (prefix: string, segs: string[], maps: Array<FlatXML | null |
 function segmentWords(segs: string[]): string[] | null {
   const words: string[] = []
   for (let i = 0; i < segs.length; i++) {
-    const m = SEG.exec(segs[i])
+    const m = parseSegment(segs[i])
     if (!m) return null
-    if (m[1] === 'soundSources') continue
-    const prev = i > 0 ? SEG.exec(segs[i - 1])?.[1] : undefined
+    if (m.tag === 'soundSources') continue
+    const prev = i > 0 ? tagOf(segs[i - 1]) : undefined
     if (prev === 'soundSources') {
-      words.push(`Row ${Number(m[2] ?? 0) + 1}`) // a kit row, whatever its tag
+      words.push(`Row ${(m.index ?? 0) + 1}`) // a kit row, whatever its tag
       continue
     }
-    const name = SEG_LABELS[m[1]] ?? prettyAttr(m[1])
-    if (name) words.push(m[2] !== undefined && !(m[1] in SEG_LABELS) ? `${name} ${Number(m[2]) + 1}` : name)
+    const name = SEG_LABELS[m.tag] ?? prettyAttr(m.tag)
+    if (name) words.push(m.index !== undefined && !(m.tag in SEG_LABELS) ? `${name} ${m.index + 1}` : name)
   }
   return words
 }
@@ -179,7 +182,7 @@ export function describeChangePath(path: string, ...maps: Array<FlatXML | null |
   const segs = path.slice(0, at).split('/').slice(1) // drop the root: it is the whole file
 
   const last = segs[segs.length - 1]
-  const lastTag = last ? SEG.exec(last)?.[1] : undefined
+  const lastTag = tagOf(last)
 
   if (lastTag === 'patchCable') {
     return `${cableLabel(path.slice(0, at), segs, maps)} · ${CABLE_ATTR_WORDS[attr] ?? prettyAttr(attr)}`
@@ -187,7 +190,7 @@ export function describeChangePath(path: string, ...maps: Array<FlatXML | null |
 
   // A gold-knob slot is positional: 8 pages × 2 knobs, bottom written first.
   if (lastTag === 'modKnob') {
-    const i = Number(SEG.exec(last!)?.[2] ?? 0)
+    const i = parseSegment(last)?.index ?? 0
     return `Gold Knob · page ${Math.floor(i / 2) + 1} ${i % 2 ? 'top' : 'bottom'} · ${prettyAttr(attr)}`
   }
 
@@ -205,13 +208,10 @@ export function describeChangePath(path: string, ...maps: Array<FlatXML | null |
  */
 export function describeElementPath(path: string, ...maps: Array<FlatXML | null | undefined>): string {
   const segs = path.split('/').slice(1)
-  const last = segs[segs.length - 1]
-  if (last && SEG.exec(last)?.[1] === 'patchCable') return cableLabel(path, segs, maps)
+  if (tagOf(segs[segs.length - 1]) === 'patchCable') return cableLabel(path, segs, maps)
   const words = segmentWords(segs)
   return words === null || words.length === 0 ? path : words.join(' ')
 }
-
-const HEX = /^0x[0-9A-Fa-f]{1,8}$/
 
 /**
  * `arpeggiator@mode` held the old direction names before community 1.1 and
@@ -249,7 +249,7 @@ export function describeChangeValue(path: string, raw: string): string {
   const at = path.lastIndexOf('@')
   const attr = at < 0 ? '' : path.slice(at + 1)
   const segs = at < 0 ? [] : path.slice(0, at).split('/').slice(1)
-  const seg = segs.length ? SEG.exec(segs[segs.length - 1])?.[1] : undefined
+  const seg = tagOf(segs[segs.length - 1])
 
   const table = enumTable(seg, attr)
   if (table && raw in table) return table[raw]
@@ -261,16 +261,22 @@ export function describeChangeValue(path: string, raw: string): string {
     const n = Number(raw)
     if (Number.isFinite(n)) return String(attr === 'attack' ? sidechainAttackToMenu(n) : sidechainReleaseToMenu(n))
   }
-  if (seg === 'audioCompressor' && !HEX.test(raw)) {
+  if (seg === 'audioCompressor' && !isHexParam(raw)) {
     const n = Number(raw)
     if (Number.isFinite(n)) return String(attr === 'compBlend' ? blendToKnob(n) : compressorToKnob(n))
   }
 
-  if (HEX.test(raw)) {
+  if (isHexParam(raw)) {
     const v = hexToInt(raw)
     if (seg === 'patchCable' && attr === 'amount') return formatCable(cableToMenu(v))
     if (seg === 'audioCompressor') return String(compressorToKnob(v))
     if (attr === 'pan') {
+      // The instrument's 7-segment pan is the magnitude with an L or R after
+      // it, and nothing at centre — `Pan::drawValue` prints `abs(value)` then
+      // `strcat(buffer, "L")` / `"R"` (`gui/menu_item/patched_param/pan.cpp:36-43`,
+      // `beta` e7bae539); the OLED draws a signed number over a bar. The
+      // editor's knob (`HexKnob.svelte`) puts the letter first and names the
+      // centre, and a change reads the same way as the knob it belongs to.
       const p = panToMenu(v)
       return p === 0 ? 'CTR' : `${p < 0 ? 'L' : 'R'}${Math.abs(p)}`
     }
