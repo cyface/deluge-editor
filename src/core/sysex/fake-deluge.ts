@@ -66,6 +66,11 @@ interface OpenFile {
 
 const enc = (s: string): Uint8Array => Uint8Array.from(s, (c) => c.charCodeAt(0))
 
+const parentOf = (path: string): string => {
+  const cut = path.lastIndexOf('/')
+  return cut <= 0 ? '/' : path.slice(0, cut)
+}
+
 export class FakeDeluge {
   files = new Map<string, Uint8Array>()
   dirs = new Set<string>(['/', '/SYNTHS', '/KITS'])
@@ -157,7 +162,67 @@ export class FakeDeluge {
       this.doWrite(msgId, json.write, binary)
     } else if (json.dir) {
       this.doDir(msgId, json.dir)
+    } else if (json.delete) {
+      this.answer(msgId, '^delete', { err: this.unlink(json.delete.path as string) })
+    } else if (json.mkdir) {
+      const path = json.mkdir.path as string
+      // f_mkdir: FR_EXIST on a name in use, FR_NO_PATH when the parent is missing (ff.c:5086).
+      const err = this.dirs.has(path) || this.files.has(path) ? 8 : !this.dirs.has(parentOf(path)) ? 5 : 0
+      if (err === 0) this.dirs.add(path)
+      this.answer(msgId, '^mkdir', { path, err })
+    } else if (json.rename) {
+      const from = json.rename.from as string
+      const to = json.rename.to as string
+      this.answer(msgId, '^rename', { from, to, err: this.rename(from, to) })
     }
+  }
+
+  /** f_unlink: a file, or an empty folder (FR_DENIED otherwise); FR_NO_FILE when there is nothing there. */
+  private unlink(path: string): number {
+    if (this.files.has(path)) {
+      this.files.delete(path)
+      return 0
+    }
+    if (!this.dirs.has(path)) return 4
+    for (const p of [...this.files.keys(), ...this.dirs]) if (p !== path && p.startsWith(`${path}/`)) return 7
+    this.dirs.delete(path)
+    return 0
+  }
+
+  /**
+   * f_rename (ff.c:5193-5213): FR_NO_FILE when there is no `from`, FR_NO_PATH
+   * when `to`'s folder is missing, FR_EXIST when `to` is in use — unless it
+   * is the same entry under other capitalisation, which FAT allows. A folder
+   * moves with everything under it.
+   */
+  private rename(from: string, to: string): number {
+    const lower = (s: string): string => s.toLowerCase()
+    const isFile = this.files.has(from)
+    if (!isFile && !this.dirs.has(from)) return 4
+    if (!this.dirs.has(parentOf(to))) return 5
+    const taken = [...this.files.keys(), ...this.dirs].some((p) => lower(p) === lower(to) && p !== from)
+    if (taken) return 8
+    if (isFile) {
+      const data = this.files.get(from)!
+      this.files.delete(from)
+      this.files.set(to, data)
+      return 0
+    }
+    const moved = new Map<string, Uint8Array>()
+    for (const [p, v] of this.files) {
+      if (p.startsWith(`${from}/`)) {
+        this.files.delete(p)
+        moved.set(`${to}${p.slice(from.length)}`, v)
+      }
+    }
+    for (const [p, v] of moved) this.files.set(p, v)
+    for (const d of [...this.dirs]) {
+      if (d === from || d.startsWith(`${from}/`)) {
+        this.dirs.delete(d)
+        this.dirs.add(`${to}${d.slice(from.length)}`)
+      }
+    }
+    return 0
   }
 
   /**

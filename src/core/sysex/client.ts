@@ -417,6 +417,27 @@ export class SmsClient {
     }
   }
 
+  /**
+   * `f_rename`: a file or a folder, to a new name and/or folder on the same
+   * card (`smSysex::rename`, smsysex.cpp; in the protocol since its first
+   * commit 7759705a #2853, so any firmware with smSysex has it). The
+   * destination folder must exist (FR_NO_PATH otherwise) and the name must
+   * be free (FR_EXIST).
+   */
+  async rename(from: string, to: string): Promise<void> {
+    await this.expect('rename', `${from} → ${to}`, { rename: { from, to } })
+  }
+
+  /** `f_unlink`: a file, or an empty folder (`smSysex::deleteFile`; 7759705a #2853). */
+  async deleteFile(path: string): Promise<void> {
+    await this.expect('delete', path, { delete: { path } })
+  }
+
+  /** `f_mkdir`, one level (`smSysex::createDirectory`; 7759705a #2853). FR_EXIST when it is already there. */
+  async mkdir(path: string): Promise<void> {
+    await this.expect('mkdir', path, { mkdir: { path } })
+  }
+
   // ---- plumbing -----------------------------------------------------------
 
   /**

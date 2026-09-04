@@ -919,3 +919,76 @@ more: `aria-haspopup="menu"`, `aria-expanded`, `role="menu"` /
 Escape and a click outside close it and return focus. Save's items are
 disabled without a preset rather than the whole menu, so it still says what it
 would do.
+
+## The sample library rewrites text, and moves the sample before the references
+
+**Open › Sample Library on Deluge** does what Deluge Commander does on a mounted
+card — see which songs, kits and synths name a sample, and rename, move or
+delete it with those files updated — over SysEx, on the card in the
+instrument. Three choices in how, each with a reason.
+
+**References are found and rewritten as text, not through the tree.** The
+firmware writes a sample path in exactly two places: `fileName` on every
+oscillator range (`Sound::writeSourceToFile`, `processing/sound/sound.cpp:3635`
+and `:3703`, upstream/community b6062d7) and `filePath` on a song's audio
+clips (`AudioClip::writeDataToFile`, `model/clip/audio_clip.cpp:1059`); a
+song embeds its instruments, so it carries both. `src/core/library/refs.ts`
+matches those two attributes — and their pre-3.0 element form, which the
+reader still accepts — and splices the value. Songs are files this editor
+does not model; parsing one and generating it back would be a round-trip
+promise the fixtures don't yet cover, while a splice provably changes only
+the path. The test is the same bar as everywhere else: the rewritten kit
+fixture is the fixture with one value changed, and still reproduces itself
+byte for byte.
+
+**Paths compare the way the card compares them.** FAT names are
+case-insensitive and the firmware matches folders with `memcasecmp`
+(`gui/ui/browser/sample_browser.cpp:139`), so a reference spelled
+`samples/drums/KICK.WAV` names the same file as `SAMPLES/Drums/Kick.wav`
+and is rewritten with it; a folder move keeps each reference's own tail,
+spelling and all. `f_rename` allows a change of case alone
+(`src/fatfs/ff.c:5208-5213`), so `kick.wav` → `Kick.wav` is a plain rename.
+
+**The sample moves first, then the files, each swapped in beside itself.**
+`f_rename` is one operation the card does or refuses (FR_EXIST on a taken
+name, and nothing has changed); everything after it is text the panel can
+retry. Each referencing file is written as `X.XML.tmp`, verified by
+read-back, then `X.XML` → `X.XML.bak`, tmp → `X.XML`, bak removed. Writing
+over `X.XML` directly would truncate it on open, and a transfer that died
+mid-song would leave the song gone; with the swap, an interruption leaves
+the original, or a complete copy under the right name with a `.bak` beside
+it that the instrument never lists (`Browser::readFileItemsForFolder` keeps
+only `allowedFileExtensionsXML`, `gui/ui/browser/browser.cpp:67`). A file
+that fails is reported by name as still carrying the old path, and Rescan
+plus a second move is the retry.
+
+Three things follow. The three folders the firmware records into
+(`SAMPLES/CLIPS`, `RECORD`, `RESAMPLE`; `storage/audio/audio_file_manager.h:44`)
+are shown but never renamed, moved or deleted. Delete is offered only when
+the index says nothing names the sample. And a song or preset the Deluge
+has open holds its paths in RAM and writes those back on save
+(`audioFile->filePath`), which would undo the move — the panel says so, and
+the preset open in this editor is retargeted as an ordinary edit the
+Changes dock lists, for the same reason.
+
+The index — one record per `.XML` under `SONGS/`, `KITS/`, `SYNTHS/` with
+its size, FAT timestamp and referenced paths — is the cost of the feature:
+a card of songs can be many megabytes at ~170 KB/s. It is read once, kept in
+memory across moves, cached in localStorage, and a rescan re-reads only files
+whose listing entry changed. Files the Deluge writes all carry the 1969
+timestamp, so in practice the size is the change detector; *Rescan all*
+exists for the rewrite that keeps the length.
+
+It is an item under Open, not a fourth menu: issue #37 folded the bar's
+commands into three so the file name has room, and a fourth menu costs
+exactly that room (the bar test measures it). It sits under Open because it
+opens the card's samples, set apart from the presets by a rule.
+
+The file operations are the protocol's own `rename`, `delete` and `mkdir`
+(`smSysex::rename`, `deleteFile`, `createDirectory`, `storage/smsysex.cpp`),
+present since smSysex's first commit (7759705a #2853, 2024-11-11), so the
+existing `smSysex` feature gate covers them. The later `move` and `copy`
+ops (c23730b9 #3775, 2025-06-03) are not used: `f_rename` already moves
+across folders on one card, and a c1.3.0 nightly from before June 2025
+lacks the newer ops while carrying the same version string.
+

@@ -98,6 +98,19 @@ to give it a note rather than quietly dropped, and one control shifts every
 root and boundary together when a library is named against a different middle
 C. As everywhere else in the editor, the only commit is saving.
 
+**Open › Sample Library on Deluge** is the card's sample library: `SAMPLES/` as a
+list, each sample and folder with how many songs, kits and synths name it,
+and the three things you do to a library. *Rename* and *Move…* rewrite every
+file on the card that names the sample — a song's audio clips as much as a
+kit's rows — so nothing goes silent; *Delete* is offered only for a sample
+nothing names. The references are read once from every `.XML` under `SONGS/`,
+`KITS/` and `SYNTHS/`, cached, and re-read only for files that changed. Before
+anything changes on the card the dialog names the files it is about to
+rewrite, and each rewrite is written beside the original and swapped in, so
+an interrupted transfer never leaves a truncated song. One caveat the panel
+repeats: a song or preset the Deluge has open keeps the old paths in memory
+until it is loaded again, so reload it there before saving it.
+
 The test that matters is the round-trip: parse a Deluge-authored preset,
 generate it back, and compare *flattened path → value maps*. Zero values lost,
 changed, or added; second save byte-identical to the first. Fixtures live in

@@ -5,6 +5,7 @@
   import { editor } from './state/editor.svelte'
   import { follow } from './state/follow.svelte'
   import { kit } from './state/kit.svelte'
+  import { library } from './state/library.svelte'
   import { randomizer } from './state/randomize.svelte'
   import Mark from './Mark.svelte'
   import Menu from './controls/Menu.svelte'
@@ -116,6 +117,18 @@
   <Menu label="Open" testid="menu-open" title="Open a preset from this computer or from the Deluge">
     <MenuItem label="From this computer" testid="file-open-button" title="Open a preset XML from this computer" onclick={() => fileInput?.click()} />
     <MenuItem label="From Deluge" testid="card-open-button" title={midiTitle('Open a preset from the Deluge’s SD card over MIDI')} onclick={() => card.openPanel('open')} />
+    <!-- The card's sample library lives under Open rather than as a fourth
+         menu: issue #37 folded the commands into three so the file name has
+         room, and a fourth costs exactly that room. It is set apart by a
+         rule because it opens the card's samples, not a preset. -->
+    <div class="sep" role="separator"></div>
+    <MenuItem
+      label="Sample Library on Deluge"
+      testid="library-button"
+      title={midiTitle('Browse SAMPLES/ on the card: see which songs, kits and synths use each sample, and rename, move or delete with those files updated to follow')}
+      disabled={!card.supported || !!card.busy}
+      onclick={() => void library.openPanel()}
+    />
   </Menu>
   <!-- Save's items are disabled without a preset rather than the whole menu,
        so it still says what it would do. -->

@@ -17,10 +17,14 @@ issues in dependency order (`gh issue list`).
   reader (local file or SysEx); `kit/` is the kit builder (drum-name
   classifier, row building from the blank-kit template, share zip); `midi/` is
   the MIDI Follow CC map and its knob-position arithmetic, with
-  `preset/follow.ts` saying where each of those parameters lives in a file.
+  `preset/follow.ts` saying where each of those parameters lives in a file;
+  `library/` is the card's sample library (where a Deluge XML names a sample,
+  the usage index over `SONGS/`/`KITS/`/`SYNTHS/`, and rename/move/delete
+  with the referencing files rewritten) over an abstract `CardFS`.
 - `src/ui/` — Svelte 5 (runes) components. `state/editor.svelte.ts` is the
   main store (the tree is a `$state` proxy; core accessors write through it);
   `state/card.svelte.ts` wires `src/core/sysex` to Web MIDI (`CardPanel.svelte`);
+  `state/library.svelte.ts` drives `src/core/library` over it (`LibraryPanel.svelte`);
   `state/follow.svelte.ts` listens for MIDI Follow feedback (`FollowView.svelte`);
   `groups.ts` defines the flow blocks; `controls/` are the knob, selects,
   graphs; `groups/` one panel per block. Values are read and written only

@@ -125,6 +125,40 @@
       const page = names.slice(cmd.dir.offset || 0, (cmd.dir.offset || 0) + Math.min(cmd.dir.lines || 20, 25))
       const list = page.map((e) => `{"name": "${e.name}",\n"size": ${e.size},\n"date": 0,\n"time": 0,\n"attr": ${e.attr}}`).join(', ')
       answer(msgId, `{"^dir": {"list": [${list}],\n"err": 0}}`)
+    } else if (cmd.delete) {
+      // f_unlink: a file, or an empty folder (FR_DENIED otherwise); FR_NO_FILE when nothing is there.
+      const p = cmd.delete.path
+      let err = 0
+      if (files.has(p)) files.delete(p)
+      else if (!dirs.has(p)) err = 4
+      else if ([...files.keys(), ...dirs].some((q) => q !== p && q.startsWith(`${p}/`))) err = 7
+      else dirs.delete(p)
+      answer(msgId, `{"^delete": {"err": ${err}}}`)
+    } else if (cmd.mkdir) {
+      // f_mkdir: FR_EXIST on a name in use, FR_NO_PATH when the parent is missing.
+      const p = cmd.mkdir.path
+      const parent = p.lastIndexOf('/') <= 0 ? '/' : p.slice(0, p.lastIndexOf('/'))
+      const err = dirs.has(p) || files.has(p) ? 8 : !dirs.has(parent) ? 5 : 0
+      if (!err) dirs.add(p)
+      answer(msgId, `{"^mkdir": {"path": "${p}",\n"err": ${err}}}`)
+    } else if (cmd.rename) {
+      // f_rename (ff.c:5193-5213): FR_NO_FILE without a source, FR_NO_PATH without the
+      // destination folder, FR_EXIST when the new name is in use by another entry.
+      const { from, to } = cmd.rename
+      const parent = to.lastIndexOf('/') <= 0 ? '/' : to.slice(0, to.lastIndexOf('/'))
+      const isFile = files.has(from)
+      let err = 0
+      if (!isFile && !dirs.has(from)) err = 4
+      else if (!dirs.has(parent)) err = 5
+      else if ([...files.keys(), ...dirs].some((q) => q.toLowerCase() === to.toLowerCase() && q !== from)) err = 8
+      else if (isFile) {
+        files.set(to, files.get(from))
+        files.delete(from)
+      } else {
+        for (const [q, v] of [...files]) if (q.startsWith(`${from}/`)) { files.delete(q); files.set(`${to}${q.slice(from.length)}`, v) }
+        for (const d of [...dirs]) if (d === from || d.startsWith(`${from}/`)) { dirs.delete(d); dirs.add(`${to}${d.slice(from.length)}`) }
+      }
+      answer(msgId, `{"^rename": {"from": "${from}",\n"to": "${to}",\n"err": ${err}}}`)
     }
   }
 
@@ -137,7 +171,9 @@
   for (const [p, t] of Object.entries(window.__cardSeed || {})) put(p, t)
   window.__fakeCard = {
     files,
+    dirs,
     text: (p) => (files.has(p) ? new TextDecoder().decode(files.get(p)) : null),
+    paths: () => [...files.keys()].sort(),
     // Play a second editor on the same Deluge: a reply answered to another
     // session's msgId block (sid 2 → 17…23). The OS MIDI stacks multiplex, so
     // every open tab hears it — that is the whole detection (issue #8).

@@ -7,6 +7,7 @@
   import FollowView from './FollowView.svelte'
   import KitBuilder from './KitBuilder.svelte'
   import KitRows from './KitRows.svelte'
+  import LibraryPanel from './LibraryPanel.svelte'
   import FolderImport from './FolderImport.svelte'
   import Oled from './Oled.svelte'
   import Overview from './Overview.svelte'
@@ -21,6 +22,7 @@
   import { ranges as rangeEditor } from './state/ranges.svelte'
   import { randomizer } from './state/randomize.svelte'
   import { kit as kitBuilder } from './state/kit.svelte'
+  import { library } from './state/library.svelte'
   import { multisample } from './state/multisample.svelte'
   import { changesNote, confirm, loadedName } from './state/confirm.svelte'
   import { samplePick } from './state/samplepick.svelte'
@@ -73,7 +75,7 @@
   ondragover={(e) => { e.preventDefault(); dragging = true }}
   ondragleave={() => (dragging = false)}
   ondrop={drop}
-  onkeydown={(e) => { if (e.key === 'Escape') { confirm.cancel(); if (multisample.open) multisample.cancel(); if (samplePick.open) samplePick.cancel(); if (card.open) card.close(); randomizer.open = false } }}
+  onkeydown={(e) => { if (e.key === 'Escape') { confirm.cancel(); if (multisample.open) multisample.cancel(); if (samplePick.open) samplePick.cancel(); if (card.open) card.close(); if (library.open) library.close(); randomizer.open = false } }}
 />
 
 {#if multisample.open}<FolderImport />{/if}
@@ -140,6 +142,7 @@
   <ChangesDock />
   <CablePicker />
   <CardPanel />
+  <LibraryPanel />
 </div>
 
 <style>

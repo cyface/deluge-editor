@@ -420,6 +420,11 @@ class Card {
     await this.need().writeFile(path, data, onProgress, 'sampled')
   }
 
+  /** The connected client itself, for the sample library's file operations (`state/library.svelte.ts`). */
+  sms(): SmsClient {
+    return this.need()
+  }
+
   /** Read a whole sample file off the card (audio preview). */
   async readSampleFile(path: string, onProgress?: (done: number, total: number) => void): Promise<Uint8Array> {
     return this.need().readFile(path, onProgress)
