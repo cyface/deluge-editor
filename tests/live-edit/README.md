@@ -8,10 +8,27 @@ listed in the design doc: proof that `inst`, `param`, `save`, `load`,
 `select` and `sub` behave as the protocol says before the `SmsClient` ops are
 built against them.
 
-This is **not** a unit test. Vitest only globs `*.test.ts`, so it never runs
-in `pnpm test`. It needs macOS, DelugEmu, and a firmware binary built with the
-feature — so it is a manual integration check you run when the firmware side
-changes.
+`hw_smoke.py` is the **hardware** counterpart: the same protocol, driven over
+CoreMIDI against a real Deluge on USB instead of the emulator. It is
+non-destructive — it saves only to `/TEMP`, restores every param it changes,
+and loads the original pull back, so the instrument on the device and the
+card preset file are left as found. Use it after flashing a new firmware
+build to confirm the ops behave on hardware:
+
+```sh
+python3 tests/live-edit/hw_smoke.py           # part 1: every op, automated (~5 s)
+python3 tests/live-edit/hw_smoke.py part2     # part 2: prompts you to move a knob / a menu
+```
+
+It needs `mido` + `python-rtmidi` (CoreMIDI backend) and the Deluge connected
+over USB with **Sysex Live Edit** on. Its port is `Deluge Port 1`; artifacts
+land in `work/`. This is what verified Live Edit on hardware (39/39 on
+2026-09-05); DIN still needs a physical 5-pin check.
+
+Both are **not** unit tests. Vitest only globs `*.test.ts`, so neither runs
+in `pnpm test`. `live_smoke.py` needs macOS, DelugEmu, and a firmware binary
+built with the feature; `hw_smoke.py` needs real hardware — so they are
+manual integration checks you run when the firmware side changes.
 
 ## Running it
 
