@@ -342,14 +342,15 @@ test('the top bar’s commands live under New, Open and Save; the modes stay out
   await page.getByTestId('file-input').setInputFiles(FIXTURE)
   const name = page.getByTestId('file-name')
   await expect(name).toHaveText('Default Synth.XML')
-  // Poll the fit check rather than measuring once: Barlow Condensed is
-  // self-hosted (@fontsource) and loads async, so a cold CI runner can still
-  // be showing the wider fallback face when the text arrives, overflowing the
-  // name box until the real font (which fits) loads and reflows. Polling
-  // settles with that reflow instead of racing it.
+  // The folded commands leave the name its full width, so it is not truncated.
+  // Measured as overflow (scrollWidth − clientWidth) with a rounding tolerance:
+  // the box hugs the text to the pixel, and the same self-hosted font lays out
+  // a hair wider on the Linux CI runner than on macOS, so an exact-fit check is
+  // 1px flaky across platforms. A real truncation clips a whole glyph (~9px at
+  // this size), well past the tolerance. Poll so any font-load reflow settles.
   await expect
-    .poll(() => name.evaluate((el) => el.scrollWidth <= el.clientWidth), { timeout: 10000 })
-    .toBe(true)
+    .poll(() => name.evaluate((el) => el.scrollWidth - el.clientWidth), { timeout: 5000 })
+    .toBeLessThanOrEqual(4)
 })
 
 test('every control in the panels says what it does (issue #20)', async ({ page }) => {
