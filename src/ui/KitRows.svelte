@@ -37,7 +37,7 @@
     if (!isSoundRow(r)) return
     const o = osc(r, 1)
     if (o?.attrs.type !== 'sample') return
-    if (sampleRanges(o).length > 1) rangeEditor.open(1)
+    if (sampleRanges(o).length > 1) rangeEditor.show(1)
     else
       samplePick.start(o, {
         label: r.attrs.name || `row ${i + 1}`,

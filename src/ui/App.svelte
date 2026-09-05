@@ -153,7 +153,7 @@
       <FlowStrip sound={editor.sound} />
       <!-- The range editor is as wide as the page: 70 key bands don't fit a
            masonry column, and the map is the point of it (issue #29). -->
-      {#if rangeEditor.osc}<RangeEditor />{/if}
+      {#if rangeEditor.open}<RangeEditor />{/if}
       <Overview sound={editor.sound} {kit} />
     {/if}
   {:else}

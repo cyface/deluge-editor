@@ -8,15 +8,14 @@
 import { cardPath } from '../../core/library'
 import { computePeaks, type Peaks } from '../../core/samples/peaks'
 import { NOT_ON_THIS_COMPUTER } from '../copy'
+import { errorText } from '../errtext'
+import { Activity } from './activity.svelte'
 import { card } from './card.svelte'
 import { samples } from './samples.svelte'
 
-class AudioPreview {
-  /** fileName of the row playing right now, loading, or the last failure. */
+class AudioPreview extends Activity {
+  /** fileName of the row playing right now. The one loading is `busy`; the last failure is `error`. */
   playing = $state<string | null>(null)
-  loading = $state<string | null>(null)
-  progress = $state(0)
-  error = $state<string | null>(null)
   /** Bumped whenever a decode lands, so waveform thumbnails re-derive. */
   version = $state(0)
 
@@ -25,8 +24,6 @@ class AudioPreview {
   private peaks = new Map<string, Peaks>()
   private decoding = new Set<string>()
   private source: AudioBufferSourceNode | null = null
-  /** Counts `toggle()` calls, so a load that lands after a later toggle is dropped rather than played. */
-  private toggleGen = 0
 
   /**
    * Where card-only bytes come from while the sample library is browsing a
@@ -57,38 +54,39 @@ class AudioPreview {
       return
     }
     this.stop()
-    this.error = null
-    // Toggle A, then B while A's read is pending: A's node must not start,
-    // and A's finish must not clear B's loading line.
-    const gen = ++this.toggleGen
-    const live = (): boolean => gen === this.toggleGen
-    try {
-      const buffer0 = await this.load(fileName)
-      if (!live()) return
-      // The cache may have been filled by the background thumbnail decode
-      // (OfflineAudioContext), so the playback context can still be missing
-      // here — and this click is exactly the gesture that may create it.
-      this.ctx ??= new AudioContext()
-      const ctx = this.ctx
-      const buffer = reversed ? this.reversedOf(fileName, buffer0) : buffer0
-      if (ctx.state === 'suspended') await ctx.resume()
-      const source = ctx.createBufferSource()
-      source.buffer = buffer
-      source.connect(ctx.destination)
-      source.onended = () => {
-        if (this.source === source) {
-          this.source = null
-          this.playing = null
+    // Toggle A, then B while A's read is pending: B supersedes, so A's node
+    // must not start and A's finish must not clear B's busy line.
+    await this.run(
+      fileName,
+      async (live) => {
+        try {
+          const buffer0 = await this.load(fileName)
+          if (!live()) return
+          // The cache may have been filled by the background thumbnail decode
+          // (OfflineAudioContext), so the playback context can still be missing
+          // here — and this click is exactly the gesture that may create it.
+          this.ctx ??= new AudioContext()
+          const ctx = this.ctx
+          const buffer = reversed ? this.reversedOf(fileName, buffer0) : buffer0
+          if (ctx.state === 'suspended') await ctx.resume()
+          const source = ctx.createBufferSource()
+          source.buffer = buffer
+          source.connect(ctx.destination)
+          source.onended = () => {
+            if (this.source === source) {
+              this.source = null
+              this.playing = null
+            }
+          }
+          this.source = source
+          this.playing = fileName
+          source.start()
+        } catch (e) {
+          throw new Error(`${fileName}: ${errorText(e)}`)
         }
-      }
-      this.source = source
-      this.playing = fileName
-      source.start()
-    } catch (e) {
-      if (live()) this.error = `${fileName}: ${e instanceof Error ? e.message : String(e)}`
-    } finally {
-      if (live()) this.loading = null
-    }
+      },
+      { supersede: true },
+    )
   }
 
   /**
@@ -149,17 +147,11 @@ class AudioPreview {
     if (hit) return hit
     this.ctx ??= new AudioContext()
     let bytes = samples.bytes.get(fileName)
-    if (!bytes && this.mounted) {
-      this.loading = fileName
-      this.progress = 0
-      bytes = await this.mounted(fileName)
-    }
+    if (!bytes && this.mounted) bytes = await this.mounted(fileName)
     if (!bytes) {
       if (!card.connected) {
         throw new Error(NOT_ON_THIS_COMPUTER)
       }
-      this.loading = fileName
-      this.progress = 0
       bytes = await card.readFile(cardPath(fileName), (done, total) => (this.progress = total ? done / total : 0))
     }
     // decodeAudioData detaches its buffer, so hand it a copy, not the stash.

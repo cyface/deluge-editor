@@ -85,8 +85,8 @@
     <span class="last" data-testid="follow-last">{lastLine}</span>
     <button type="button" class="btn small" data-testid="follow-help-button" onclick={onhelp}>Help</button>
   </div>
-  {#if follow.error}
-    <Status kind="err" testid="follow-error">{follow.error}</Status>
+  {#if follow.listenError}
+    <Status kind="err" testid="follow-error">{follow.listenError}</Status>
   {:else if follow.sending}
     <!-- One line, only while the hazard is live. The rest of the explanation
          is behind the help button, where it is not in the way. -->

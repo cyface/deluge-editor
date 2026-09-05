@@ -28,7 +28,7 @@
  * every one of them is a menu value in the domain the Deluge displays.
  */
 
-import { supports as featureSupported } from '../firmware/features'
+import { supports as featureSupported, type Feature } from '../firmware/features'
 import type { FirmwareVersion } from '../firmware/version'
 import {
   DEST_FEATURE,
@@ -195,7 +195,7 @@ function param(ctx: Ctx, attr: SoundParamAttr, menu: number): void {
   setParamMenu(ctx.sound, attr, menu)
 }
 
-const allowed = <T extends string>(values: readonly T[], gates: Record<string, string>, ctx: Ctx): T[] =>
+const allowed = <T extends string>(values: readonly T[], gates: Partial<Record<T, Feature>>, ctx: Ctx): T[] =>
   values.filter((v) => gateAllows(gates, v, ctx.supports))
 
 // ---- oscillators ----------------------------------------------------------
@@ -589,7 +589,7 @@ function rollCables(ctx: Ctx): void {
   const used = new Set(kept.map((c) => `${c.attrs.source}>${c.attrs.destination}`))
   const perDest = new Map<string, number>()
 
-  const sources = ROLLED_SOURCES.filter((s) => gateAllows(SOURCE_FEATURE as Record<string, string>, s, ctx.supports))
+  const sources = ROLLED_SOURCES.filter((s) => gateAllows(SOURCE_FEATURE, s, ctx.supports))
   const destinations = ([...PATCHED_LOCAL_PARAMS, ...PATCHED_GLOBAL_PARAMS] as ParamName[]).filter(
     (d) =>
       (DEST_WEIGHT[d] ?? 0) > 0 &&

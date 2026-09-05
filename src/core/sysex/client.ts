@@ -51,17 +51,30 @@ import { clamp } from '../params/scale'
 import { fresultMessage, fresultName } from './fatfs'
 import { buildJsonFrame, MAX_REQUEST_BYTES, parseReply, type SysexReply } from './frame'
 
-/** One `^dir` list entry: `getDirEntries` writes name/size/date/time/attr. */
+/**
+ * One directory entry. The same shape the sample library's `CardFS` lists
+ * (`src/core/library/fs.ts`), so a mounted card and the Deluge read alike.
+ */
 export interface DirEntry {
+  name: string
+  size: number
+  /** FatFS `fdate`/`ftime` words, as `^dir` reports them — a change detector, nothing more. */
+  date: number
+  time: number
+  dir: boolean
+}
+
+/** One `^dir` list entry on the wire: `getDirEntries` writes name/size/date/time/attr. */
+interface WireDirEntry {
   name: string
   size: number
   date: number
   time: number
+  /** FatFS `fattrib`; only the `AM_DIR` bit (0x10, as commented in `getDirEntries`) is read. */
   attr: number
 }
 
-/** FatFS `AM_DIR` bit, as commented in `getDirEntries`. */
-export const isDirectory = (e: DirEntry): boolean => (e.attr & 0x10) !== 0
+const fromWire = ({ name, size, date, time, attr }: WireDirEntry): DirEntry => ({ name, size, date, time, dir: (attr & 0x10) !== 0 })
 
 export type Progress = (done: number, total: number) => void
 
@@ -450,12 +463,12 @@ export class SmsClient {
     const all: DirEntry[] = []
     for (;;) {
       const r = await this.request({ dir: { path, offset: all.length, lines: MAX_DIR_LINES } })
-      const body = r.json['^dir'] as { list?: DirEntry[]; err?: number } | undefined
+      const body = r.json['^dir'] as { list?: WireDirEntry[]; err?: number } | undefined
       if (!body) throw new SysexError('dir', path, NO_REPLY)
       const err = body.err ?? 0
       if (err !== 0) throw new SysexError('dir', path, err)
       const page = body.list ?? []
-      all.push(...page)
+      all.push(...page.map(fromWire))
       if (page.length < MAX_DIR_LINES) return all
     }
   }

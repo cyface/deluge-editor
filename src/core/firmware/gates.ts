@@ -107,11 +107,12 @@ type Supports = (feature: string) => boolean
 
 /**
  * Whether the selected firmware can honour `value` under `gates`. The tables
- * above are `Feature`-typed so a misspelt gate fails to compile; the check
- * itself takes any string-valued map, since `supports` treats an unknown
- * feature as unsupported rather than as an error.
+ * above are `Feature`-typed so a misspelt gate fails to compile, and `value`
+ * is typed by the table it is checked against, so an enum is gated by its own
+ * map; `supports` treats an unknown feature as unsupported rather than as an
+ * error.
  */
-export const gateAllows = (gates: Record<string, string>, value: string, supports: Supports): boolean => {
+export const gateAllows = <K extends string>(gates: Partial<Record<K, Feature>>, value: K, supports: Supports): boolean => {
   const f = gates[value]
   return f === undefined || supports(f)
 }

@@ -107,11 +107,11 @@
         class="play"
         class:live={audio.playing === file}
         data-testid="row-play"
-        disabled={audio.loading !== null || (!audio.canPreview(file) && audio.playing !== file)}
+        disabled={audio.busy !== null || (!audio.canPreview(file) && audio.playing !== file)}
         title={UI_HELP[audio.playing === file ? 'ui.preview.stop' : audio.canPreview(file) ? 'ui.preview.play' : 'ui.preview.unavailable']}
         aria-label="Preview row {i + 1}"
         onclick={() => audio.toggle(file, sampled?.attrs.reversed === '1')}
-      >{audio.playing === file ? '■' : audio.loading === file ? `${Math.round(audio.progress * 100)}%` : '▶'}</button>
+      >{audio.playing === file ? '■' : audio.busy === file ? `${Math.round(audio.progress * 100)}%` : '▶'}</button>
     {/if}
   </td>
   <td class="wavecell">

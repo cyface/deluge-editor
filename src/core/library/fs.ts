@@ -5,7 +5,7 @@
  * Deluge. Nothing here knows about MIDI beyond recognising its error type.
  */
 
-import { SysexError, type Progress, type ReadHandle } from '../sysex'
+import { SysexError, type DirEntry, type Progress, type ReadHandle } from '../sysex'
 
 /**
  * Why a card operation failed, as far as the two backends can tell apart.
@@ -50,14 +50,8 @@ export const isNotFound = (e: unknown): boolean =>
   (e instanceof CardError && e.code === 'notFound') ||
   (e instanceof SysexError && (e.code === FR_NO_FILE || e.code === FR_NO_PATH))
 
-export interface CardEntry {
-  name: string
-  size: number
-  /** FatFS `fdate`/`ftime` words, as `^dir` reports them — a change detector, nothing more. */
-  date: number
-  time: number
-  dir: boolean
-}
+/** A directory entry: the SysEx client's own shape, which a mounted card fills in too (`src/ui/localcard.ts`). */
+export type CardEntry = DirEntry
 
 /** `(done, total)` in bytes — the SysEx client's own progress shape, which both backends report. */
 export type CardProgress = Progress

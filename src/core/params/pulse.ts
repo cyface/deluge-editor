@@ -26,6 +26,7 @@
 
 import { mulRshift32, TWO31, TWO32 } from './fixedpoint'
 import { INT32_MAX, INT32_MIN } from './hex'
+import type { OscType } from '../preset/enums'
 
 /** ARM's SSAT, as `signed_saturate<bits>` (`util/functions.h`). */
 const signedSaturate = (v: number, bits: number): number =>
@@ -61,7 +62,7 @@ export function pulseWidthRendered(paramValue: number): number {
  */
 export type PulseFamily = 'square' | 'sync' | 'none'
 
-export function pulseFamily(oscType: string): PulseFamily {
+export function pulseFamily(oscType: OscType): PulseFamily {
   if (oscType === 'square' || oscType === 'analogSquare') return 'square'
   if (oscType === 'sample' || oscType === 'inLeft' || oscType === 'inRight' || oscType === 'inStereo') return 'none'
   if (oscType === 'dx7') return 'none'
@@ -75,7 +76,7 @@ export function pulseFamily(oscType: string): PulseFamily {
  * is loaded (`Source::hasAtLeastOneAudioFileLoaded`).
  */
 export function pulseWidthOffered(
-  oscType: string,
+  oscType: OscType,
   { fm, fileLoaded }: { fm: boolean; fileLoaded: boolean },
 ): boolean {
   if (fm) return false
@@ -88,7 +89,7 @@ export function pulseWidthOffered(
  * `doOscSync` on Osc B, and the non-square branch refuses to pulse-shape when
  * it is on: `doPulseWave = (pulseWidth && !doOscSync)`.
  */
-export const pulseWidthHeard = (oscType: string, { oscSync }: { oscSync: boolean }): boolean =>
+export const pulseWidthHeard = (oscType: OscType, { oscSync }: { oscSync: boolean }): boolean =>
   !oscSync || oscType === 'square'
 
 /**
@@ -116,7 +117,7 @@ export const pulseSyncRatio = (paramValue: number): number => {
  * kin, and a wavetable's own frames are not read, so a saw stands in for it.
  * Anything not named draws as a square.
  */
-export function pulseBaseWave(oscType: string, p: number): number {
+export function pulseBaseWave(oscType: OscType, p: number): number {
   const q = p - Math.floor(p)
   if (oscType === 'sine') return Math.sin(2 * Math.PI * q)
   if (oscType === 'triangle') return q < 0.25 ? 4 * q : q < 0.75 ? 2 - 4 * q : 4 * q - 4

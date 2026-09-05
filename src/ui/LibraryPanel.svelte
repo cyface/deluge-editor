@@ -129,11 +129,11 @@
                     type="button"
                     class="act"
                     class:live={audio.playing === xmlPath(e.path)}
-                    disabled={!!lib.busy || audio.loading !== null}
+                    disabled={!!lib.busy || audio.busy !== null}
                     title={UI_HELP[audio.playing === xmlPath(e.path) ? 'ui.preview.stop' : mounted ? 'ui.library.play' : 'ui.library.playCard']}
                     aria-label="Play"
                     onclick={() => void preview(e)}
-                  >{audio.playing === xmlPath(e.path) ? '■' : audio.loading === xmlPath(e.path) ? `${Math.round(audio.progress * 100)}%` : '▶'}</button>
+                  >{audio.playing === xmlPath(e.path) ? '■' : audio.busy === xmlPath(e.path) ? `${Math.round(audio.progress * 100)}%` : '▶'}</button>
                 {/if}
                 {#if rowActions(e)}
                   <button type="button" class="act" data-testid="library-rename-start" onclick={() => lib.startRename(e.name)} title={UI_HELP['ui.library.rename']}>Rename</button>

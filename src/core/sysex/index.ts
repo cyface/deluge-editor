@@ -16,7 +16,6 @@ export {
 } from './frame'
 export {
   DEFAULT_TIMEOUTS,
-  isDirectory,
   NO_REPLY,
   SHORT_READ,
   SHORT_WRITE,

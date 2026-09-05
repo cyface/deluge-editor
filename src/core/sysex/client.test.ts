@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { rig } from '../../../tests/helpers/rig'
 import { FakeDeluge, OTHER_CLIENT_TAG } from './fake-deluge'
-import { isDirectory, SHORT_WRITE, SmsClient, SysexError } from './client'
+import { SHORT_WRITE, SmsClient, SysexError } from './client'
 
 const bytes = (n: number): Uint8Array => Uint8Array.from({ length: n }, (_, i) => (i * 31 + 0x80) & 0xff)
 
@@ -194,7 +194,7 @@ describe('SmsClient', () => {
     const entries = await client.listDirectory('/SYNTHS')
     expect(entries.length).toBe(60)
     expect(fake.requests.filter((r) => 'dir' in r).length).toBe(3) // 25 + 25 + 10
-    expect(entries.every((e) => !isDirectory(e))).toBe(true)
+    expect(entries.every((e) => !e.dir)).toBe(true)
   })
 
   it('lists directories with their flag set', async () => {
@@ -202,7 +202,7 @@ describe('SmsClient', () => {
     fake.putFile('/SYNTHS/SUB/A.XML', 'x')
     const entries = await client.listDirectory('/SYNTHS')
     const sub = entries.find((e) => e.name === 'SUB')
-    expect(sub && isDirectory(sub)).toBe(true)
+    expect(sub?.dir).toBe(true)
   })
 
   it('a missing directory throws FR_NO_PATH', async () => {

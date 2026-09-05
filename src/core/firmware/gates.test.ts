@@ -20,7 +20,7 @@ import {
   UNPATCHED_SOUND_PARAMS,
 } from '../preset'
 import { flattenXML } from '../xml'
-import { FEATURES, supports } from './features'
+import { FEATURES, supports, type Feature } from './features'
 import {
   DEST_FEATURE,
   HPF_MODES,
@@ -39,12 +39,12 @@ const official414 = (feature: string) => supports(parseVersion('4.1.4'), feature
 const community130 = (feature: string) => supports(parseVersion('c1.3.0'), feature)
 
 /** Each gate map with the table its keys must come from, and the fixture paths its values appear at. */
-const GATES: { name: string; gates: Record<string, string>; table: readonly string[]; at: RegExp }[] = [
+const GATES: { name: string; gates: Record<string, Feature>; table: readonly string[]; at: RegExp }[] = [
   { name: 'OSC_TYPE_FEATURE', gates: OSC_TYPE_FEATURE, table: OSC_TYPES, at: /\/osc[12]@type$/ },
   { name: 'LFO_TYPE_FEATURE', gates: LFO_TYPE_FEATURE, table: LFO_TYPES, at: /\/lfo[1-4]@type$/ },
   { name: 'MOD_FX_FEATURE', gates: MOD_FX_FEATURE, table: MOD_FX_TYPES, at: /@modFXType$/ },
   { name: 'LPF_MODE_FEATURE', gates: LPF_MODE_FEATURE, table: FILTER_MODES, at: /@lpfMode$/ },
-  { name: 'SOURCE_FEATURE', gates: SOURCE_FEATURE as Record<string, string>, table: PATCH_SOURCES, at: /@(source|patchAmountFrom(Second)?Source)$/ },
+  { name: 'SOURCE_FEATURE', gates: SOURCE_FEATURE as Record<string, Feature>, table: PATCH_SOURCES, at: /@(source|patchAmountFrom(Second)?Source)$/ },
   {
     name: 'DEST_FEATURE',
     gates: DEST_FEATURE,
@@ -142,8 +142,8 @@ describe('the gates against what firmware wrote', () => {
 
   it('says which gated values no firmware-written file exercises yet', () => {
     // A transcription typo in a gated string would pass every other test
-    // here. This list is the capture debt (`docs/audit-results.md` §8,
-    // "Enum values no fixture writes"); it shrinks as fixtures land and
+    // here. This list is the capture debt — the gated enum values no
+    // Deluge-written fixture carries yet; it shrinks as fixtures land and
     // must never grow.
     const unexercised: string[] = []
     for (const gate of GATES) {

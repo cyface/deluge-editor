@@ -124,12 +124,17 @@ export function cablePhrases(live: PatchCableElement[]): string[] {
   return phrases
 }
 
-export function summariseSound(sound: SoundElement): Summary {
-  const parts: string[] = []
-  const chips: string[] = []
-  const m = (attr: Parameters<typeof paramMenu>[1]) => paramMenu(sound, attr)
+/** One paragraph of the sentence and the chips it earns; `summariseSound` joins six in order. */
+interface Section {
+  parts: string[]
+  chips: string[]
+}
 
-  // Sources
+const menuOf = (sound: SoundElement) => (attr: Parameters<typeof paramMenu>[1]) => paramMenu(sound, attr)
+
+/** What the oscillators are, and how many voices of them. */
+function sources(sound: SoundElement): Section {
+  const m = menuOf(sound)
   const oscB = m('oscBVolume') ?? 50
   const a = oscWord(sound, 1)
   const b = oscWord(sound, 2)
@@ -150,8 +155,7 @@ export function summariseSound(sound: SoundElement): Summary {
     else if (uniDetune > 4) t += ' and detuned'
     if (uniSpread > 25) t += ', spread wide'
   }
-  parts.push(t)
-  chips.push(
+  const chips = [
     sound.attrs.mode === 'fm'
       ? 'FM'
       : oscB > 0 && oscShort(sound, 1) === oscShort(sound, 2)
@@ -159,48 +163,63 @@ export function summariseSound(sound: SoundElement): Summary {
         : oscB > 0
           ? `${oscShort(sound, 1)}+${oscShort(sound, 2)}`
           : oscShort(sound, 1),
-  )
+  ]
   if (uniNum > 1) chips.push(`UNI${uniNum}`)
+  return { parts: [t], chips }
+}
 
-  // Envelope 1
+/** Envelope 1 in a word. */
+function envelope(sound: SoundElement): Section {
   const env = envelopeWord(
     envelopeMenu(sound, 1, 'attack'),
     envelopeMenu(sound, 1, 'decay'),
     envelopeMenu(sound, 1, 'sustain'),
     envelopeMenu(sound, 1, 'release'),
   )
-  parts.push(env)
-  chips.push(env.toUpperCase().replace(/[ -]/g, ''))
+  return { parts: [env], chips: [env.toUpperCase().replace(/[ -]/g, '')] }
+}
 
-  // Filters. An absent lpfMode/hpfMode is the firmware default (on). A filter
-  // parked wide open is the init state and does not shape the sound, so it is
-  // not worth a word — unless the resonance is high enough to ring on its own.
+/**
+ * Filters. An absent lpfMode/hpfMode is the firmware default (on). A filter
+ * parked wide open is the init state and does not shape the sound, so it is
+ * not worth a word — unless the resonance is high enough to ring on its own.
+ */
+function filters(sound: SoundElement): Section {
+  const m = menuOf(sound)
+  const out: Section = { parts: [], chips: [] }
   const lpfMode = sound.attrs.lpfMode ?? '24dB'
   const lpf = m('lpfFrequency') ?? 50
   const res = m('lpfResonance') ?? 0
   if (lpfMode !== 'Off' && (lpf < 48 || res > 32)) {
     const open = lpf < 13 ? 'a nearly closed' : lpf < 32 ? 'a half-open' : lpf < 48 ? 'a mostly open' : 'a wide-open'
     const q = res > 32 ? 'screaming ' : res > 14 ? 'resonant ' : ''
-    parts.push(`through ${open} ${q}${FILTER_MODE_WORDS[lpfMode] ?? lpfMode}`)
-    chips.push(`${FILTER_MODE_SHORT[lpfMode] ?? lpfMode}${res > 14 ? ' RES' : ''}`)
+    out.parts.push(`through ${open} ${q}${FILTER_MODE_WORDS[lpfMode] ?? lpfMode}`)
+    out.chips.push(`${FILTER_MODE_SHORT[lpfMode] ?? lpfMode}${res > 14 ? ' RES' : ''}`)
   }
   const hpf = m('hpfFrequency') ?? 0
   if ((sound.attrs.hpfMode ?? 'HPLadder') !== 'Off' && hpf > 2) {
-    parts.push('high-passed')
-    chips.push('HPF')
+    out.parts.push('high-passed')
+    out.chips.push('HPF')
   }
+  return out
+}
 
-  // Modulation: cables of at least 3.00 either way, grouped by shared routes.
+/** Modulation: cables of at least 3.00 either way, grouped by shared routes. */
+function modulation(sound: SoundElement): Section {
   const live = cables(sound).filter((c) => Math.abs(cableMenu(c)) >= 300)
-  if (live.length) parts.push(`with ${list(cablePhrases(live))}`)
-  for (const c of live) {
+  const chips = live.map((c) => {
     const name = srcName(c.attrs.source ?? '?')
     const dst = c.attrs.destination === 'range' ? 'DEPTH' : paramLabel(c.attrs.destination ?? '?').replace(/ /g, '').toUpperCase()
-    chips.push(`${name.replace(/ /g, '').toUpperCase()}→${dst}`)
-  }
+    return `${name.replace(/ /g, '').toUpperCase()}→${dst}`
+  })
+  return { parts: live.length ? [`with ${list(cablePhrases(live))}`] : [], chips }
+}
 
-  // Effects
+/** Effects, by the amounts that are audible. */
+function effects(sound: SoundElement): Section {
+  const m = menuOf(sound)
   const fx: string[] = []
+  const chips: string[] = []
   const modFx = sound.attrs.modFXType ?? 'none'
   const depth = m('modFXDepth') ?? 0
   if (modFx !== 'none' && depth > 4) fx.push(MOD_FX_WORDS[modFx] || 'modulated')
@@ -214,21 +233,26 @@ export function summariseSound(sound: SoundElement): Summary {
   const crush = m('bitCrush') ?? 0
   const decim = m('sampleRateReduction') ?? 0
   if (crush > 6 || decim > 6) fx.push('crushed')
-  if (fx.length) parts.push(list(fx))
   if (reverb > 8) chips.push('VERB')
   if (fb > 4) chips.push('DLY')
   if (modFx !== 'none' && depth > 4) chips.push(modFx.toUpperCase())
   if (crush > 6 || decim > 6) chips.push('CRUSH')
+  return { parts: fx.length ? [list(fx)] : [], chips }
+}
 
-  // Arpeggiator: community writes arpMode, older files only mode.
+/** Arpeggiator: community writes arpMode, older files only mode. */
+function arpeggiator(sound: SoundElement): Section {
   const arp = child(sound, 'arpeggiator')
-  const arpOn = arp ? (arp.attrs.arpMode ?? arp.attrs.mode ?? 'off') !== 'off' : false
-  if (arpOn) {
-    parts.push('arpeggiated')
-    chips.push('ARP')
-  }
+  const on = arp ? (arp.attrs.arpMode ?? arp.attrs.mode ?? 'off') !== 'off' : false
+  return on ? { parts: ['arpeggiated'], chips: ['ARP'] } : { parts: [], chips: [] }
+}
 
-  return { sentence: `${parts.join(', ')}.`, chips }
+export function summariseSound(sound: SoundElement): Summary {
+  const sections = [sources(sound), envelope(sound), filters(sound), modulation(sound), effects(sound), arpeggiator(sound)]
+  return {
+    sentence: `${sections.flatMap((x) => x.parts).join(', ')}.`,
+    chips: sections.flatMap((x) => x.chips),
+  }
 }
 
 export function summariseKit(kit: KitElement): Summary {

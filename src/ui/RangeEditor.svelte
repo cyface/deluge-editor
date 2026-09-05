@@ -142,12 +142,12 @@
                     class="mini play"
                     class:live={audio.playing === f}
                     data-testid="range-play"
-                    disabled={audio.loading !== null || (!audio.canPreview(f) && audio.playing !== f)}
+                    disabled={audio.busy !== null || (!audio.canPreview(f) && audio.playing !== f)}
                     title={UI_HELP[audio.playing === f ? 'ui.preview.stop' : audio.canPreview(f) ? 'ui.preview.play' : 'ui.preview.unavailable']}
                     aria-label="{audio.playing === f ? 'Stop' : 'Preview'} {base(f)}"
                     onclick={() => void audio.toggle(f, reversed)}
                   >{audio.playing === f ? '■' : '▶'}</button>
-                  {#if audio.loading === f}
+                  {#if audio.busy === f}
                     <span class="mono pct" data-testid="range-play-progress">{Math.round(audio.progress * 100)}%</span>
                   {/if}
                 {/if}

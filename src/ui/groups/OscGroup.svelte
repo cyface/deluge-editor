@@ -148,7 +148,7 @@
         ranges={list}
         compact
         selected={rangeEditor.openOn === n ? rangeEditor.index : -1}
-        onselect={(i) => { rangeEditor.open(n); rangeEditor.select(i) }}
+        onselect={(i) => { rangeEditor.show(n); rangeEditor.select(i) }}
       />
     {/if}
     <!-- One sample or a whole folder, side by side: the two ways a sample

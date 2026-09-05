@@ -13,7 +13,6 @@ import { readWavInfo, type WavInfo } from '../../core/samples/wav'
 import {
   DEFAULT_TIMEOUTS,
   IDENTITY_REQUEST,
-  isDirectory,
   parseIdentityReply,
   SmsClient,
   type DirEntry,
@@ -331,7 +330,7 @@ class Card extends Activity {
       this.saveName = name
     }
     const path = this.join(name)
-    const exists = this.entries.some((e) => !isDirectory(e) && e.name.toUpperCase() === name.toUpperCase())
+    const exists = this.entries.some((e) => !e.dir && e.name.toUpperCase() === name.toUpperCase())
     if (exists && this.armed !== path) {
       this.armed = path // first click on an existing name arms; the second overwrites
       return
@@ -464,7 +463,7 @@ class Card extends Activity {
   async listPath(path: string): Promise<DirEntry[]> {
     return (await this.need().listDirectory(clean(path)))
       .filter((e) => !e.name.startsWith('.'))
-      .toSorted((a, b) => Number(isDirectory(b)) - Number(isDirectory(a)) || compareNatural(a.name, b.name))
+      .toSorted((a, b) => Number(b.dir) - Number(a.dir) || compareNatural(a.name, b.name))
   }
 
   /**

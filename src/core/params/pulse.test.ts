@@ -9,6 +9,7 @@ import {
   pulseWidthOffered,
   pulseWidthRendered,
 } from './pulse'
+import type { OscType } from '../preset/enums'
 
 describe('pulseWidthRendered', () => {
   it('hands the renderer the value the file stores', () => {
@@ -32,13 +33,13 @@ describe('pulseFamily', () => {
   })
 
   it('puts every other rendered wave on the sync path', () => {
-    for (const t of ['sine', 'triangle', 'saw', 'analogSaw', 'wavetable']) {
+    for (const t of ['sine', 'triangle', 'saw', 'analogSaw', 'wavetable'] as const) {
       expect(pulseFamily(t)).toBe('sync')
     }
   })
 
   it('leaves out the types the renderer never sees', () => {
-    for (const t of ['sample', 'inLeft', 'inRight', 'inStereo', 'dx7']) {
+    for (const t of ['sample', 'inLeft', 'inRight', 'inStereo', 'dx7'] as const) {
       expect(pulseFamily(t)).toBe('none')
     }
   })
@@ -48,7 +49,7 @@ describe('pulseWidthOffered', () => {
   const plain = { fm: false, fileLoaded: false }
 
   it('is offered for the oscillators the firmware offers it for', () => {
-    for (const t of ['square', 'analogSquare', 'sine', 'triangle', 'saw', 'analogSaw']) {
+    for (const t of ['square', 'analogSquare', 'sine', 'triangle', 'saw', 'analogSaw'] as const) {
       expect(pulseWidthOffered(t, plain)).toBe(true)
     }
   })
@@ -64,7 +65,7 @@ describe('pulseWidthOffered', () => {
   })
 
   it('is not offered for samples or the audio inputs', () => {
-    for (const t of ['sample', 'inLeft', 'inRight', 'inStereo']) {
+    for (const t of ['sample', 'inLeft', 'inRight', 'inStereo'] as const) {
       expect(pulseWidthOffered(t, { fm: false, fileLoaded: true })).toBe(false)
     }
   })
@@ -78,7 +79,7 @@ describe('pulseWidthHeard', () => {
   })
 
   it('leaves everything alone with osc sync off', () => {
-    for (const t of ['saw', 'square', 'analogSquare', 'wavetable']) {
+    for (const t of ['saw', 'square', 'analogSquare', 'wavetable'] as const) {
       expect(pulseWidthHeard(t, { oscSync: false })).toBe(true)
     }
   })
@@ -122,7 +123,7 @@ describe('pulseSyncRatio', () => {
 describe('pulseBaseWave', () => {
   // Pinned to what `PulseGraph.svelte` drew before the wave moved here.
   const at = [0, 0.125, 0.25, 0.5, 0.75, 1.5]
-  const of = (t: string) => at.map((p) => Number(pulseBaseWave(t, p).toFixed(6)))
+  const of = (t: OscType) => at.map((p) => Number(pulseBaseWave(t, p).toFixed(6)))
   it('draws sine and triangle from zero, the saws as a falling ramp', () => {
     expect(of('sine')).toEqual([0, 0.707107, 1, 0, -1, 0])
     expect(of('triangle')).toEqual([0, 0.5, 1, 0, -1, 0])

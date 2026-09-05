@@ -344,7 +344,7 @@ class MultisampleImport extends Activity {
     this.asking = null
     this.browser.close()
     this.notice = withSkipped(`${count(result.written, 'range')} from ${folder ?? 'the folder'}`, skipped)
-    ranges.open(which)
+    ranges.show(which)
     void samples.checkMissing(card)
   }
 

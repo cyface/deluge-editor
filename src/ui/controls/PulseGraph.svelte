@@ -19,10 +19,11 @@
   import { pulseBaseWave, pulseDuty, pulseFamily, pulseSyncRatio, pulseWidthHeard } from '../../core/params/pulse'
   import { menuToHalf } from '../../core/params/scale'
   import { OSC_TYPE_NAMES, type SoundElement, type SoundParamAttr } from '../../core/preset'
+  import type { OscType } from '../../core/preset/enums'
   import { osc, paramMenu, setParamMenu } from '../../core/preset/sound'
   import { UI_HELP } from '../help'
 
-  interface Props { sound: SoundElement; n: 1 | 2; type: string }
+  interface Props { sound: SoundElement; n: 1 | 2; type: OscType }
   let { sound, n, type }: Props = $props()
 
   /*

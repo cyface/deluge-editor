@@ -42,6 +42,7 @@ import { card } from './card.svelte'
 import { editor } from './editor.svelte'
 import { NEEDS_WEB_MIDI } from '../copy'
 import { errorText } from '../errtext'
+import { Activity } from './activity.svelte'
 
 /** What the follow CCs are being applied to. Mirrors the instrument's AFFECT ENTIRE. */
 export type FollowTarget = 'row' | 'bus'
@@ -73,11 +74,12 @@ function portNumber(name: string | null | undefined): number | null {
 const FR_NO_FILE = 4
 const FR_NO_PATH = 5
 
-class Follow {
+class Follow extends Activity {
   /** Follow Mode is on: the page shows the follow view and CCs are applied. */
   on = $state(false)
   status = $state<'off' | 'listening' | 'error'>('off')
-  error = $state<string | null>(null)
+  /** Why listening failed. The `Activity` fields (`busy`, `error`) belong to `checkDevice`. */
+  listenError = $state<string | null>(null)
   /** Input ports being listened to, by name. */
   ports = $state.raw<string[]>([])
   /** 0 = any channel; otherwise 1–16, matching the instrument's numbering. */
@@ -129,8 +131,6 @@ class Follow {
    */
   settings = $state<FollowSettings | null>(null)
   settingsAdvice = $state<Advice[]>([])
-  settingsError = $state<string | null>(null)
-  checking = $state(false)
   /**
    * Where the instrument's own settings say a send will be accepted: which of
    * its three USB cables, and on which channel. Null once checked means
@@ -238,11 +238,11 @@ class Follow {
   }
 
   async start(): Promise<void> {
-    this.error = null
+    this.listenError = null
     if (!this.supported) {
       this.on = true
       this.status = 'error'
-      this.error = NEEDS_WEB_MIDI
+      this.listenError = NEEDS_WEB_MIDI
       return
     }
     this.on = true
@@ -267,7 +267,7 @@ class Follow {
       this.glowTimer ??= setInterval(() => this.expireGlow(), 300)
     } catch (e) {
       this.status = 'error'
-      this.error = e instanceof Error ? e.message : String(e)
+      this.listenError = e instanceof Error ? e.message : String(e)
     }
   }
 
@@ -290,7 +290,7 @@ class Follow {
     this.deviceChecked = false
     this.settings = null
     this.settingsAdvice = []
-    this.settingsError = null
+    this.error = null
     this.echo.clear()
     this.baseline = null
     this.baselineKey = ''
@@ -322,7 +322,7 @@ class Follow {
       // A port that will not open is still listed — the listener is on it —
       // but the refusal is said, not dropped on the floor as an unhandled rejection.
       void port.open().catch((e: unknown) => {
-        this.error = `${port.name ?? 'MIDI in'}: ${errorText(e)}`
+        this.listenError = `${port.name ?? 'MIDI in'}: ${errorText(e)}`
       })
     }
     this.listening = chosen
@@ -350,7 +350,7 @@ class Follow {
     if (this.out === null) this.sending = false
     if (chosen.length === 0) {
       this.status = 'error'
-      this.error = 'No MIDI input found — connect the Deluge over USB'
+      this.listenError = 'No MIDI input found — connect the Deluge over USB'
     }
   }
 
@@ -438,7 +438,7 @@ class Follow {
     try {
       this.out.send(controlChange(channel, cc, value))
     } catch (e) {
-      this.error = e instanceof Error ? e.message : String(e)
+      this.listenError = e instanceof Error ? e.message : String(e)
       this.sendFailed = true
       return
     }
@@ -451,7 +451,7 @@ class Follow {
   private clearSendError(): void {
     if (!this.sendFailed) return
     this.sendFailed = false
-    this.error = null
+    this.listenError = null
   }
 
   /**
@@ -462,50 +462,45 @@ class Follow {
    * same Web MIDI permission this mode already holds, so it is one button.
    */
   async checkDevice(): Promise<void> {
-    this.checking = true
-    this.settingsError = null
-    try {
-      if (!(await card.ensureConnected())) {
-        this.settingsError = card.error ?? 'Could not reach the Deluge over USB.'
-        return
-      }
-      const bytes = await this.readSetting('MIDIFollow.XML')
-      const parsed = parseFollowSettings(new TextDecoder().decode(bytes))
-      /*
-       * And the MPE zones, which decide whether a follow channel set to a zone
-       * can match anything at all. The firmware writes this file only when
-       * something is worth writing and deletes it otherwise
-       * (`MIDIDeviceManager::writeDevicesToFile`), so "no such file" is an
-       * answer — there are no zones — while a transfer that fails for any
-       * other reason is not, and leaves the advice hedged rather than
-       * asserting something the card never confirmed.
-       */
-      let zones: Record<string, MpeZones> | undefined
+    await this.run('Reading the Deluge’s settings', async () => {
+      if (!(await card.ensureConnected())) throw new Error(card.error ?? 'Could not reach the Deluge over USB')
       try {
-        const dev = await this.readSetting('MIDIDevices.XML')
-        zones = parseMpeInputs(new TextDecoder().decode(dev))
-      } catch {
-        // Absent is an answer: the firmware writes the file only when there is
-        // something worth writing, so its absence means every cable is on its
-        // built-in defaults, which `cableZones` supplies. Any other failure is
-        // not an answer, but leaves the defaults in play too — they are the
-        // best available guess either way, and the advice says which port it
-        // is relying on. So both outcomes end the same way.
-        zones = undefined
+        const bytes = await this.readSetting('MIDIFollow.XML')
+        const parsed = parseFollowSettings(new TextDecoder().decode(bytes))
+        /*
+         * And the MPE zones, which decide whether a follow channel set to a zone
+         * can match anything at all. The firmware writes this file only when
+         * something is worth writing and deletes it otherwise
+         * (`MIDIDeviceManager::writeDevicesToFile`), so "no such file" is an
+         * answer — there are no zones — while a transfer that fails for any
+         * other reason is not, and leaves the advice hedged rather than
+         * asserting something the card never confirmed.
+         */
+        let zones: Record<string, MpeZones> | undefined
+        try {
+          const dev = await this.readSetting('MIDIDevices.XML')
+          zones = parseMpeInputs(new TextDecoder().decode(dev))
+        } catch {
+          // Absent is an answer: the firmware writes the file only when there is
+          // something worth writing, so its absence means every cable is on its
+          // built-in defaults, which `cableZones` supplies. Any other failure is
+          // not an answer, but leaves the defaults in play too — they are the
+          // best available guess either way, and the advice says which port it
+          // is relying on. So both outcomes end the same way.
+          zones = undefined
+        }
+        this.settings = parsed
+        this.settingsAdvice = followAdvice(parsed, zones)
+        const target = chooseSendTarget(parsed, zones)
+        this.deviceSendPort = target?.port ?? null
+        this.deviceSendChannel = target?.channel ?? null
+        this.deviceChecked = true
+        // The port is half the answer, so re-pick the output now that it is known.
+        this.attach()
+      } catch (e) {
+        throw new Error(`Could not read the Deluge’s settings: ${errorText(e)}`)
       }
-      this.settings = parsed
-      this.settingsAdvice = followAdvice(parsed, zones)
-      const target = chooseSendTarget(parsed, zones)
-      this.deviceSendPort = target?.port ?? null
-      this.deviceSendChannel = target?.channel ?? null
-      this.deviceChecked = true
-      // The port is half the answer, so re-pick the output now that it is known.
-      this.attach()
-    } catch (e) {
-      this.settingsError = `Could not read the Deluge’s settings: ${errorText(e)}`
-    } finally {
-      this.checking = false
-    }
+    })
   }
 
   /**

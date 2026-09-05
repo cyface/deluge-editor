@@ -34,6 +34,7 @@ class RangeEditor {
 
   /** Which oscillator the editor is actually showing — `which`, unless the preset moved on. */
   readonly openOn = $derived<1 | 2 | null>(this.osc ? this.which : null)
+  readonly open = $derived(this.openOn !== null)
 
   /** Its ranges in sounding order — the order the writers' indexes count in. */
   readonly ranges = $derived<SampleRange[]>(this.osc ? soundingOrder(sampleRanges(this.osc)) : [])
@@ -49,7 +50,7 @@ class RangeEditor {
   readonly index = $derived(Math.max(0, Math.min(this.selected, this.ranges.length - 1)))
   readonly range = $derived<SampleRange | undefined>(this.ranges[this.index])
 
-  open(which: 1 | 2): void {
+  show(which: 1 | 2): void {
     this.which = which
     this.opened = editor.preset
     this.selected = 0
@@ -61,7 +62,7 @@ class RangeEditor {
 
   toggle(which: 1 | 2): void {
     if (this.openOn === which) this.close()
-    else this.open(which)
+    else this.show(which)
   }
 
   select(index: number): void {

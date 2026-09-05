@@ -12,7 +12,6 @@
  */
 
 import { joinPath, parentOf } from '../../core/library'
-import { isDirectory } from '../../core/sysex'
 import { CONNECTING } from '../copy'
 import type { Activity } from './activity.svelte'
 import { card } from './card.svelte'
@@ -34,7 +33,7 @@ export interface CardBrowserOptions {
 }
 
 const listCard = async (path: string): Promise<BrowseEntry[]> =>
-  (await card.listPath(path)).map((e) => ({ name: e.name, dir: isDirectory(e) }))
+  (await card.listPath(path)).map((e) => ({ name: e.name, dir: e.dir }))
 
 export class CardBrowser {
   /** The folder on show; null while the browser is closed. */

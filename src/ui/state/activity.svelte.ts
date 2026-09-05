@@ -2,8 +2,9 @@
  * One job at a time, with what the panel shows about it: a `busy` label,
  * `progress` 0..1, and the `error` or `notice` it left behind. Every store
  * that talks to the card extends this (`card`, `kit`, `samplePick`,
- * `multisample`, `library`), so busy-ness reads the same way everywhere and
- * the guard below is written once.
+ * `multisample`, `library`, `follow` for its settings check, `audio` for a
+ * preview's fetch), so busy-ness reads the same way everywhere and the guard
+ * below is written once.
  *
  * Re-entry: a second `run()` while one is in flight is **refused** — it
  * returns false at once, leaves the running job's state alone, and says so in

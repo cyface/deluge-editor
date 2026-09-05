@@ -1,7 +1,7 @@
 /**
  * Sentences the UI says in more than one place, written once so the panels,
- * the dialogs and the stores cannot drift into three phrasings of one fact
- * (docs/audit-results.md §4). Tooltip copy for controls stays in `help.ts`,
+ * the dialogs and the stores cannot drift into three phrasings of one fact.
+ * Tooltip copy for controls stays in `help.ts`,
  * keyed and cited; this file is for the sentences that recur — a status line,
  * a warning, a note appended to a knob's description.
  *

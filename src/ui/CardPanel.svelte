@@ -9,7 +9,6 @@
    * editor it was about while the page behind it stayed live. Dismissed the
    * way the other dialogs here are: the ×, or Escape (`Dialog.svelte`).
    */
-  import { isDirectory } from '../core/sysex'
   import CardBrowser, { type BrowserEntry } from './controls/CardBrowser.svelte'
   import Dialog from './controls/Dialog.svelte'
   import Status from './controls/Status.svelte'
@@ -20,7 +19,7 @@
   import { editor } from './state/editor.svelte'
 
   const title = $derived(card.mode === 'open' ? 'Open from Deluge' : 'Save to Deluge')
-  const entries = $derived<BrowserEntry[]>(card.entries.map((e) => ({ name: e.name, dir: isDirectory(e), size: e.size })))
+  const entries = $derived<BrowserEntry[]>(card.entries.map((e) => ({ name: e.name, dir: e.dir, size: e.size })))
   /** In save mode the armed target reads as the selected entry. */
   const selected = $derived(card.mode === 'save' && card.armed ? card.saveName : null)
 </script>

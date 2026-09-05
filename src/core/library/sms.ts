@@ -9,7 +9,7 @@
  * folder that is there is not a failure.
  */
 
-import { isDirectory, SysexError, type SmsClient } from '../sysex'
+import { SysexError, type SmsClient } from '../sysex'
 import { CardError, cardErrorCode, type CardFS } from './fs'
 
 const FR_EXIST = 8
@@ -31,16 +31,7 @@ const mapped = async <T>(run: () => Promise<T>): Promise<T> => {
 
 export function smsFS(client: SmsClient): CardFS {
   return {
-    list: (path) =>
-      mapped(async () =>
-        (await client.listDirectory(path)).map((e) => ({
-          name: e.name,
-          size: e.size,
-          date: e.date,
-          time: e.time,
-          dir: isDirectory(e),
-        })),
-      ),
+    list: (path) => mapped(() => client.listDirectory(path)),
     read: (path, onProgress) => mapped(() => client.readFile(path, onProgress)),
     reader: (path) => mapped(() => client.openRead(path)),
     // Preset XML gets the byte-for-byte verify, as the editor's own saves do.

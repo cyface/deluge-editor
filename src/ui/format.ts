@@ -1,4 +1,4 @@
-/** Numbers the panels print, one spelling each (docs/audit-results.md §4). */
+/** Numbers the panels print, one spelling each. */
 
 /** A byte count as the listings show it: `12 B`, `340.5 KB`, `1.2 MB`. */
 export function formatBytes(n: number): string {

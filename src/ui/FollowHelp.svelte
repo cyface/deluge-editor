@@ -126,12 +126,12 @@
       will accept a send.
     </p>
     <p>
-      <button type="button" class="btn small go" data-testid="follow-check" disabled={follow.checking} onclick={() => void follow.checkDevice()}>
-        {follow.checking ? 'Reading…' : 'Read the Deluge’s settings'}
+      <button type="button" class="btn small go" data-testid="follow-check" disabled={follow.busy !== null} onclick={() => void follow.checkDevice()}>
+        {follow.busy ? 'Reading…' : 'Read the Deluge’s settings'}
       </button>
     </p>
-    {#if follow.settingsError}
-      <p class="warn" role="alert" data-testid="follow-check-error">{follow.settingsError}</p>
+    {#if follow.error}
+      <p class="warn" role="alert" data-testid="follow-check-error">{follow.error}</p>
     {:else if follow.settings}
       <ul data-testid="follow-check-result">
         {#each follow.settings.channels as c (c.slot)}

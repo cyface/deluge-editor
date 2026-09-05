@@ -21,7 +21,7 @@
   import { envelope, hexToMenu, menuToHex, osc, oscHasFile } from '../core/preset/sound'
   import { pulseWidthOffered } from '../core/params/pulse'
   import { MOD_FX_ATTR_KNOB, modFxEnabled, modFxKnobLabel, modFxOffered } from '../core/params/modfx'
-  import type { ModFxType } from '../core/preset/enums'
+  import type { ModFxType, OscType } from '../core/preset/enums'
   import { KIT_ATTR_ORDER, SOUND_ATTR_ORDER } from '../core/preset/order'
   import { setAttr } from '../core/xml'
   import FollowHeader from './FollowHeader.svelte'
@@ -163,7 +163,7 @@
    * never on the kit bus, which has no oscillators to draw.
    */
   const fm = $derived(!onBus && (root as SoundElement | null)?.attrs.mode === 'fm')
-  const oscType = (n: 1 | 2): string =>
+  const oscType = (n: 1 | 2): OscType =>
     fm ? 'sine' : (osc(root as SoundElement, n)?.attrs.type ?? 'square')
   function drawsPulse(n: 1 | 2): boolean {
     if (onBus || root === null) return false
