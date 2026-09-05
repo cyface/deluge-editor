@@ -342,13 +342,14 @@ test('the top bar’s commands live under New, Open and Save; the modes stay out
   await page.getByTestId('file-input').setInputFiles(FIXTURE)
   const name = page.getByTestId('file-name')
   await expect(name).toHaveText('Default Synth.XML')
-  // Measure only once the condensed web font is in: Barlow Condensed is
+  // Poll the fit check rather than measuring once: Barlow Condensed is
   // self-hosted (@fontsource) and loads async, so a cold CI runner can still
   // be showing the wider fallback face when the text arrives, overflowing the
-  // name box even though the real font fits. Wait for the font, then poll so
-  // the check settles with the reflow instead of racing it.
-  await page.evaluate(() => document.fonts.ready)
-  await expect.poll(() => name.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
+  // name box until the real font (which fits) loads and reflows. Polling
+  // settles with that reflow instead of racing it.
+  await expect
+    .poll(() => name.evaluate((el) => el.scrollWidth <= el.clientWidth), { timeout: 10000 })
+    .toBe(true)
 })
 
 test('every control in the panels says what it does (issue #20)', async ({ page }) => {
