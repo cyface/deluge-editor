@@ -69,6 +69,12 @@ export const KIT_BUS_NOTE = 'On the kit bus it applies to every row at once, aft
  */
 export const OTHER_EDITOR = 'Another editor is talking to this Deluge'
 export const OTHER_EDITOR_WARNING = `${OTHER_EDITOR}. Writes from both overwrite each other — last one wins.`
+/**
+ * The same, in Live Edit, where it matters more: the device pushes its changes
+ * to one subscriber, the last to ask (`docs/live-edit.md`, `sub`), so a second
+ * editor entering the mode silently takes them away from this one.
+ */
+export const LIVE_OTHER_EDITOR_WARNING = `${OTHER_EDITOR}. If it enters Live Edit too, the Deluge sends its changes to it instead of here, and edits from both land on the same sound.`
 /** Qualifies a "written" notice: `what` is what could be overwritten (it, them). */
 export const otherEditorCould = (what: string): string =>
   `${OTHER_EDITOR.charAt(0).toLowerCase()}${OTHER_EDITOR.slice(1)} and could overwrite ${what}`

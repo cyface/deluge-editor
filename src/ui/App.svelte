@@ -9,6 +9,7 @@
   import KitBuilder from './KitBuilder.svelte'
   import KitRows from './KitRows.svelte'
   import LibraryPanel from './LibraryPanel.svelte'
+  import LiveHeader from './LiveHeader.svelte'
   import FolderImport from './FolderImport.svelte'
   import Oled from './Oled.svelte'
   import Overview from './Overview.svelte'
@@ -20,6 +21,7 @@
   import { card } from './state/card.svelte'
   import { editor } from './state/editor.svelte'
   import { follow } from './state/follow.svelte'
+  import { live } from './state/live.svelte'
   import { ranges as rangeEditor } from './state/ranges.svelte'
   import { randomizer } from './state/randomize.svelte'
   import { kit as kitBuilder } from './state/kit.svelte'
@@ -139,6 +141,11 @@
        covering the OLED sentence and the first column of the patch it is
        rolling. -->
   <Randomize />
+  <!-- Live Edit keeps the whole editor — every control reaches the device,
+       by the fast path or the whole document — and adds a header saying
+       which sound the page is a view of and how the link is doing. It sits
+       above the OLED because it is about the page, not a panel of it. -->
+  {#if live.on}<LiveHeader />{/if}
   {#if editor.preset}
     <Oled />
     <!-- Follow Mode keeps the row table (it picks the row the CCs land on)

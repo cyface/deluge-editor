@@ -34,7 +34,7 @@ Web MIDI SysEx needs Chrome or Edge. XML editing works anywhere.
 ## Layout
 
 ```
-src/core/     framework-free TypeScript: xml, preset, params, firmware, sysex, samples, kit, midi, library, random. No Svelte imports.
+src/core/     framework-free TypeScript: xml, preset, params, firmware, sysex, samples, kit, midi, library, live, random. No Svelte imports.
 src/ui/       Svelte 5 components: the flow strip, the overview panels, the controls.
 tests/        cross-cutting tests, the Playwright end-to-end specs, Deluge-authored XML fixtures.
 docs/         decisions log and how the fixtures are captured from DelugEmu.
@@ -94,6 +94,19 @@ the Deluge's own Midi-Follow settings off the card and says which port and
 channel a send will be accepted on. The button is there only when the selected
 firmware has Midi-Follow (community 1.1.0 or later); with an official-firmware
 preset loaded there is nothing to follow with, so there is no button.
+
+**Live Edit** makes the sound the Deluge has *live* the document. On a
+Deluge whose firmware offers it (the **Sysex Live Edit** community feature,
+so far on Tim's fork of the firmware), the button opens the synth or kit the
+current clip holds, as the Deluge holds it in RAM. Every control here reaches
+the Deluge as you move it — a knob straight into the parameter, anything
+structural by reloading the preset in place — and the Deluge's own knob turns
+and menu edits land here. Save asks the Deluge to write its own file, the way
+Save › Synth does on the device, and the file is read back and checked against
+what the page shows. The card's copy is what the Changes dock diffs against,
+so the count is what Save would change. The whole editor stays; the header
+says which sound is open and how the link is doing. `docs/live-edit.md` is the
+protocol.
 
 **Randomize** generates a patch. Pick an intensity (mild → wild) and which
 blocks a roll may touch — the sound-making blocks the flow strip names; the

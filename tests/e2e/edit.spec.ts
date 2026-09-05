@@ -280,13 +280,14 @@ test('a dropped file over a loaded preset asks before replacing it', async ({ pa
 test('the top bar’s commands live under New, Open and Save; the modes stay out (issue #37)', async ({ page }) => {
   await page.goto('/')
 
-  // Three verbs and the two modes: that is the whole row of buttons. (Follow
-  // Mode is there because the default firmware has MIDI Follow.)
+  // Three verbs and the three modes: that is the whole row of buttons. (Follow
+  // Mode and Live Edit are there because, with nothing loaded, both are ways
+  // to start a preset rather than things done to one.)
   const buttons = () =>
     page.locator('.bar').evaluate((bar) =>
       [...bar.querySelectorAll(':scope > button, :scope > .wrap > button')].map((el) => (el.textContent ?? '').trim()).join(' | '),
     )
-  expect(await buttons()).toBe('New▾ | Open▾ | Save▾ | Follow Mode | Changes')
+  expect(await buttons()).toBe('New▾ | Open▾ | Save▾ | Follow Mode | Live Edit | Changes')
 
   // A menu is a menu: the button says it has one and whether it is open, the
   // items are menuitems, and opening puts focus on the first of them.

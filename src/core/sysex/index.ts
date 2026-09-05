@@ -27,3 +27,14 @@ export {
   type SmsClientOptions,
   type VerifyMode,
 } from './client'
+export { instrumentFromWire, LIVE_REASONS, LiveError, pushFromWire } from './live'
+export type {
+  LiveAddress,
+  LiveChange,
+  LiveDrumKind,
+  LiveInstrument,
+  LiveOutputType,
+  LivePush,
+  LiveSaved,
+  LiveSubscribed,
+} from './live'

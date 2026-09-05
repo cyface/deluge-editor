@@ -6,6 +6,7 @@
   import { follow } from './state/follow.svelte'
   import { kit } from './state/kit.svelte'
   import { library } from './state/library.svelte'
+  import { live, NO_LIVE_EDIT } from './state/live.svelte'
   import { canMountCard } from './localcard'
   import { randomizer } from './state/randomize.svelte'
   import Mark from './Mark.svelte'
@@ -65,6 +66,25 @@
   const transferring = $derived(card.busy ? `Card transfer in progress: ${card.busy}…` : null)
   const dotTitle = $derived(transferring ?? UI_HELP['ui.deluge.connected'])
   const midiTitle = (key: string) => transferring ?? midiTip(UI_HELP[key], card.supported)
+  /*
+   * Follow Mode and Live Edit both write the device's moves into the tree, and
+   * Live Edit sends the tree's moves back; on together, a CC Follow mirrors
+   * would go out again as a `param`. So entering one leaves the other. Done
+   * here, at the buttons, rather than in the stores, which would otherwise
+   * have to import each other.
+   */
+  function toggleFollow(): void {
+    if (!follow.on && live.on) void live.stop()
+    if (!editor.preset) editor.newSynth()
+    void follow.toggle()
+  }
+  function toggleLive(): void {
+    if (!live.on && follow.on) follow.stop()
+    void live.toggle()
+  }
+  const liveTitle = $derived(
+    live.on ? UI_HELP['ui.live.leave'] : live.refused ? NO_LIVE_EDIT : midiTip(UI_HELP['ui.live.toggle'], card.supported),
+  )
 </script>
 
 <div class="bar">
@@ -175,9 +195,28 @@
       class:on={follow.on}
       data-testid="follow-button"
       title={UI_HELP['ui.follow.toggle']}
-      onclick={() => { if (!editor.preset) editor.newSynth(); void follow.toggle() }}
+      onclick={toggleFollow}
     >
       {#if follow.status === 'listening'}<span class="dot amber pulse"></span>{/if}Follow Mode
+    </button>
+  {/if}
+  {#if live.offered}
+    <!-- Gated by `FEATURES.liveEdit` for its presence and by the session
+         grant for whether it works (docs/live-edit.md, Capability): the grant
+         is only known once connected, so with no connection the button
+         connects, and a Deluge that has answered without `live` in its grant
+         leaves it disabled with the reason. Like Follow it needs no preset
+         first — it opens the one the Deluge has. -->
+    <button
+      type="button"
+      class="btn"
+      class:on={live.on}
+      disabled={!card.supported || (!live.on && live.refused)}
+      data-testid="live-button"
+      title={liveTitle}
+      onclick={toggleLive}
+    >
+      {#if live.status === 'live'}<span class="dot amber pulse"></span>{/if}Live Edit
     </button>
   {/if}
   <button type="button" class="btn" class:on={editor.showChanges} disabled={!editor.preset} data-testid="changes-button" onclick={() => (editor.showChanges = !editor.showChanges)}>
@@ -201,7 +240,7 @@
   .pill { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 6px 0 10px; border-radius: 12px; border: 1px solid #2f4a2c; background: #0e1410; flex: none; }
   /* Locked to the connected device: same face as the select, but it is just text. */
   .pill .fw { color: #a9d9a1; font-family: var(--cond); font-size: 12px; letter-spacing: .09em; text-transform: uppercase; }
-  /* The dot is theme.css's; a transfer running (even with the dialog closed), or Follow listening, is amber and pulsing. */
+  /* The dot is theme.css's; a transfer running (even with the dialog closed), Follow listening or Live Edit tracking, is amber and pulsing. */
   .btn .dot { margin-right: 6px; vertical-align: 1px; }
   .pill select { background: transparent; border: 0; color: #a9d9a1; font-family: var(--cond); font-size: 12px; letter-spacing: .09em; text-transform: uppercase; cursor: pointer; }
   .pill select:focus { outline: none; }

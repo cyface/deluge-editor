@@ -324,6 +324,25 @@ export const FEATURES = {
     community: 'c1.3.0',
     source: 'b207ba85 #3388 "Feature / Kit Arpeggiator" (2025-03-02); ArpeggiatorSettings::writeCommonParamsToFile.',
   },
+  /**
+   * Live Edit: the smSysex ops that make the device's in-RAM instrument the
+   * editor's document (`inst`, `save`, `load`, `select`, `param`, `sub`;
+   * `docs/live-edit.md`). Not preset content — this gates the Live button's
+   * presence, and only its presence: the ops exist so far on Tim's fork, not
+   * on any stock build, and a fork build writes the same `c1.3.0` as stock,
+   * so the version cannot tell them apart. The session grant's `live` field
+   * is the gate that actually switches the mode on (`card.liveVersion`); a
+   * firmware without the ops, or with its **Sysex Live Edit** toggle off,
+   * grants no `live` and the button says so.
+   */
+  liveEdit: {
+    community: 'c1.3.0',
+    source:
+      'cyface/DelugeFirmware branch feature/live-edit-sysex, 338963b2 "Add live-edit ops to the smSysex ' +
+      'protocol" (2026-09-05) and 4bd820a9 (unknown-name fix), src/deluge/storage/smsysex_live.cpp; ' +
+      'smsysex.cpp writes "live" into the ^session grant while the toggle is on. CMakeLists VERSION 1.3.0, ' +
+      'so the build writes c1.3.0. Not on upstream beta or any release tag.',
+  },
 } as const satisfies Record<string, FeatureSupport>
 
 export type Feature = keyof typeof FEATURES

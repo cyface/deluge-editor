@@ -16,11 +16,13 @@ import {
   parseIdentityReply,
   SmsClient,
   type DirEntry,
+  type LivePush,
 } from '../../core/sysex'
 import { CONNECTING, NEEDS_WEB_MIDI, otherEditorCould, UNREACHABLE } from '../copy'
 import { errorText } from '../errtext'
 import { Activity } from './activity.svelte'
 import { editor } from './editor.svelte'
+import type { LiveSaveResult } from './live.svelte'
 import { samples } from './samples.svelte'
 import { count } from './wavfiles'
 
@@ -94,6 +96,29 @@ class Card extends Activity {
    * reassurance. Cleared when we reconnect.
    */
   otherEditor = $state(false)
+  /**
+   * The Live Edit protocol version the session grant advertised, null when it
+   * did not — a firmware without the ops, or one with the **Sysex Live Edit**
+   * community feature switched off — and until a connection has negotiated a
+   * session. The grant is the gate for the mode (`docs/live-edit.md`,
+   * Capability), so this is what `live.available` reads.
+   */
+  liveVersion = $state<number | null>(null)
+  /**
+   * Where the Deluge's own messages to a Live Edit subscriber go (`^chg`,
+   * `^dirty`, `^inst`, on msgId 0). The live store sets this while the mode is
+   * on; null drops them. A plain field: nothing renders on it.
+   */
+  onPush: ((push: LivePush) => void) | null = null
+  /**
+   * While Live Edit holds a preset, a save is the device's own write over
+   * its file (`live.save`), not this store's `writeFile`: the document is the
+   * device's, and the file Save → Synth would write is the one to keep. The
+   * live store sets this on entry and clears it on leaving. Answers `exists`
+   * when the file is there and `overwrite` is false, else how many entries
+   * of the file read back disagree with the document. A plain field.
+   */
+  liveSave: ((path: string, overwrite: boolean) => Promise<LiveSaveResult>) | null = null
 
   private client: SmsClient | null = null
   /** The in-flight `ensureConnected` attempt, so simultaneous askers share it. */
@@ -210,6 +235,7 @@ class Card extends Activity {
     this.error = null
     this.otherEditor = false
     this.identityTimedOut = false
+    this.liveVersion = null
     try {
       const access = await navigator.requestMIDIAccess({ sysex: true })
       const output = pickPort([...access.outputs.values()])
@@ -227,6 +253,7 @@ class Card extends Activity {
       // still capture a trace without a rebuild:  localStorage.debug = 'sysex'
       const client = new SmsClient((bytes) => output.send(bytes), {
         onOtherClient: () => (this.otherEditor = true),
+        onPush: (push) => this.onPush?.(push),
         ...(sysexDebugWanted() ? { debug: (line: string) => console.debug('[sysex]', line) } : {}),
       })
       input.onmidimessage = (e) => {
@@ -251,6 +278,7 @@ class Card extends Activity {
         if (this.status !== 'connected' && this.status !== 'connecting') return
         this.client = null
         this.busy = null
+        this.liveVersion = null
         this.status = 'error'
         this.error = 'Deluge disconnected — reconnect over USB and retry'
       }
@@ -263,6 +291,7 @@ class Card extends Activity {
       }, DEFAULT_TIMEOUTS[0])
       await client.ping()
       this.status = 'connected'
+      this.liveVersion = client.live
       this.path = editor.preset?.tag === 'kit' ? '/KITS' : '/SYNTHS'
       this.saveName = editor.fileName || editor.suggestedFileName
       await this.refresh()
@@ -335,9 +364,15 @@ class Card extends Activity {
       this.armed = path // first click on an existing name arms; the second overwrites
       return
     }
+    const armed = this.armed === path
     this.armed = null
     await this.run(`Writing ${name}`, async () => {
-      await this.write(path, name)
+      // The listing said the name is free or the click armed it; the device
+      // has the last word when Live Edit saves, and a stale listing arms.
+      if (!(await this.write(path, name, armed))) {
+        this.armed = path
+        return
+      }
       await this.list()
       // The file is written and verified: the browser has done its job and
       // gets out of the way, as loading one does. The confirmation outlives
@@ -366,7 +401,7 @@ class Card extends Activity {
     this.saveName = name
     this.armed = null
     await this.run(`Writing ${name}`, async () => {
-      await this.write(path, name)
+      await this.write(path, name, true)
       await this.list()
     })
     if (this.error) {
@@ -379,8 +414,13 @@ class Card extends Activity {
     }
   }
 
-  /** The write itself, shared by the panel's Save and the menu's Overwrite; runs inside `run()`. */
-  private async write(path: string, name: string): Promise<void> {
+  /**
+   * The write itself, shared by the panel's Save and the menu's Overwrite;
+   * runs inside `run()`. False when the file is there and the save was not
+   * an overwrite, which only Live Edit's device-side check can say.
+   */
+  private async write(path: string, name: string, overwrite: boolean): Promise<boolean> {
+    if (this.liveSave) return this.writeLive(path, name, overwrite)
     // Locally sourced samples travel with the preset: retarget them to the
     // saved folder path first, so the XML below carries the new references,
     // then copy any the card is missing — samples first, preset second. The
@@ -406,6 +446,32 @@ class Card extends Activity {
     // durable one (issue #8).
     this.announce(this.otherEditor ? `${written} — ${otherEditorCould('it')}` : written)
     editor.markSaved(path, name)
+    return true
+  }
+
+  /**
+   * Live Edit's save: the device writes its instrument, the live store reads
+   * the file back and marks the editor saved against it. No sample copy —
+   * the device holds what it plays, and a sample only this computer has is
+   * not something the device's own save can carry. A file that disagrees
+   * with the document is reported as an error, though it is written: the
+   * editor and the firmware differ about the preset, and the Changes dock
+   * now shows exactly where.
+   */
+  private async writeLive(path: string, name: string, overwrite: boolean): Promise<boolean> {
+    this.step(`Saving ${name} on the Deluge`, 0)
+    const r = await this.liveSave!(path, overwrite)
+    if (r === 'exists') {
+      this.notice = `${name} is on the card — Save again to overwrite it`
+      return false
+    }
+    if (r.differences > 0) {
+      throw new Error(
+        `${name} written by the Deluge, but its file differs from the editor in ${count(r.differences, 'place')} — see Changes`,
+      )
+    }
+    this.announce(`${name} written by the Deluge`)
+    return true
   }
 
   /**
@@ -506,6 +572,11 @@ class Card extends Activity {
       remove: (p) => raw.remove(clean(p)),
       mkdir: (p) => raw.mkdir(clean(p)),
     }
+  }
+
+  /** The client for Live Edit's ops (`state/live.svelte.ts`), only while the connection is good. */
+  liveClient(): SmsClient {
+    return this.need()
   }
 
   /** Read a whole file off the card — a sample for preview, a `SETTINGS/*.XML`. */

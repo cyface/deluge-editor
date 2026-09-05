@@ -10,7 +10,7 @@
  * `window.__fakeCard` for assertions.
  */
 
-import { FakeDeluge } from '../../src/core/sysex/fake-deluge'
+import { FakeDeluge, type FakeOptions } from '../../src/core/sysex/fake-deluge'
 import { IDENTITY_REQUEST } from '../../src/core/sysex/frame'
 
 /** Firmware version bytes 1.3.0 at offsets 12–14, as `midiSysexReceived` answers a device inquiry. */
@@ -28,10 +28,19 @@ const reply = (bytes: Uint8Array): void => {
   if (target?.onmidimessage) setTimeout(() => target.onmidimessage?.({ data: bytes }), 0)
 }
 
+const page = globalThis as unknown as {
+  navigator: { requestMIDIAccess: () => Promise<unknown> }
+  __cardSeed?: Record<string, string>
+  __fakeOpts?: FakeOptions
+  __fakeCard: unknown
+}
+
 // `sessionPipe: 2`: the grant of a firmware with the #43 send-ring fix, so the
 // save path users on fixed firmware get — two requests in flight — is the one
-// the specs exercise.
-const deluge = new FakeDeluge(reply, { sessionPipe: 2 })
+// the specs exercise. `liveEdit: 'on'`: the fork's grant, with the Live Edit
+// ops answering. A spec that wants another Deluge sets `window.__fakeOpts`
+// before this script runs.
+const deluge = new FakeDeluge(reply, { sessionPipe: 2, liveEdit: 'on', ...page.__fakeOpts })
 
 const isIdentityRequest = (frame: Uint8Array): boolean =>
   frame.length === IDENTITY_REQUEST.length && frame.every((b, i) => b === IDENTITY_REQUEST[i])
@@ -39,12 +48,6 @@ const isIdentityRequest = (frame: Uint8Array): boolean =>
 const handle = (frame: Uint8Array): void => {
   if (isIdentityRequest(frame)) reply(IDENTITY_REPLY)
   else deluge.receive(frame)
-}
-
-const page = globalThis as unknown as {
-  navigator: { requestMIDIAccess: () => Promise<unknown> }
-  __cardSeed?: Record<string, string>
-  __fakeCard: unknown
 }
 
 page.navigator.requestMIDIAccess = async () => {

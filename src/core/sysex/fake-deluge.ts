@@ -11,11 +11,28 @@
  * - replies are the JsonSerializer's actual shape (newlines, no indents)
  * - the `^session` grant echoes the tag it was asked for, and every client on
  *   the port sees it (`otherSession`/`otherClientReply` play a second editor)
+ * - the Live Edit ops (`smsysex_live.cpp` on the fork's
+ *   `feature/live-edit-sysex`; `docs/live-edit.md`), when `liveEdit` is set:
+ *   an in-RAM instrument whose parameters `param` reads and writes, `save`
+ *   that serialises it, `load` that replaces it, `select`, and a `sub` lease
+ *   behind which the device pushes `^chg`/`^dirty`/`^inst` on msgId 0
  *
  * Used by unit tests only; nothing in the app imports it.
  */
 
+import { applyChange, changePath, KIT_BUS_SLOTS } from '../live'
+import { PATCH_SOURCES } from '../preset/enums'
+import {
+  PATCHED_GLOBAL_PARAMS,
+  PATCHED_LOCAL_PARAMS,
+  UNPATCHED_SHARED_PARAMS,
+  UNPATCHED_SOUND_PARAMS,
+} from '../preset/params'
+import { drumRows, isKit } from '../preset/rows'
+import type { Preset } from '../preset/types'
+import { flattenXML, generateXML, parseXML } from '../xml'
 import { CMD_JSON, CMD_JSON_REPLY, DELUGE_ID, SYSEX_END, SYSEX_START } from './frame'
+import type { LiveChange, LiveDrumKind, LiveOutputType } from './live'
 import { pack8to7, unpack7to8 } from './pack'
 
 export interface FakeOptions {
@@ -61,6 +78,70 @@ export interface FakeOptions {
   sessionPipe?: number
   /** Like `holdWrites`, for read replies; `releaseRead()` sends the oldest. */
   holdReads?: boolean
+  /**
+   * The Live Edit ops. `'on'`: the grant carries `live: 1` and the ops work.
+   * `'off'`: the firmware has them but the **Sysex Live Edit** toggle is off —
+   * the grant lacks `live` and every op answers `why: "off"` (`liveOp`,
+   * smsysex.cpp). Absent: a firmware without the ops, which ignores them
+   * (no reply, like any unknown command).
+   */
+  liveEdit?: 'on' | 'off'
+  /** Every `load` answers `busy`: a menu or browser is stacked on the device's root view. */
+  liveBusy?: boolean
+  /**
+   * What `save` writes to a preset path, given what it would write: a stand-in
+   * for a firmware whose file disagrees with the editor's document, which the
+   * editor's read-back after a save is there to catch. The `/TEMP` pull is
+   * not touched.
+   */
+  saveWrites?: (xml: string) => string
+}
+
+/**
+ * The device's current instrument, as the live ops see it. `preset` is the
+ * XML it was loaded from and `overrides` the parameter values set since —
+ * `save` serialises the two together, the way `writeToFile` snapshots the
+ * `AutoParam`s. `drum` is the selected row's index in the drum list.
+ */
+export interface FakeInstrument {
+  type: LiveOutputType
+  name: string
+  dir: string
+  edited: boolean
+  drum: number
+  entire: boolean
+  gen: number
+  preset: string
+  overrides: Map<string, number>
+}
+
+/** Firmware `Error` values the live ops answer with (`src/definitions_cxx.hpp`). */
+const ERR_FILE_ALREADY_EXISTS = 17
+const ERR_FILE_NOT_FOUND = 18
+
+/**
+ * What `fileStringToParam(Kind::UNPATCHED_SOUND, name, allowPatched=true)` finds: every patched and
+ * sound-unpatched name, minus the two patched params no `<defaultParams>` attribute holds. Plain
+ * `volume` is `LOCAL_VOLUME`, a real AutoParam that is only ever a cable destination, so `setParam`
+ * refuses it as a plain param — which is why the editor sends `volumePostFX` for
+ * `<defaultParams volume>` (`docs/decisions/live.md`).
+ */
+const ATTRIBUTE_LESS = new Set(['volume', 'volumePostReverbSend'])
+const SOUND_NAMES: ReadonlySet<string> = new Set<string>(
+  [...PATCHED_LOCAL_PARAMS, ...PATCHED_GLOBAL_PARAMS, ...UNPATCHED_SHARED_PARAMS, ...UNPATCHED_SOUND_PARAMS].filter(
+    (name) => !ATTRIBUTE_LESS.has(name),
+  ),
+)
+/** `fileStringToParam(Kind::UNPATCHED_GLOBAL, name, allowPatched=false)`: the bus table's own spellings. */
+const BUS_NAMES: ReadonlySet<string> = new Set(Object.keys(KIT_BUS_SLOTS))
+const CABLE_DESTINATIONS: ReadonlySet<string> = new Set<string>([...PATCHED_LOCAL_PARAMS, ...PATCHED_GLOBAL_PARAMS])
+
+/** `/SYNTHS/Sub/Foo.XML` → dir `SYNTHS/Sub`, name `Foo`; null when there is no folder or no `.XML` (`splitPresetPath`). */
+function splitPresetPath(path: string): { dir: string; name: string } | null {
+  if (!path.startsWith('/') || !path.endsWith('.XML')) return null
+  const cut = path.lastIndexOf('/')
+  if (cut <= 0) return null
+  return { dir: path.slice(1, cut), name: path.slice(cut + 1, -4) }
 }
 
 /** The tag the second client in `otherSessionFirst` asked for. */
@@ -93,6 +174,12 @@ export class FakeDeluge {
   private held: Uint8Array[] = []
   private holding = false
   private otherSessionSent = false
+  /** The live ops' instrument; `type: 'none'` until `loadInstrument` or a `load`. */
+  live: FakeInstrument = { type: 'none', name: '', dir: '', edited: false, drum: -1, entire: false, gen: 0, preset: '', overrides: new Map() }
+  /** Whether a `sub` lease is held (the fake has no clock; `expireLease()` ends it). */
+  subscribed = false
+  /** What the last `^inst` push or `sub` reply said, so a push goes out only on a difference (the drain's snapshot). */
+  private snapshot = ''
 
   constructor(
     private readonly reply: (bytes: Uint8Array) => void,
@@ -154,6 +241,7 @@ export class FakeDeluge {
       const grant: Record<string, unknown> = { sid: 1, midBase: 8, midMin: 9, midMax: 15 }
       if (!this.opts.omitSessionTag) grant.tag = json.session.tag
       if (this.opts.sessionPipe !== undefined) grant.pipe = this.opts.sessionPipe
+      if (this.opts.liveEdit === 'on') grant.live = 1
       this.answer(0, '^session', grant, undefined, CMD_JSON)
     } else if (json.ping) {
       this.answer(msgId, '^ping', {})
@@ -181,7 +269,284 @@ export class FakeDeluge {
       const from = json.rename.from as string
       const to = json.rename.to as string
       this.answer(msgId, '^rename', { from, to, err: this.rename(from, to) })
+    } else {
+      for (const op of ['inst', 'save', 'load', 'select', 'param', 'sub'] as const) {
+        if (json[op]) this.liveOp(msgId, op, json[op])
+      }
     }
+  }
+
+  // ---- Live Edit ------------------------------------------------------------
+
+  /**
+   * Put an instrument in the device's current clip, as a preset load on the
+   * device (or the KIT/SYNTH button) would. `xml` is Deluge-authored text;
+   * `dir` has no leading slash. A subscriber hears the switch as `^inst`.
+   */
+  loadInstrument(xml: string, name: string, dir: string): void {
+    this.setInstrument(xml, name, dir, false)
+    this.pushInstrumentIfChanged()
+  }
+
+  /** The device's own knob move: the parameter changes and a subscriber hears `^chg`. */
+  deviceChange(change: LiveChange): void {
+    this.live.overrides.set(this.paramKey(change), change.value)
+    this.live.gen++
+    this.live.edited = true
+    if (!this.subscribed) return
+    const parts = [`"n": "${change.name}"`]
+    if (change.src !== undefined) parts.push(`"s": "${change.src}"`)
+    if (change.bus) parts.push(`"b": 1`)
+    else if (change.drum !== undefined) parts.push(`"d": ${change.drum}`)
+    parts.push(`"v": ${change.value}`)
+    this.answerRaw(0, `{"^chg": {\n"gen": ${this.live.gen},\n"p": [{\n${parts.join(',\n')}}]}}`, undefined, CMD_JSON)
+    this.pushInstrumentIfChanged()
+  }
+
+  /** The device's own Save → Synth/Kit over its file: the card copy is what it holds, `edited` drops, a subscriber hears `^inst`. */
+  deviceSave(): void {
+    if (!this.hasInstrument) throw new Error('nothing to save')
+    this.putFile(`/${this.live.dir}/${this.live.name}.XML`, this.currentPreset())
+    this.live.edited = false
+    this.pushInstrumentIfChanged()
+  }
+
+  /** A non-parameter edit on the device (a menu, the sample browser): `^dirty` to a subscriber. */
+  deviceEdit(): void {
+    this.live.gen++
+    this.live.edited = true
+    if (!this.subscribed) return
+    this.answerRaw(0, `{"^dirty": {\n"gen": ${this.live.gen}}}`, undefined, CMD_JSON)
+    this.pushInstrumentIfChanged()
+  }
+
+  /** The `sub` lease lapses without a renewal. */
+  expireLease(): void {
+    this.subscribed = false
+  }
+
+  /**
+   * The XML the device would write for its instrument right now: the loaded
+   * preset with every override applied. Untouched, it is the loaded bytes
+   * verbatim — the device serialises what it holds, and what it holds came
+   * from a file it wrote.
+   */
+  currentPreset(): string {
+    if (this.live.overrides.size === 0) return this.live.preset
+    const tree = parseXML(this.live.preset)
+    for (const [key, value] of this.live.overrides) applyChange(tree, { ...this.parseKey(key), value })
+    return generateXML(tree)
+  }
+
+  private setInstrument(xml: string, name: string, dir: string, edited: boolean): void {
+    const tree = parseXML(xml)
+    this.live = {
+      type: isKit(tree) ? 'kit' : 'synth',
+      name,
+      dir,
+      edited,
+      drum: isKit(tree) && drumRows(tree).length > 0 ? 0 : -1,
+      entire: false,
+      gen: this.live.gen + 1,
+      preset: xml,
+      overrides: new Map(),
+    }
+  }
+
+  private liveOp(msgId: number, op: string, args: Record<string, unknown>): void {
+    if (this.opts.liveEdit === undefined) return // a firmware without the ops: silence
+    if (this.opts.liveEdit === 'off') {
+      this.answer(msgId, `^${op}`, { err: 1, why: 'off' })
+      return
+    }
+    switch (op) {
+      case 'inst':
+        return this.answerRaw(msgId, `{"^inst": {${this.instrumentFields()},\n"err": 0}}`)
+      case 'save':
+        return this.doSave(msgId, args)
+      case 'load':
+        return this.doLoad(msgId, args)
+      case 'select':
+        return this.doSelect(msgId, args)
+      case 'param':
+        return this.doParam(msgId, args)
+      case 'sub':
+        return this.doSub(msgId, args)
+    }
+  }
+
+  private get hasInstrument(): boolean {
+    return this.live.type === 'synth' || this.live.type === 'kit'
+  }
+
+  private tree(): Preset {
+    return parseXML(this.live.preset)
+  }
+
+  /** The kit's rows in drum-list order; none for a synth. */
+  private rows(): ReturnType<typeof drumRows> {
+    const t = this.tree()
+    return isKit(t) ? drumRows(t) : []
+  }
+
+  /** `writeInstrumentFields`, as the JsonSerializer lays it out. */
+  private instrumentFields(): string {
+    const f: string[] = [`"type": "${this.live.type}"`]
+    if (this.hasInstrument) {
+      f.push(`"name": "${this.live.name}"`, `"dir": "${this.live.dir}"`, `"edited": ${this.live.edited ? 1 : 0}`)
+      if (this.live.type === 'kit') {
+        const rows = this.rows()
+        const row = rows[this.live.drum]
+        const kind: LiveDrumKind = !row ? 'none' : row.tag === 'midiOutput' ? 'midi' : row.tag === 'gateOutput' ? 'gate' : 'sound'
+        f.push(`"drum": ${this.live.drum}`, `"drumKind": "${kind}"`)
+      }
+      f.push(`"entire": ${this.live.entire ? 1 : 0}`)
+    }
+    f.push(`"gen": ${this.live.gen}`)
+    return `\n${f.join(',\n')}`
+  }
+
+  /** `replyStatus`: the instrument fields when asked for, then `err` and `why`. */
+  private replyStatus(msgId: number, tag: string, err: number, why: string | null, withInstrument: boolean): void {
+    const fields = withInstrument ? `${this.instrumentFields()},` : ''
+    const tail = why === null ? `\n"err": 0` : `\n"err": ${err === 0 ? 1 : err},\n"why": "${why}"`
+    this.answerRaw(msgId, `{"${tag}": {${fields}${tail}}}`)
+  }
+
+  /** What the drain task's snapshot compares: the output, the selected row, AFFECT ENTIRE and the edited flag — not `gen`. */
+  private snapshotKey(): string {
+    const l = this.live
+    return `${l.type}|${l.name}|${l.dir}|${l.edited}|${l.drum}|${l.entire}`
+  }
+
+  /** The drain task's `^inst` push: only when the snapshot differs from the last one taken. */
+  private pushInstrumentIfChanged(): void {
+    const now = this.snapshotKey()
+    if (!this.subscribed || now === this.snapshot) return
+    this.snapshot = now
+    this.answerRaw(0, `{"^inst": {${this.instrumentFields()}}}`, undefined, CMD_JSON)
+  }
+
+  private doSave(msgId: number, args: Record<string, unknown>): void {
+    if (!this.hasInstrument) return this.replyStatus(msgId, '^save', 0, 'noInst', true)
+    const path = typeof args.path === 'string' ? args.path : `/${this.live.dir}/${this.live.name}.XML`
+    const split = splitPresetPath(path)
+    if (!split) return this.replyStatus(msgId, '^save', 0, 'path', false)
+    const overwrite = args.overwrite === 1
+    const keep = args.keep === 1
+    if (this.files.has(path) && !overwrite) return this.replyStatus(msgId, '^save', ERR_FILE_ALREADY_EXISTS, 'exists', false)
+    if (!this.dirs.has(parentOf(path))) return this.replyStatus(msgId, '^save', 5 /* FR_NO_PATH, through createFile */, 'save', false)
+    const xml = this.currentPreset()
+    this.putFile(path, keep || !this.opts.saveWrites ? xml : this.opts.saveWrites(xml))
+    if (!keep) {
+      this.live.name = split.name
+      this.live.dir = split.dir
+      this.live.edited = false
+      this.live.gen++
+    }
+    this.answerRaw(msgId, `{"^save": {\n"path": "${path}",${this.instrumentFields()},\n"err": 0}}`)
+    this.pushInstrumentIfChanged()
+  }
+
+  private doLoad(msgId: number, args: Record<string, unknown>): void {
+    if (!this.hasInstrument) return this.replyStatus(msgId, '^load', 0, 'noInst', true)
+    if (this.opts.liveBusy) return this.replyStatus(msgId, '^load', 0, 'busy', false)
+    const path = typeof args.path === 'string' ? args.path : ''
+    const split = splitPresetPath(path)
+    if (!split) return this.replyStatus(msgId, '^load', 0, 'path', false)
+    const bytes = this.files.get(path)
+    if (!bytes) return this.replyStatus(msgId, '^load', ERR_FILE_NOT_FOUND, 'notFound', false)
+    const xml = String.fromCharCode(...bytes)
+    const as = typeof args.name === 'string'
+    this.setInstrument(xml, as ? (args.name as string) : split.name, as && typeof args.dir === 'string' ? args.dir : split.dir, as)
+    this.replyStatus(msgId, '^load', 0, null, true)
+    this.pushInstrumentIfChanged()
+  }
+
+  private doSelect(msgId: number, args: Record<string, unknown>): void {
+    if (this.live.type !== 'kit') return this.replyStatus(msgId, '^select', 0, 'noKit', true)
+    if (typeof args.drum === 'number') {
+      const rows = this.rows()
+      if (args.drum < -1 || args.drum >= rows.length) return this.replyStatus(msgId, '^select', 0, 'noDrum', true)
+      this.live.drum = args.drum
+    }
+    if (typeof args.entire === 'number') this.live.entire = args.entire !== 0
+    this.replyStatus(msgId, '^select', 0, null, true)
+    this.pushInstrumentIfChanged()
+  }
+
+  /** `(owner, name, src)` as one string, the dedup key `noteParamChanged` uses. */
+  private paramKey(c: LiveChange): string {
+    const owner = c.bus ? 'b' : c.drum !== undefined && c.drum >= 0 ? `d${c.drum}` : 's'
+    return `${owner}|${c.name}|${c.src ?? ''}`
+  }
+
+  private parseKey(key: string): Omit<LiveChange, 'value'> {
+    const [owner, name, src] = key.split('|')
+    const out: Omit<LiveChange, 'value'> = { name }
+    if (src) out.src = src
+    if (owner === 'b') out.bus = true
+    else if (owner.startsWith('d')) out.drum = Number(owner.slice(1))
+    return out
+  }
+
+  private doParam(msgId: number, args: Record<string, unknown>): void {
+    if (!this.hasInstrument) return this.replyStatus(msgId, '^param', 0, 'noInst', true)
+    const name = typeof args.name === 'string' ? args.name : ''
+    const src = typeof args.src === 'string' ? args.src : undefined
+    const kit = this.live.type === 'kit'
+    const bus = kit && args.bus === 1
+    let drum = kit && !bus ? (typeof args.drum === 'number' ? args.drum : this.live.drum) : undefined
+    // Name resolution as setParam does it: a cable needs a patched destination and a known source;
+    // the kit bus its own table; a sound the follow-file spellings (patched ids scanned first).
+    if (src !== undefined) {
+      if (!CABLE_DESTINATIONS.has(name)) return this.replyStatus(msgId, '^param', 0, 'name', false)
+      if (!(PATCH_SOURCES as readonly string[]).includes(src)) return this.replyStatus(msgId, '^param', 0, 'src', false)
+    } else if (bus ? !BUS_NAMES.has(name) : !SOUND_NAMES.has(name)) {
+      return this.replyStatus(msgId, '^param', 0, 'name', false)
+    }
+    if (kit && !bus) {
+      const rows = this.rows()
+      const row = rows[drum!]
+      if (!row || row.tag !== 'sound') return this.replyStatus(msgId, '^param', 0, 'noDrum', false)
+    }
+    const change: LiveChange = { name, value: 0 }
+    if (src !== undefined) change.src = src
+    if (bus) change.bus = true
+    else if (drum !== undefined) change.drum = drum
+    const key = this.paramKey(change)
+    if (typeof args.value === 'number') {
+      this.live.overrides.set(key, args.value)
+      this.live.edited = true
+      this.live.gen++
+    }
+    let value = this.live.overrides.get(key)
+    if (value === undefined) {
+      // The AutoParam's current value: the file's, when the file has it.
+      const path = changePath(this.tree(), change)
+      const hex = path === null ? undefined : flattenXML(this.live.preset).get(path)
+      if (src !== undefined && path === null) return this.replyStatus(msgId, '^param', 0, 'noParam', false)
+      value = hex === undefined ? 0 : parseInt(hex.slice(2), 16) | 0
+    }
+    const f = [`"name": "${name}"`]
+    if (src !== undefined) f.push(`"src": "${src}"`)
+    if (kit) f.push(bus ? `"bus": 1` : `"drum": ${typeof args.drum === 'number' ? args.drum : -1}`)
+    f.push(`"value": ${value}`, `"err": 0`)
+    this.answerRaw(msgId, `{"^param": {\n${f.join(',\n')}}}`)
+    this.pushInstrumentIfChanged()
+  }
+
+  private doSub(msgId: number, args: Record<string, unknown>): void {
+    let secs = typeof args.secs === 'number' ? args.secs : 10
+    if (secs <= 0) {
+      secs = 0
+      this.subscribed = false
+    } else {
+      secs = Math.min(secs, 120)
+      this.subscribed = true
+    }
+    this.snapshot = this.snapshotKey()
+    this.answerRaw(msgId, `{"^sub": {\n"secs": ${secs},${this.instrumentFields()},\n"err": 0}}`)
   }
 
   /** f_unlink: a file, or an empty folder (FR_DENIED otherwise); FR_NO_FILE when there is nothing there. */

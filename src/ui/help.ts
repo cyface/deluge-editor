@@ -406,6 +406,8 @@ export const UI_HELP: Record<string, string> = {
   'ui.save.overwriteNone': 'Open a preset from the Deluge, or save one there, and this writes it back to the same file',
   'ui.follow.toggle': 'Listen to the Deluge: shows only the parameters Midi-Follow can reach, and moves them as the Deluge reports a knob turn, a menu edit or a clip opening — starts a new synth if nothing is loaded',
   'ui.follow.noOutput': 'No Deluge MIDI output found — sending goes only to a port named Deluge, so a CC cannot land on another instrument',
+  'ui.live.toggle': 'Edit the sound the Deluge has live: opens the synth or kit its clip holds, every change here reaches the Deluge as you make it, and its own knob turns and menu edits land here — Save writes the Deluge’s own file',
+  'ui.live.leave': 'Leave Live Edit. The preset stays loaded as an ordinary file with its card path',
 
   // --- Changes dock --------------------------------------------------------
   'ui.changes.revert': 'Revert to the file’s value',

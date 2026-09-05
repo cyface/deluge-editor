@@ -31,3 +31,6 @@ __pycache__/
 
 # built by `pnpm test:e2e` (pretest:e2e) from tests/e2e/fake-deluge.entry.ts
 tests/e2e/fake-deluge.js
+
+# live-edit smoke test outputs (tests/live-edit/live_smoke.py)
+tests/live-edit/work/

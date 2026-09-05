@@ -1,6 +1,7 @@
 <script lang="ts">
-  /** Nothing loaded: open a file, drop one, connect to the Deluge, or follow it. */
+  /** Nothing loaded: open a file, drop one, connect to the Deluge, follow it, or edit it live. */
   import { follow } from './state/follow.svelte'
+  import { live } from './state/live.svelte'
 </script>
 
 <div class="empty">
@@ -13,6 +14,10 @@
          here, because the mode is the fastest way in for someone whose sound
          is already on the instrument. -->
     <p class="lead alt">Or click <b>Follow Mode</b> to start a synth and have the Deluge fill it in: open a clip on the instrument and every mapped value arrives, then each knob turn as you make it.</p>
+  {/if}
+  {#if live.offered && !live.on}
+    <!-- Live Edit needs no file either: it opens the one the Deluge has. -->
+    <p class="lead alt">Or click <b>Live Edit</b> to open the sound the Deluge has in its clip and edit it there and here at once. Needs a Deluge whose firmware offers it.</p>
   {/if}
 </div>
 

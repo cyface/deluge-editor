@@ -37,6 +37,20 @@ at the end of its area file and gets a line here.
 - [Follow Mode asks the Deluge what its channel actually is](decisions/follow.md#follow-mode-asks-the-deluge-what-its-channel-actually-is)
 - [Follow Mode does not need a file first](decisions/follow.md#follow-mode-does-not-need-a-file-first)
 
+## [Live Edit](decisions/live.md)
+
+- [Live addresses are flat paths at the edge and file names on the wire](decisions/live.md#live-addresses-are-flat-paths-at-the-edge-and-file-names-on-the-wire)
+- [A live op's failure is a word, not a number](decisions/live.md#a-live-ops-failure-is-a-word-not-a-number)
+- [The card is the buffer, and `/TEMP` is made once](decisions/live.md#the-card-is-the-buffer-and-temp-is-made-once)
+- [The store's document is the device's, and it adopts the pull whole](decisions/live.md#the-stores-document-is-the-devices-and-it-adopts-the-pull-whole)
+- [Fast sends wait behind a pending push; a refused push keeps the edit](decisions/live.md#fast-sends-wait-behind-a-pending-push-a-refused-push-keeps-the-edit)
+- [The echo filter remembers every recent value, not the last](decisions/live.md#the-echo-filter-remembers-every-recent-value-not-the-last)
+- [Save is the device's write, reported against what it read back](decisions/live.md#save-is-the-devices-write-reported-against-what-it-read-back)
+- [The Live button is shown by the firmware table and switched by the grant](decisions/live.md#the-live-button-is-shown-by-the-firmware-table-and-switched-by-the-grant)
+- [Follow Mode and Live Edit are exclusive, and the buttons enforce it](decisions/live.md#follow-mode-and-live-edit-are-exclusive-and-the-buttons-enforce-it)
+- [The row goes both ways, and the device's report is not a pick while ours is in flight](decisions/live.md#the-row-goes-both-ways-and-the-devices-report-is-not-a-pick-while-ours-is-in-flight)
+- [A save on the device is `edited` dropping to 0, and the file becomes `source`](decisions/live.md#a-save-on-the-device-is-edited-dropping-to-0-and-the-file-becomes-source)
+
 ## [Kits, sample ranges and the sample library](decisions/samples.md)
 
 - [Kit rows built from samples are clones of the blank kit's row](decisions/samples.md#kit-rows-built-from-samples-are-clones-of-the-blank-kits-row)

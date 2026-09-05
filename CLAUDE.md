@@ -13,7 +13,7 @@ Public at github.com/cyface/deluge-editor, MIT. Work is tracked as GitHub
 issues in dependency order (`gh issue list`).
 
 - `src/core/` — framework-free TypeScript (params, xml, preset, sysex,
-  firmware, samples, kit, midi, library, random). No Svelte or DOM imports beyond `DOMParser`;
+  firmware, samples, kit, midi, library, live, random). No Svelte or DOM imports beyond `DOMParser`;
   tests run in Node via happy-dom. `xml/` is the ordered element tree and its
   parser/writer; `preset/` is the typed view over it (enum string tables,
   param names, element shapes); `samples/` reads WAV headers over any ranged
@@ -23,13 +23,18 @@ issues in dependency order (`gh issue list`).
   `preset/follow.ts` saying where each of those parameters lives in a file;
   `library/` is the card's sample library (where a Deluge XML names a sample,
   the usage index over `SONGS/`/`KITS/`/`SYNTHS/`, and rename/move/delete
-  with the referencing files rewritten) over an abstract `CardFS`.
+  with the referencing files rewritten) over an abstract `CardFS`; `live/`
+  is Live Edit's address translation (flat path ↔ `param` request, `^chg` →
+  tree) and the pull/push of the device's preset through `/TEMP`, over the
+  live ops in `sysex/client.ts` (`docs/live-edit.md`).
 - `src/ui/` — Svelte 5 (runes) components. `state/editor.svelte.ts` is the
   main store (the tree is a `$state` proxy; core accessors write through it);
   `state/card.svelte.ts` wires `src/core/sysex` to Web MIDI (`CardPanel.svelte`);
   `state/library.svelte.ts` drives `src/core/library` over it, or over a card
   in a reader via `localcard.ts` (File System Access API) — `LibraryPanel.svelte`;
   `state/follow.svelte.ts` listens for MIDI Follow feedback (`FollowView.svelte`);
+  `state/live.svelte.ts` is Live Edit, the device's instrument as the document
+  over `src/core/live` and the card store's connection (`docs/live-edit.md`);
   `groups.ts` defines the flow blocks; `controls/` are the knob, selects,
   graphs; `groups/` one panel per block. Values are read and written only
   through `src/core/preset/sound.ts` and `src/core/xml/edit.ts`, never by

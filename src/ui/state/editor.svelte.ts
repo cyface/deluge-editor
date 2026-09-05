@@ -241,9 +241,12 @@ class Editor {
    * copy is the new clean baseline. The Changes dock reads 0 against the file
    * just written, open mode's discard guard won't arm over work that is
    * already safe, and Save › To Deluge › Overwrite writes back to `path`.
+   * `written` is what the card holds when that is known and is not `output`:
+   * Live Edit's save is the device's own write, read back, and the dock then
+   * shows exactly how the two disagree.
    */
-  markSaved(path: string, name: string): void {
-    this.source = this.output
+  markSaved(path: string, name: string, written: string = this.output): void {
+    this.source = written
     this.fileName = name
     this.cardPath = path
   }

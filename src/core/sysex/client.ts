@@ -50,6 +50,16 @@
 import { clamp } from '../params/scale'
 import { fresultMessage, fresultName } from './fatfs'
 import { buildJsonFrame, MAX_REQUEST_BYTES, parseReply, type SysexReply } from './frame'
+import {
+  instrumentFromWire,
+  LiveError,
+  pushFromWire,
+  type LiveAddress,
+  type LiveInstrument,
+  type LivePush,
+  type LiveSaved,
+  type LiveSubscribed,
+} from './live'
 
 /**
  * One directory entry. The same shape the sample library's `CardFS` lists
@@ -187,6 +197,16 @@ export interface SmsClientOptions {
    */
   onOtherClient?: (op: string) => void
   /**
+   * A message the Deluge sent on its own, to a Live Edit subscriber
+   * (`docs/live-edit.md`): a batch of parameter changes, a "something else
+   * changed" nudge, or the instrument fields after a switch. They arrive on
+   * msgId 0 with command `Json`, the form the `^session` grant uses and
+   * nothing else did until now. Only meaningful after `subscribe`; and since
+   * Web MIDI is not exclusive, a second editor's subscription is heard here
+   * too, so the panel should say who holds the lease.
+   */
+  onPush?: (push: LivePush) => void
+  /**
    * One line per request (op, elapsed, which timeout rung answered) and one
    * per late reply — a reply arriving after its attempt was abandoned, the
    * signature of a timeout rung shorter than the link's real round trip.
@@ -227,8 +247,19 @@ const DEFAULTS: Required<Omit<SmsClientOptions, 'tag'>> = {
   readChunk: 1024,
   writeAttempts: 5,
   onOtherClient: () => {},
+  onPush: () => {},
   debug: () => {},
 }
+
+/**
+ * The retry ladder for `save` and `load`, which do real card work — a
+ * preset write plus, for `load`, the reading of every sample header the
+ * instrument names. A resend under the default 2 s first rung would queue a
+ * second copy of the same op behind the first (both idempotent, but a
+ * second `load` kills voices twice), so the first rung is the whole wait
+ * the smoke harness needed on the emulator (`tests/live-edit/`).
+ */
+const LIVE_IO_TIMEOUTS: readonly number[] = [15000, 15000]
 
 /**
  * A per-client session tag. The OS MIDI stacks multiplex, so two editor tabs
@@ -251,6 +282,13 @@ interface Session {
    * whose send ring can still corrupt overlapped replies (#43).
    */
   pipe: number
+  /**
+   * The Live Edit protocol version the grant advertises (`live` in
+   * `^session`), null when it does not: a firmware without the ops, or one
+   * with the **Sysex Live Edit** community feature switched off. The grant
+   * is the gate, not the firmware version (`docs/live-edit.md`, Capability).
+   */
+  live: number | null
 }
 
 interface Pending {
@@ -313,6 +351,13 @@ export class SmsClient {
     if (!this.isOurs(reply)) {
       this.opts.debug(`another client's reply msgId 0x${reply.msgId.toString(16)} (${op}) — a second editor is on this Deluge`)
       this.opts.onOtherClient(op)
+      return
+    }
+    if (reply.msgId === 0 && op !== '^session') {
+      // Device-initiated: a Live Edit push, in the sequence-0 form the grant reserves.
+      const push = pushFromWire(reply.json)
+      if (push) this.opts.onPush(push)
+      else this.opts.debug(`unrecognised sequence-0 message (${op})`)
       return
     }
     const entry = this.pending.get(reply.msgId)
@@ -494,6 +539,100 @@ export class SmsClient {
     await this.expect('mkdir', path, { mkdir: { path } })
   }
 
+  // ---- Live Edit (docs/live-edit.md; firmware src/deluge/storage/smsysex_live.cpp) ----
+
+  /**
+   * The Live Edit protocol version the session grant advertised, null when
+   * it did not or no session has been negotiated yet. Any request negotiates
+   * one, so `ping()` first and this is an answer.
+   */
+  get live(): number | null {
+    return this.session?.live ?? null
+  }
+
+  /** What the current clip's instrument is (`inst`). Answers for any clip, including one that is not a synth or kit. */
+  async inst(): Promise<LiveInstrument> {
+    return instrumentFromWire(await this.liveOp('inst', {}))
+  }
+
+  /**
+   * Write the current instrument to a file, as Save → Synth/Kit does
+   * (`save`). `path` defaults to the instrument's own slot; `overwrite: false`
+   * answers `exists` rather than replacing, so the caller can warn and re-send;
+   * `keep: true` writes the file but leaves the instrument's name, folder and
+   * edited flag alone — how the live preset is pulled without renaming it.
+   */
+  async save(opts: { path?: string; overwrite?: boolean; keep?: boolean } = {}): Promise<LiveSaved> {
+    const args: Record<string, unknown> = { overwrite: opts.overwrite ? 1 : 0, keep: opts.keep ? 1 : 0 }
+    if (opts.path !== undefined) args.path = opts.path
+    const body = await this.liveOp('save', args, LIVE_IO_TIMEOUTS)
+    return { ...instrumentFromWire(body), path: String(body.path ?? opts.path ?? '') }
+  }
+
+  /**
+   * Replace the current clip's instrument from a file (`load`). With `as`,
+   * the new instrument keeps that name and folder and is marked edited, so a
+   * later save still targets the original file; without it this is a plain
+   * preset load. `busy` while a menu or browser is open on the device.
+   */
+  async load(path: string, as?: { name: string; dir: string }): Promise<LiveInstrument> {
+    const args: Record<string, unknown> = { path }
+    if (as) {
+      args.name = as.name
+      args.dir = as.dir
+    }
+    return instrumentFromWire(await this.liveOp('load', args, LIVE_IO_TIMEOUTS))
+  }
+
+  /** Pick a kit's row and/or AFFECT ENTIRE on the device (`select`); `drum: -1` deselects. */
+  async select(opts: { drum?: number; entire?: boolean }): Promise<LiveInstrument> {
+    const args: Record<string, unknown> = {}
+    if (opts.drum !== undefined) args.drum = opts.drum
+    if (opts.entire !== undefined) args.entire = opts.entire ? 1 : 0
+    return instrumentFromWire(await this.liveOp('select', args))
+  }
+
+  /**
+   * Set an automatable parameter straight into its `AutoParam` (`param`), or
+   * read it when `value` is omitted. Returns the parameter's value after the
+   * op. `value` is an int32, the file's hex as a number (`hexToInt`).
+   */
+  async param(address: LiveAddress, value?: number): Promise<number> {
+    const args: Record<string, unknown> = { name: address.name }
+    if (address.src !== undefined) args.src = address.src
+    if (address.bus) args.bus = 1
+    else if (address.drum !== undefined) args.drum = address.drum
+    if (value !== undefined) args.value = value
+    const body = await this.liveOp('param', args)
+    return Number(body.value)
+  }
+
+  /**
+   * Hold (or with 0, release) the device's push lease for `secs`, capped at
+   * 120 by the firmware (`sub`). One subscriber at a time, last wins; renew
+   * before it lapses. The reply carries the instrument fields the pushes are
+   * measured from; the pushes themselves arrive through `onPush`.
+   */
+  async subscribe(secs: number): Promise<LiveSubscribed> {
+    const body = await this.liveOp('sub', { secs })
+    return { ...instrumentFromWire(body), secs: Number(body.secs ?? 0) }
+  }
+
+  /**
+   * One live op: send, unwrap the `^op` body, and turn its `err`/`why` tail
+   * into a `LiveError`. Every live op answers even while the device's
+   * feature toggle is off (`why: "off"`), so a missing reply here means the
+   * firmware has no such op at all.
+   */
+  private async liveOp(op: string, args: object, timeouts?: readonly number[]): Promise<Record<string, unknown>> {
+    const r = await this.request({ [op]: args }, undefined, timeouts)
+    const body = r.json[`^${op}`] as Record<string, unknown> | undefined
+    if (!body) throw new SysexError(op, '', NO_REPLY)
+    const err = Number(body.err ?? 0)
+    if (err !== 0 || typeof body.why === 'string') throw new LiveError(op, String(body.why ?? 'error'), err)
+    return body
+  }
+
   // ---- plumbing -----------------------------------------------------------
 
   /**
@@ -525,8 +664,8 @@ export class SmsClient {
     return body
   }
 
-  /** One command with the retry ladder; a fresh msgId per attempt. */
-  private async request(cmd: object, binary?: Uint8Array): Promise<SysexReply> {
+  /** One command with the retry ladder (`timeouts` overrides the client's); a fresh msgId per attempt. */
+  private async request(cmd: object, binary?: Uint8Array, timeouts: readonly number[] = this.opts.timeouts): Promise<SysexReply> {
     const op = Object.keys(cmd)[0] ?? '?'
     // The reply must be for THIS request, not an abandoned attempt whose id
     // came round again: its op key must be present, and where the command
@@ -541,7 +680,7 @@ export class SmsClient {
     }
     const started = Date.now()
     let attempt = 0
-    for (const timeout of this.opts.timeouts) {
+    for (const timeout of timeouts) {
       attempt++
       const session = await this.ensureSession()
       const range = session.midMax - session.midMin + 1
@@ -611,10 +750,11 @@ export class SmsClient {
         const r = await this.exchange(0, buildJsonFrame(0, { session: { tag: this.opts.tag } }), timeout, (reply) =>
           '^session' in reply.json,
         )
-        const body = r.json['^session'] as { midMin?: number; midMax?: number; pipe?: number } | undefined
+        const body = r.json['^session'] as { midMin?: number; midMax?: number; pipe?: number; live?: number } | undefined
         if (body?.midMin !== undefined && body.midMax !== undefined) {
           const pipe = typeof body.pipe === 'number' && body.pipe >= 1 ? Math.floor(body.pipe) : 1
-          this.session = { midMin: body.midMin, midMax: body.midMax, pipe }
+          const live = typeof body.live === 'number' && body.live >= 1 ? Math.floor(body.live) : null
+          this.session = { midMin: body.midMin, midMax: body.midMax, pipe, live }
           return this.session
         }
       } catch {
@@ -622,7 +762,7 @@ export class SmsClient {
       }
     }
     // A firmware that never answered has told us nothing about its ring: serial.
-    this.session = { midMin: (15 << 3) + 1, midMax: (15 << 3) + 7, pipe: 1 }
+    this.session = { midMin: (15 << 3) + 1, midMax: (15 << 3) + 7, pipe: 1, live: null }
     this.opts.debug(
       `session: no grant after ${this.opts.timeouts.length} attempts — using the last session block (sid 15) unnegotiated, serial`,
     )
