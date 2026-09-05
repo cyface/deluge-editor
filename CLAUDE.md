@@ -1,7 +1,10 @@
 # CLAUDE.md
 
 Guidance for AI assistants working in this repository. Read `README.md` and
-`docs/decisions.md` first — they are short and they are the rules.
+the decisions index `docs/decisions.md` first — they are short and they are the
+rules. The index links one file per area under `docs/decisions/`; read the file
+for the area you are touching before changing it, and add a new decision to that
+file plus a line in the index.
 
 ## What this is
 
