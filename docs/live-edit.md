@@ -342,15 +342,31 @@ out of it:
   row write by index, and a synth's `volumePostFX`, in the saved file. Clean
   pass, 74 checks, on 2026-09-05.
 
-Not yet run on hardware; DIN is unverified (DelugEmu does not feed guest
-sysex-in over its serial chardev the way it does USB).
+Run on hardware over USB on 2026-09-05 by `tests/live-edit/hw_smoke.py`,
+the same ops over CoreMIDI against a real Deluge, non-destructive (it saves
+only to `/TEMP` and restores what it changed): 39/39, alongside driving the
+editor itself in Chrome Beta. One more firmware finding came out of it:
 
-**Firmware to-do, before the editor side leans on these ops:** (1) ~~commit
-the unknown-name crash fix~~ done, `4bd820a9`; (2) ~~the kit-row `volume`
-finding above~~ resolved, a name, not the row path; (3) ~~re-run
-`tests/live-edit/live_smoke.py` to a clean pass~~ done, 74 passed on
-2026-09-05, with the `param` refusal and resolved-row reply uncommitted on
-`local-fixes`; (4) verify on hardware, including DIN.
+- **A `param` read of a cable that did not exist created it**, adding an
+  empty `<patchCable>` to the preset. `getPatchCableAutoParamFromId` gains
+  an `allowCreation` argument (true for existing callers); the live op
+  passes it the "have a value" flag, so a read answers `noParam` and only a
+  write creates. Commit `4a244f66`, which also carries the `param` refusal
+  and resolved-row reply above.
+
+DIN is unverified: DelugEmu does not feed guest sysex-in over its serial
+chardev the way it does USB, so it needs a real 5-pin link, and the editor
+needs a port picker first, since the card store only connects to a port
+named for a Deluge (#41).
+
+**Firmware to-do:** (1) ~~commit the unknown-name crash fix~~ done,
+`4bd820a9`; (2) ~~the kit-row `volume` finding above~~ resolved, a name, not
+the row path; (3) ~~re-run `tests/live-edit/live_smoke.py` to a clean
+pass~~ done, 74 passed on 2026-09-05; (4) ~~verify on hardware~~ done over
+USB, 39/39, with the fixes committed (`4a244f66`) and pushed to the fork's
+`local-fixes`; DIN open (#41); (5) stop the `^dirty` every gold-knob turn
+sends ~300 ms after it stops, which costs the editor a pull that finds
+nothing new (#42); (6) propose the protocol upstream (#43).
 
 - `src/deluge/storage/smsysex_live.{h,cpp}`: every op above (`inst`,
   `save`, `load`, `select`, `param`, `sub`), the shared
@@ -490,7 +506,7 @@ request here is small, and preset bytes travel through the existing
 - **`local-fixes` versus `beta`.** Names on the wire, not IDs. The
   feature lands on the fork first; the protocol should be proposed
   upstream once it has run on hardware, since the smSysex file protocol
-  itself came in that way.
+  itself came in that way. It has, over USB (#43).
 - **Frame sizes.** Pushes are batched under 740 bytes; a `^chg` burst that
   does not fit is split across frames, never truncated.
 
