@@ -163,6 +163,60 @@ test('New Synth starts from the Deluge-authored init template (issue #25)', asyn
   await expect(page.getByTestId('identical')).toContainText('byte-identical')
 })
 
+test('the landing page’s tiles are the New and Open menus’ own actions (issue #38)', async ({ page }) => {
+  const download = async (): Promise<string> => {
+    const pending = page.waitForEvent('download')
+    await choose(page, 'download-xml')
+    return fs.readFileSync((await (await pending).path())!, 'utf8')
+  }
+  await page.goto('/')
+
+  // Laid out like the bar: New and Open, in the menus' words, two tiles each.
+  const landing = page.getByTestId('landing')
+  await expect(landing.getByRole('heading')).toHaveText(['New', 'Open'])
+  await expect(landing.getByRole('button')).toHaveCount(4)
+
+  // A tile is the menu item: New › Synth from either gives the same file.
+  await page.getByTestId('empty-new-synth').click()
+  await expect(page.getByTestId('file-name')).toHaveText('(unnamed)')
+  await expect(landing).toHaveCount(0)
+  const fromTile = await download()
+  await page.goto('/')
+  await choose(page, 'new-synth')
+  expect(await download()).toBe(fromTile)
+
+  await page.goto('/')
+  await page.getByTestId('empty-new-kit').click()
+  await expect(page.locator('[data-group="kit"]')).toBeVisible()
+
+  // Open › From this computer is one file input, whichever of the two opens it.
+  await page.goto('/')
+  let chooser = page.waitForEvent('filechooser')
+  await page.getByTestId('empty-file-open-button').click()
+  await (await chooser).setFiles(FIXTURE)
+  await expect(page.getByTestId('file-name')).toHaveText('Default Synth.XML')
+  chooser = page.waitForEvent('filechooser')
+  await choose(page, 'file-open-button')
+  await (await chooser).setFiles(FIXTURE)
+  await expect(page.getByTestId('file-name')).toHaveText('Default Synth.XML')
+
+  await page.goto('/')
+  await page.getByTestId('empty-card-open-button').click()
+  await expect(page.getByTestId('card-panel')).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(page.getByTestId('card-panel')).toHaveCount(0)
+
+  // Two groups side by side; below the theme's 640px breakpoint, one column.
+  const lefts = () =>
+    landing.getByRole('button').evaluateAll((tiles) => tiles.map((t) => Math.round(t.getBoundingClientRect().left)))
+  const [synth, kit, file, card] = await lefts()
+  expect(kit).toBe(synth)
+  expect(card).toBe(file)
+  expect(file).toBeGreaterThan(synth)
+  await page.setViewportSize({ width: 600, height: 900 })
+  expect(new Set(await lefts()).size).toBe(1)
+})
+
 test('a picked ._ AppleDouble sidecar is refused with a plain message (issue #24)', async ({ page }) => {
   await page.goto('/')
   // The picker's `accept=".xml,.XML"` matches `._Default Synth.XML`, and

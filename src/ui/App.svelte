@@ -18,6 +18,8 @@
   import SamplePicker from './SamplePicker.svelte'
   import TopBar from './TopBar.svelte'
   import { collectDroppedSamples } from './dropdir'
+  import { takeFiles } from './filepick'
+  import { attachPresetInput } from './start'
   import { card } from './state/card.svelte'
   import { editor } from './state/editor.svelte'
   import { follow } from './state/follow.svelte'
@@ -71,6 +73,11 @@
     }
     run()
   }
+  /** Open › From this computer, from the bar or the landing page (`start.ts`). */
+  async function pick(e: Event) {
+    const [f] = takeFiles(e)
+    if (f) editor.load(await f.text(), f.name)
+  }
   const kit = $derived(editor.preset?.tag === 'kit' ? editor.preset : undefined)
 
   /**
@@ -100,6 +107,7 @@
   ondrop={drop}
   onkeydown={(e) => { if (e.key === 'Escape') escape() }}
 />
+<input {@attach attachPresetInput} type="file" accept=".xml,.XML,text/xml,application/xml" hidden data-testid="file-input" onchange={pick} />
 
 {#if multisample.open}<FolderImport />{/if}
 {#if samplePick.open}<SamplePicker />{/if}

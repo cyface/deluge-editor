@@ -1,7 +1,6 @@
 <script lang="ts">
   import { referencedSampleFiles } from '../core/preset'
   import { card } from './state/card.svelte'
-  import { changesNote, confirm, loadedName } from './state/confirm.svelte'
   import { editor } from './state/editor.svelte'
   import { follow } from './state/follow.svelte'
   import { kit } from './state/kit.svelte'
@@ -14,14 +13,9 @@
   import MenuItem from './controls/MenuItem.svelte'
   import { midiTip, NEEDS_FOLDER_ACCESS } from './copy'
   import { UI_HELP } from './help'
-  import { takeFiles } from './filepick'
   import { saveBlob } from './saveblob'
+  import { openFile, startNew } from './start'
 
-  let fileInput: HTMLInputElement | undefined = $state()
-  async function pick(e: Event) {
-    const [f] = takeFiles(e)
-    if (f) editor.load(await f.text(), f.name)
-  }
   function download() {
     saveBlob(
       editor.fileName || editor.suggestedFileName || `${editor.preset?.tag === 'kit' ? 'KIT' : 'SYNTH'}.XML`,
@@ -29,19 +23,6 @@
     )
   }
   const kind = $derived(editor.preset?.tag === 'kit' ? 'Kit' : editor.preset ? 'Synth' : 'Editor')
-  /*
-   * New must not silently discard unsaved work: with edits pending it asks
-   * first, in the same dialog a preset dropped over one uses. Clean, it just
-   * goes — a fresh template over an unedited one loses nothing.
-   */
-  function startNew(what: 'synth' | 'kit'): void {
-    const run = () => (what === 'synth' ? editor.newSynth() : editor.newKit())
-    if (editor.preset && editor.changeCount > 0) {
-      confirm.ask({ question: `Discard changes to ${loadedName()}? A new ${what} replaces it${changesNote()}.`, verb: 'Discard', run })
-      return
-    }
-    run()
-  }
   /** A kit, or any preset referencing external files, can share as a zip. */
   const showZip = $derived(
     editor.preset !== null && (editor.preset.tag === 'kit' || referencedSampleFiles(editor.preset).length > 0),
@@ -107,12 +88,12 @@
       </select>
     {/if}
   </label>
-  <input bind:this={fileInput} type="file" accept=".xml,.XML,text/xml,application/xml" hidden data-testid="file-input" onchange={pick} />
   <!--
     The commands are grouped by verb (issue #37): ten buttons in a row left
     the file name no room. Only the modes stay out as buttons — Follow Mode
     and Changes carry live state, and a menu would hide exactly the thing you
-    glance at.
+    glance at. New and Open › From this computer are `start.ts`'s, shared
+    with the landing page's tiles (issue #38).
   -->
   <Menu label="New" testid="menu-new" title={UI_HELP['ui.menu.new']}>
     <MenuItem label="Synth" testid="new-synth" title={UI_HELP['ui.new.synth']} onclick={() => startNew('synth')} />
@@ -132,7 +113,7 @@
        a file or folder picker, a save dialog with a name to type. The card
        browsers act on the click that picks a file, so they have none. -->
   <Menu label="Open" testid="menu-open" title={UI_HELP['ui.menu.open']}>
-    <MenuItem label="From this computer…" testid="file-open-button" title={UI_HELP['ui.open.file']} onclick={() => fileInput?.click()} />
+    <MenuItem label="From this computer…" testid="file-open-button" title={UI_HELP['ui.open.file']} onclick={openFile} />
     <MenuItem label="From Deluge" testid="card-open-button" title={midiTitle('ui.open.card')} onclick={() => card.openPanel('open')} />
     <!-- The card's sample library lives under Open rather than as a fourth
          menu: issue #37 folded the commands into three so the file name has

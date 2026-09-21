@@ -73,3 +73,4 @@ at the end of its area file and gets a line here.
 - [Every section at once, dealt into measured columns](decisions/ui.md#every-section-at-once-dealt-into-measured-columns)
 - [A modulation source is picked on the knob, not in a matrix](decisions/ui.md#a-modulation-source-is-picked-on-the-knob-not-in-a-matrix)
 - [Gold knobs are a panel of summaries](decisions/ui.md#gold-knobs-are-a-panel-of-summaries)
+- [The landing page offers the actions, it does not describe the bar](decisions/ui.md#the-landing-page-offers-the-actions-it-does-not-describe-the-bar)

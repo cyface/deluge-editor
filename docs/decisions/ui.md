@@ -195,3 +195,27 @@ not carry shows the firmware's stock assignment as its default, and the first
 edit writes the full 16-entry array the way the firmware would
 (`ensureModKnobs`). The volume family is canonicalised the way the firmware
 re-saves it after `ensureKnobReferencesCorrectVolume` (sound.cpp:1317).
+
+## The landing page offers the actions, it does not describe the bar
+
+With nothing loaded the page used to be sentences of the shape "Choose
+**New › Synth** to…", one per feature, six by the time Live Edit arrived
+(issue #38). It is now four tiles in two groups, **New** (Synth, Kit) and
+**Open** (From this computer, From Deluge), headed and laid out like the bar's
+menus, each one line of what happens. A tile calls exactly what its menu item
+calls — `src/ui/start.ts` holds New and Open › From this computer for both,
+and From Deluge is `card.openPanel('open')` — so the page and the bar cannot
+drift apart, and the page teaches the bar by being laid out like it.
+
+A balloon pointing at the menu was rejected: it explains a location rather
+than offering the action, it is noise the second time, and it has to know
+when to go away. Shorter prose was rejected for the same reason in a smaller
+dose: it is still read, remember, go and find it.
+
+**Not everything is a tile.** Drop is a sentence under them, because it is
+the one way in that isn't a click. Follow Mode and Live Edit are sentences,
+gated as their buttons are, because each is a way of working with the Deluge
+rather than a way to start, and each already has its button on the bar.
+Randomize, New's third item, has neither: the page offers no more ways in
+than the menu does, and four tiles in twos is as many as the page should ask
+anyone to choose between.
