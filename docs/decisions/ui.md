@@ -219,3 +219,32 @@ rather than a way to start, and each already has its button on the bar.
 Randomize, New's third item, has neither: the page offers no more ways in
 than the menu does, and four tiles in twos is as many as the page should ask
 anyone to choose between.
+
+## A command that replaces the preset asks when it would lose changes; a drop always asks
+
+Five things replace the loaded preset, and until issue #44 they followed three
+rules, two of which never asked at all. There are two rules now.
+
+**A command asks only when there are unsaved changes** (`editor.changeCount >
+0`): New › Synth or Kit, Open › From this computer, Open › From Deluge, and
+entering Live Edit. With nothing unsaved it just goes: a fresh file over an
+unedited one loses nothing, and a question there would be noise.
+
+**A drop asks whenever a preset is loaded**, edited or not (`ab721d7`). A stray
+drag is easy to make, and unlike a menu command it was not chosen.
+
+The questions are the one confirm dialog (`state/confirm.svelte.ts`) and name
+what replaces what, with the unsaved count: "Open X? It replaces Y" for a
+file, as a drop says it; "Discard changes to Y? …" for a template or the
+Deluge's sound, as New says it. The card browser is the exception in form,
+not in rule. It is already a dialog, so its first click arms the file and the
+second loads it, as Save's Overwrite arms.
+
+Open › From this computer asks after the pick, not before the picker, so the
+question can name the file; cancelling the OS picker already costs nothing.
+Live Edit asks at its button, before connecting, so a Cancel asks nothing of
+the Deluge and leaves Follow Mode running if it was.
+
+A switch of instrument on the Deluge while Live Edit is on (`^inst`) re-opens
+without asking. The page is a view of the device's sound then, and the switch
+was made on the device.

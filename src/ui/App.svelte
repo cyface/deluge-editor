@@ -65,18 +65,26 @@
     }
     const f = e.dataTransfer.files?.[0]
     if (!f) return
-    const text = await f.text() // read now: the DataTransfer dies with the event
-    const run = () => editor.load(text, f.name)
-    if (editor.preset) {
-      confirm.ask({ question: `Open ${f.name}? It replaces ${loadedName()}${changesNote()}.`, verb: 'Open', run })
-      return
-    }
-    run()
+    openPreset(await f.text(), f.name, 'drop') // read now: the DataTransfer dies with the event
   }
   /** Open › From this computer, from the bar or the landing page (`start.ts`). */
   async function pick(e: Event) {
     const [f] = takeFiles(e)
-    if (f) editor.load(await f.text(), f.name)
+    if (f) openPreset(await f.text(), f.name, 'pick')
+  }
+  /**
+   * A preset file replaces what is loaded, and asks first when that could
+   * lose something. A drop asks whenever a preset is loaded, since a stray
+   * drag is easy to make; a pick is a command, and asks only when there are
+   * unsaved changes, as New does (issue #44).
+   */
+  function openPreset(text: string, name: string, how: 'drop' | 'pick'): void {
+    const run = () => editor.load(text, name)
+    if (editor.preset && (how === 'drop' || editor.changeCount > 0)) {
+      confirm.ask({ question: `Open ${name}? It replaces ${loadedName()}${changesNote()}.`, verb: 'Open', run })
+      return
+    }
+    run()
   }
   const kit = $derived(editor.preset?.tag === 'kit' ? editor.preset : undefined)
 

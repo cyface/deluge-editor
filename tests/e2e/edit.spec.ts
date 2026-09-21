@@ -137,6 +137,42 @@ test('New asks before discarding unsaved changes, in the same dialog a dropped p
   await expect(page.getByTestId('change-count')).toHaveText('0')
 })
 
+test('Open › From this computer asks before discarding unsaved changes, and only then (issue #44)', async ({ page }) => {
+  const RINGMOD = path.resolve('tests/fixtures/community-c1.3.0-beta-3f898e9/Ringmod.XML')
+  const input = page.getByTestId('file-input')
+  await page.goto('/')
+  await choose(page, 'new-synth')
+
+  // Clean: a pick is a command, so unlike a drop it just goes.
+  await input.setInputFiles(FIXTURE)
+  await expect(page.getByTestId('file-name')).toHaveText('Default Synth.XML')
+  await expect(page.getByTestId('confirm')).toHaveCount(0)
+
+  // Dirty: it asks in the drop's words, and Cancel and Escape keep the work.
+  const knob = page.locator('[data-param="lpfFrequency"]')
+  await knob.focus()
+  await page.keyboard.press('ArrowDown')
+  await expect(page.getByTestId('change-count')).toHaveText('1')
+  await input.setInputFiles(RINGMOD)
+  await expect(page.getByTestId('confirm')).toContainText('Open Ringmod.XML? It replaces Default Synth.XML — 1 unsaved change.')
+  await expect(page.getByTestId('confirm-go')).toHaveText('Open')
+  await page.getByTestId('confirm-cancel').click()
+  await expect(page.getByTestId('file-name')).toHaveText('Default Synth.XML')
+  await expect(page.getByTestId('change-count')).toHaveText('1')
+  await input.setInputFiles(RINGMOD)
+  await page.keyboard.press('Escape')
+  await expect(page.getByTestId('confirm')).toHaveCount(0)
+  await expect(page.getByTestId('change-count')).toHaveText('1')
+
+  // Open goes through, from the bar's item the same as from the input.
+  const chooser = page.waitForEvent('filechooser')
+  await choose(page, 'file-open-button')
+  await (await chooser).setFiles(RINGMOD)
+  await page.getByTestId('confirm-go').click()
+  await expect(page.getByTestId('file-name')).toHaveText('Ringmod.XML')
+  await expect(page.getByTestId('change-count')).toHaveText('0')
+})
+
 test('New Synth starts from the Deluge-authored init template (issue #25)', async ({ page }) => {
   await page.goto('/')
   await choose(page, 'new-synth')

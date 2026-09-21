@@ -1,8 +1,10 @@
 /**
  * One question at a time, held for the user's yes (`App.svelte` draws it as
  * a modal). Anything that would throw away a loaded preset asks here — a
- * preset dropped over one, samples dropped on a kit, New over unsaved work —
- * so the dialog is the same wherever the question came from.
+ * preset dropped over one, samples dropped on a kit, and New, Open › From
+ * this computer or entering Live Edit over unsaved work — so the dialog is
+ * the same wherever the question came from. The card browser's Open is the
+ * one exception: it is already a dialog, so it arms the file instead.
  */
 
 import { errorText } from '../errtext'

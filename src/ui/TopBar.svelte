@@ -1,6 +1,7 @@
 <script lang="ts">
   import { referencedSampleFiles } from '../core/preset'
   import { card } from './state/card.svelte'
+  import { changesNote, confirm, loadedName } from './state/confirm.svelte'
   import { editor } from './state/editor.svelte'
   import { follow } from './state/follow.svelte'
   import { kit } from './state/kit.svelte'
@@ -59,9 +60,21 @@
     if (!editor.preset) editor.newSynth()
     void follow.toggle()
   }
+  /*
+   * Entering Live Edit replaces the document with the Deluge's sound, so with
+   * unsaved changes it asks first, as New does (issue #44), and a Cancel
+   * leaves Follow Mode running too. Leaving never asks: the preset stays.
+   */
   function toggleLive(): void {
-    if (!live.on && follow.on) follow.stop()
-    void live.toggle()
+    const run = () => {
+      if (!live.on && follow.on) follow.stop()
+      void live.toggle()
+    }
+    if (!live.on && editor.preset && editor.changeCount > 0) {
+      confirm.ask({ question: `Discard changes to ${loadedName()}? Live Edit opens the Deluge’s sound in its place${changesNote()}.`, verb: 'Discard', run })
+      return
+    }
+    run()
   }
   const liveTitle = $derived(
     live.on ? UI_HELP['ui.live.leave'] : live.refused ? NO_LIVE_EDIT : midiTip(UI_HELP['ui.live.toggle'], card.supported),
