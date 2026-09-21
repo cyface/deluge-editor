@@ -332,6 +332,56 @@ describe('a new document', () => {
   })
 })
 
+describe('Open › From Deluge', () => {
+  // The card browser arms a row instead of asking (`card.loadFile`). These
+  // are its first click, which settles with the Deluge before any file is
+  // read (issue #47).
+  beforeEach(() => {
+    card.open = true
+    card.armedLoad = null
+  })
+  afterEach(() => {
+    card.open = false
+  })
+
+  it('sends what is on its way before arming, and arms as leaving: the Deluge keeps the work', async () => {
+    const { fake } = await enterSynth()
+    setAttr(editor.preset!, 'polyphonic', 'legato')
+    flushSync() // the push is waiting on its debounce
+    await card.loadFile('Ringmod.XML')
+    expect(requests(fake, 'load')).toHaveLength(1)
+    expect(flattenXML(fake.currentPreset()).get('sound@polyphonic')).toBe('legato')
+    expect(card.armedLoad).toEqual({ name: 'Ringmod.XML', risk: 'live' })
+    expect(live.on).toBe(true) // nothing is read until the second click
+    await live.stop()
+    expect(card.liveDeliver).toBeNull()
+  })
+
+  it('arms as discarding an edit the Deluge will not take, even with nothing unsaved against the card', async () => {
+    vi.useFakeTimers()
+    const { fake } = liveRig({ liveEdit: 'on', liveBusy: true })
+    fake.loadInstrument(SYNTH, 'Tim', 'SYNTHS') // never saved: no card copy to be unsaved against
+    await live.start()
+    setAttr(editor.preset!, 'polyphonic', 'mono')
+    flushSync()
+    expect(editor.changeCount).toBe(0)
+    await card.loadFile('Ringmod.XML')
+    expect(card.armedLoad).toEqual({ name: 'Ringmod.XML', risk: 'undelivered' })
+  })
+
+  it('arms as discarding the changes while the mode holds no preset: they are not known to be on the Deluge', async () => {
+    const { fake } = liveRig()
+    editor.load(SYNTH_ON_CARD, 'Mine.XML')
+    await live.start()
+    expect(live.status).toBe('waiting')
+    setAttr(editor.preset!, 'polyphonic', 'poly')
+    flushSync()
+    await card.loadFile('Ringmod.XML')
+    expect(card.armedLoad).toEqual({ name: 'Ringmod.XML', risk: 'changes' })
+    expect(requests(fake, 'load')).toEqual([])
+  })
+})
+
 describe('device → editor', () => {
   it('applies a device move to the tree and does not send it back', async () => {
     const { fake } = await enterSynth()

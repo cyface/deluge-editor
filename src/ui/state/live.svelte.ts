@@ -35,7 +35,9 @@
  * - **A new document** (New, an Open, a drop) is not an edit, and it leaves
  *   the mode. The store knows the tree it put in the editor; any other tree
  *   ends the view, the Deluge keeps its sound, and the new preset is an
- *   ordinary file (issue #46).
+ *   ordinary file (issue #46). What it has not taken yet goes first
+ *   (`deliver`), before the question about leaving, or before the card
+ *   browser arms its Open (`card.liveDeliver`).
  * - **The lease.** `sub` latches this cable for `LEASE_SECS`; the store
  *   renews every `RENEW_MS`, so an unplugged editor stops costing the device
  *   anything within seconds. A renewal that fails is reported and retried on
@@ -236,6 +238,7 @@ class Live extends Activity {
         await this.openNow(sub)
         this.renewTimer ??= setInterval(() => void this.renew(), RENEW_MS)
         card.liveSave = (path, overwrite) => this.save({ path, overwrite })
+        card.liveDeliver = async () => (this.active ? this.deliver() : null)
       }),
     )
     if (!ok) {
@@ -395,7 +398,8 @@ class Live extends Activity {
   /**
    * Send whatever the Deluge has not taken yet (a pending push, queued fast
    * writes) and say whether it now holds every edit made here. For a
-   * question about leaving the mode: what the Deluge holds, it keeps. A
+   * question about leaving the mode (`start.ts`) and the card browser's
+   * armed Open (`card.liveDeliver`): what the Deluge holds, it keeps. A
    * device that will not take the document is false, and the push goes back
    * to its usual handling, retried or reported (`pushNow`), in case the
    * question is cancelled.
@@ -819,6 +823,7 @@ class Live extends Activity {
     this.clearPushTimer()
     if (!this.injected && card.onPush !== null) card.onPush = null
     card.liveSave = null
+    card.liveDeliver = null
     this.client = null
     this.transfer = null
     this.identity = null

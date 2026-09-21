@@ -8,7 +8,7 @@
  * worded here.
  */
 
-import { changesNote, confirm, liveNote, loadedName } from './state/confirm.svelte'
+import { changesNote, confirm, keptNote, liveNote, loadedName } from './state/confirm.svelte'
 import { editor } from './state/editor.svelte'
 import { live } from './state/live.svelte'
 
@@ -28,6 +28,9 @@ export type Replacement = { kind: 'new'; what: 'synth' | 'kit' } | { kind: 'open
  * calling it discarded (issue #46). Only an edit the Deluge would not take
  * is really lost, and that is the one question that says Discard; it is
  * asked even with nothing unsaved against the card.
+ *
+ * Open › From Deluge follows the same rule in the browser's own form: it
+ * arms the row instead of asking (`card.loadFile`), and the row says it.
  */
 export async function replacePreset(r: Replacement, run: () => void): Promise<void> {
   if (!editor.preset) return run()
@@ -38,9 +41,9 @@ export async function replacePreset(r: Replacement, run: () => void): Promise<vo
       confirm.ask({ question: `Discard the edit the Deluge hasn’t taken? ${into} leaves Live Edit.`, verb: 'Discard', run })
       return
     }
-    const unsaved = editor.changeCount // read after: the Deluge's own moves may have landed meanwhile
-    if (!always && unsaved === 0) return run()
-    const kept = `The Deluge keeps ${live.inst?.name ?? loadedName()}${unsaved > 0 ? ` and its ${unsaved} unsaved change${unsaved === 1 ? '' : 's'}` : ''}.`
+    // Read after: the Deluge's own moves may have landed meanwhile.
+    if (!always && editor.changeCount === 0) return run()
+    const kept = `${keptNote()}.`
     confirm.ask(
       r.kind === 'new'
         ? { question: `Leave Live Edit for a new ${r.what}? ${kept}`, verb: `New ${r.what}`, run }

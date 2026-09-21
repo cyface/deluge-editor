@@ -256,3 +256,7 @@ unsaved changes: "Leave Live Edit for a new kit? The Deluge keeps Tim and
 its 1 unsaved change." Only an edit the Deluge has refused is asked about
 as discarded. `start.ts` (`replacePreset`) words every one of these
 questions, for New, Open › From this computer and a dropped file alike.
+The card browser's armed row says the same, shortened to fit a row:
+"leaves Live Edit? The Deluge keeps Tim and its 1 unsaved change" in place
+of "discards your changes?" (issue #47). Those labels are long, so the
+row's label wraps under a cap instead of squeezing out the file name.

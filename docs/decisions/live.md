@@ -279,9 +279,19 @@ asks even when nothing is unsaved against the card. A Cancel hands the push
 back to its usual retry or report. In the other states the editor's changes
 are not known to be on the Deluge (the mode waiting for a synth or kit, or
 its link down), so the ordinary question stands with "and leaves Live Edit"
-added. The paths that do not ask through `start.ts`, such as the card
-browser's armed Open, leave through `live.replaced` without delivering;
-what they can drop is at most an edit less than 150 ms old.
+added.
+
+Open › From Deluge keeps the rule in the card browser's own form, arming
+the row instead of asking (issue #47). Its first click sends what is
+pending through `card.liveDeliver`, a hook the live store sets while on, as
+it sets `card.liveSave`: the card store cannot import the live store, which
+imports it. The row then says what the second click costs: "leaves Live
+Edit? The Deluge keeps Tim and its 1 unsaved change", or "discards the edit
+the Deluge hasn't taken and leaves Live Edit?", even with nothing unsaved.
+The send is not a card `run`: a run disables the rows, so the clicked row
+lost focus and the dialog its Escape while the arm was still to come.
+Every way to open a file now sends first. `live.replaced` still ends the
+mode for any other new tree, but it sends nothing itself.
 
 Two other shapes were turned down. Refusing to open while live ("leave Live
 Edit first") is an extra step that buys no safety this doesn't. Sending a

@@ -56,3 +56,13 @@ export const changesNote = (): string =>
   editor.changeCount > 0 ? ` — ${editor.changeCount} unsaved change${editor.changeCount === 1 ? '' : 's'}` : ''
 /** A new preset ends Live Edit (`live.replaced`), so a question about one says that too. */
 export const liveNote = (): string => (live.endsOnNewDocument ? ' and leaves Live Edit' : '')
+/**
+ * While Live Edit holds the Deluge's sound, the unsaved changes are the
+ * Deluge's, and it keeps them when a new preset ends the mode. The sound is
+ * named as the Live header names it, since the file on the card is
+ * untouched either way.
+ */
+export const keptNote = (): string => {
+  const n = editor.changeCount
+  return `The Deluge keeps ${live.inst?.name ?? loadedName()}${n > 0 ? ` and its ${n} unsaved change${n === 1 ? '' : 's'}` : ''}`
+}

@@ -48,6 +48,14 @@ const sysexDebugWanted = (): boolean => {
 /** A path as the protocol wants it: one leading slash, no trailing one (`CardFS` contract, `fs.ts`). */
 const clean = (path: string): string => path.replace(/\/+$/, '') || '/'
 
+/**
+ * What an Open's second click would cost, so the armed row can say it
+ * (`CardPanel.svelte`): unsaved changes it discards; Live Edit it leaves,
+ * the Deluge keeping the work; or an edit the Deluge would not take, which
+ * is lost with the mode.
+ */
+export type LoadRisk = 'changes' | 'live' | 'undelivered'
+
 class Card extends Activity {
   open = $state(false)
   status = $state<'idle' | 'connecting' | 'connected' | 'error'>('idle')
@@ -119,6 +127,14 @@ class Card extends Activity {
    * of the file read back disagree with the document. A plain field.
    */
   liveSave: ((path: string, overwrite: boolean) => Promise<LiveSaveResult>) | null = null
+  /**
+   * An Open while Live Edit holds the Deluge's sound ends the mode, and the
+   * Deluge keeps what it has taken, so what is still on its way goes first
+   * (`live.deliver`). The live store sets this on entry and clears it on
+   * leaving. It answers whether the Deluge now holds every edit, or null
+   * when the mode holds no preset and there is nothing to send. A plain field.
+   */
+  liveDeliver: (() => Promise<boolean | null>) | null = null
 
   private client: SmsClient | null = null
   /** The in-flight `ensureConnected` attempt, so simultaneous askers share it. */
@@ -151,8 +167,8 @@ class Card extends Activity {
    * overwrite armed) — the two gestures a mixed-mode panel confused.
    */
   mode = $state<'open' | 'save'>('open')
-  /** Open-mode discard guard: the file whose first click is awaiting a confirming second. */
-  armedLoad = $state<string | null>(null)
+  /** Open-mode guard: the file whose first click is awaiting a confirming second, and what that second would cost. */
+  armedLoad = $state.raw<{ name: string; risk: LoadRisk } | null>(null)
 
   /**
    * Open the browser in one intent or the other. The button that opened it
@@ -322,11 +338,16 @@ class Card extends Activity {
   }
 
   async loadFile(name: string): Promise<void> {
-    // A click must not silently discard unsaved edits: the first click arms
-    // the row, the second loads — the same idiom as Save's Overwrite?.
-    if (editor.preset && editor.changeCount > 0 && this.armedLoad !== name) {
-      this.armedLoad = name
-      return
+    // A click must not silently lose work: the first click arms the row, the
+    // second loads — the same idiom as Save's Overwrite?.
+    if (this.armedLoad?.name !== name) {
+      const path = this.path
+      const risk = await this.loadRisk()
+      if (!this.open || this.path !== path) return // closed or browsed away meanwhile
+      if (risk) {
+        this.armedLoad = { name, risk }
+        return
+      }
     }
     this.armedLoad = null
     await this.run(`Reading ${name}`, async () => {
@@ -339,6 +360,27 @@ class Card extends Activity {
         this.open = false
       }
     })
+  }
+
+  /**
+   * What a load over the preset would cost, or null for nothing: the rule
+   * `start.ts`'s `replacePreset` asks by, in the browser's armed form
+   * (issues #44, #46). Unsaved changes arm the row. While Live Edit holds the
+   * Deluge's sound, the load ends the mode and the Deluge keeps what it has
+   * taken, so the pending edits go first; one the Deluge will not take is
+   * the one thing lost, and arms the row even with nothing unsaved.
+   *
+   * Not a `run`: that disables the rows, so the clicked row would lose
+   * focus and the dialog its Escape, though the dialog stays open to show
+   * the arm. The send is nearly always instant, and a second click while it
+   * runs only arms the row again.
+   */
+  private async loadRisk(): Promise<LoadRisk | null> {
+    if (!editor.preset) return null
+    const delivered = (await this.liveDeliver?.()) ?? null
+    if (delivered === false) return 'undelivered'
+    if (editor.changeCount === 0) return null // read after: the Deluge's own moves may have landed meanwhile
+    return delivered ? 'live' : 'changes'
   }
 
   /** Save mode's file click: this row is the target — name filled, overwrite armed. */

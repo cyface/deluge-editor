@@ -15,13 +15,25 @@
   import { OTHER_EDITOR_WARNING } from './copy'
   import { formatBytes } from './format'
   import { UI_HELP } from './help'
-  import { card } from './state/card.svelte'
+  import { card, type LoadRisk } from './state/card.svelte'
+  import { keptNote, liveNote } from './state/confirm.svelte'
   import { editor } from './state/editor.svelte'
 
   const title = $derived(card.mode === 'open' ? 'Open from Deluge' : 'Save to Deluge')
   const entries = $derived<BrowserEntry[]>(card.entries.map((e) => ({ name: e.name, dir: e.dir, size: e.size })))
   /** In save mode the armed target reads as the selected entry. */
   const selected = $derived(card.mode === 'save' && card.armed ? card.saveName : null)
+
+  /**
+   * What an armed Open's second click would cost, in the words the confirm
+   * questions use (`start.ts`). While Live Edit holds the Deluge's sound the
+   * changes are not discarded: the mode ends and the Deluge keeps them.
+   */
+  function armedText(risk: LoadRisk): string {
+    if (risk === 'live') return `leaves Live Edit? ${keptNote()}`
+    if (risk === 'undelivered') return 'discards the edit the Deluge hasn’t taken and leaves Live Edit?'
+    return `discards your changes${liveNote()}?`
+  }
 </script>
 
 {#if card.open}
@@ -86,7 +98,7 @@
           </button>
         {/snippet}
         {#snippet trailing(e)}
-          {#if card.armedLoad === e.name}<span class="warn">discards your changes?</span>
+          {#if card.armedLoad?.name === e.name}<span class="warn" data-testid="card-armed">{armedText(card.armedLoad.risk)}</span>
           {:else if !e.dir}<span class="s">{formatBytes(e.size ?? 0)}</span>{/if}
         {/snippet}
       </CardBrowser>
@@ -119,7 +131,8 @@
 <style>
   .refresh { display: inline-flex; align-items: center; justify-content: center; padding: 0 6px; }
   .refresh svg { display: block; }
-  .warn { margin-left: auto; font-family: var(--cond); font-size: var(--lbl-s); letter-spacing: .08em; text-transform: uppercase; color: var(--warn-text); white-space: nowrap; }
+  /* The Live Edit labels run long: they wrap under a cap rather than squeeze the file name out. */
+  .warn { margin-left: auto; max-width: 60%; font-family: var(--cond); font-size: var(--lbl-s); letter-spacing: .08em; text-transform: uppercase; color: var(--warn-text); text-align: right; }
   .s { color: var(--faint); font-size: 10px; }
   .hint { margin: 0 0 8px; font-family: var(--cond); font-size: 11px; color: var(--faint); }
   p { margin: 6px 0 0; }

@@ -442,7 +442,9 @@ request here is small, and preset bytes travel through the existing
   value) for one second, every recent value per path; a value that arrived
   from the device is written into the baseline and not re-sent. A new
   document in the editor (New, an Open, a drop) is not pushed: it ends the
-  mode, and the Deluge keeps its sound (issue #46). The lease is 10 s,
+  mode, and the Deluge keeps its sound (issue #46). What it has not taken
+  goes first, before the question or the card browser's arm (issue #47).
+  The lease is 10 s,
   renewed every 4 s, released on leaving. `docs/decisions/live.md` has the
   reasons.
 - ~~Incoming `^chg`~~ writes through the ordered accessors (`applyChange`).

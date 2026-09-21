@@ -5,6 +5,8 @@ import path from 'node:path'
 
 const FIXTURE = path.resolve('tests/fixtures/community-c1.3.0-beta-3f898e9/Default Synth.XML')
 const fixtureText = fs.readFileSync(FIXTURE, 'utf8')
+const RINGMOD = path.resolve('tests/fixtures/community-c1.3.0-beta-3f898e9/Ringmod.XML')
+const ringmodText = fs.readFileSync(RINGMOD, 'utf8')
 
 /** The fake Deluge the init script left on the page (`fake-deluge.entry.ts`). */
 interface FakeCardWindow {
@@ -140,7 +142,6 @@ test('entering Live Edit over unsaved changes asks first, and Cancel connects no
 })
 
 test('another preset, or a new one, leaves Live Edit and the Deluge keeps its sound (issue #46)', async ({ page }) => {
-  const RINGMOD = path.resolve('tests/fixtures/community-c1.3.0-beta-3f898e9/Ringmod.XML')
   await page.addInitScript((seed) => {
     ;(globalThis as unknown as { __cardSeed: unknown }).__cardSeed = seed
   }, { '/SYNTHS/Tim.XML': fixtureText })
@@ -202,7 +203,7 @@ test('an edit the Deluge has not taken is the one thing leaving Live Edit discar
     const w = globalThis as unknown as { __cardSeed: unknown; __fakeOpts: unknown }
     w.__cardSeed = seed
     w.__fakeOpts = { liveBusy: true }
-  }, { '/SYNTHS/Tim.XML': fixtureText })
+  }, { '/SYNTHS/Tim.XML': fixtureText, '/SYNTHS/Ringmod.XML': ringmodText })
   await page.addInitScript({ path: path.resolve('tests/e2e/fake-deluge.js') })
   await page.goto('/')
   await page.evaluate((xml) => (globalThis as unknown as FakeCardWindow).__fakeCard.deluge.loadInstrument(xml, 'Tim', 'SYNTHS'), fixtureText)
@@ -222,6 +223,13 @@ test('an edit the Deluge has not taken is the one thing leaving Live Edit discar
   await expect(page.getByTestId('live-status')).toContainText('Live')
   await expect(page.locator('[data-attr="polyphonic"]')).toHaveValue('mono')
 
+  // Open › From Deluge arms its row with the same words (issue #47).
+  await choose(page, 'card-open-button')
+  await page.locator('[data-entry="Ringmod.XML"]').click()
+  await expect(page.getByTestId('card-armed')).toHaveText('discards the edit the Deluge hasn’t taken and leaves Live Edit?')
+  await page.keyboard.press('Escape')
+  await expect(page.getByTestId('live-status')).toContainText('Live')
+
   await choose(page, 'new-kit')
   await page.getByTestId('confirm-go').click()
   await expect(page.getByTestId('live-header')).toHaveCount(0)
@@ -230,4 +238,38 @@ test('an edit the Deluge has not taken is the one thing leaving Live Edit discar
     return /polyphonic="(\w+)"/.exec(d.currentPreset())?.[1]
   })
   expect(polyphony).toBe('poly')
+})
+
+test('Open › From Deluge arms with Live Edit’s words, and the Deluge keeps the edit (issue #47)', async ({ page }) => {
+  await page.addInitScript((seed) => {
+    ;(globalThis as unknown as { __cardSeed: unknown }).__cardSeed = seed
+  }, { '/SYNTHS/Tim.XML': fixtureText, '/SYNTHS/Ringmod.XML': ringmodText })
+  await page.addInitScript({ path: path.resolve('tests/e2e/fake-deluge.js') })
+  await page.goto('/')
+  await page.evaluate((xml) => (globalThis as unknown as FakeCardWindow).__fakeCard.deluge.loadInstrument(xml, 'Tim', 'SYNTHS'), fixtureText)
+  await page.getByTestId('live-button').click()
+  await expect(page.getByTestId('live-status')).toContainText('Live')
+  const knob = page.locator('[data-param="lpfFrequency"]')
+  await knob.focus()
+  await page.keyboard.press('ArrowDown')
+  await expect(page.getByTestId('change-count')).toHaveText('1')
+
+  // The browser arms rather than asks, as it does outside the mode, but the
+  // row does not call the edit discarded: the Deluge keeps it.
+  await choose(page, 'card-open-button')
+  await page.locator('[data-entry="Ringmod.XML"]').click()
+  await expect(page.getByTestId('card-armed')).toHaveText('leaves Live Edit? The Deluge keeps Tim and its 1 unsaved change')
+  await expect(page.getByTestId('file-name')).toHaveText('Tim.XML') // not loaded yet
+  await expect(page.getByTestId('live-status')).toContainText('Live')
+
+  // The second click opens the card's file as an ordinary one, and the mode
+  // ends with the Deluge still holding Tim, edit and all. Nothing was pushed.
+  await page.locator('[data-entry="Ringmod.XML"]').click()
+  await expect(page.getByTestId('file-name')).toHaveText('Ringmod.XML')
+  await expect(page.getByTestId('live-header')).toHaveCount(0)
+  const device = await page.evaluate(() => {
+    const d = (globalThis as unknown as FakeCardWindow).__fakeCard.deluge
+    return { ...d.live, loads: d.requests.filter((r) => 'load' in r).length, params: d.requests.filter((r) => 'param' in r).length }
+  })
+  expect(device).toMatchObject({ type: 'synth', name: 'Tim', dir: 'SYNTHS', edited: true, loads: 0, params: 1 })
 })
