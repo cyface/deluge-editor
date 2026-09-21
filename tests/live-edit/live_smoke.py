@@ -31,7 +31,9 @@ APP = "/Applications/DelugEmu.app/Contents/MacOS/DelugEmu"
 LOG = os.path.expanduser("~/Library/Application Support/DelugEmu/delugemu.log")
 DEFAULT_FW = os.path.expanduser("~/WebstormProjects/DelugeFirmwareTW/build/Release/deluge.bin")
 SYNTH_FIXTURE = os.path.join(REPO, "tests/fixtures/community-c1.3.0/Sine AnalogSaw Patch Cables.XML")
-KIT_FIXTURE = os.path.join(REPO, "tests/fixtures/fork-c1.3.0-local-fixes-fbba6b4f/Kit Velocity Layers.XML")
+# A stock kit: the fork's velocity-layer kit does not load on stock firmware, which left every kit
+# check running against the synth.
+KIT_FIXTURE = os.path.join(REPO, "tests/fixtures/community-c1.3.0-beta-3f898e9/Kit Sample Rows.XML")
 QMP = "/tmp/dz_lv_qmp.sock"
 DIN = "/tmp/dz_lv_din.sock"
 USB = "/tmp/dz_lv_usb.sock"
@@ -86,7 +88,7 @@ def build_sd():
                 '\t<setting name="sysexLiveEdit" value="1"></setting>\n</runtimeFeatureSettings>\n')
     # The boot song loads the first synth in SYNTHS/; give it the name the tests expect.
     shutil.copy2(SYNTH_FIXTURE, os.path.join(SD, "SYNTHS", "Tim.XML"))
-    shutil.copy2(KIT_FIXTURE, os.path.join(SD, "KITS", "VelKit.XML"))
+    shutil.copy2(KIT_FIXTURE, os.path.join(SD, "KITS", "SampleKit.XML"))
     wav = tiny_wav()
     for rel in sample_paths(KIT_FIXTURE):
         dst = os.path.join(SD, rel.replace("/", os.sep))
@@ -135,6 +137,13 @@ class Qmp:
         # Skin is 2256x1584; abs axes are 0..32767.
         self.events([{"type": "abs", "data": {"axis": "x", "value": int(x * 32767 / 2255)}},
                      {"type": "abs", "data": {"axis": "y", "value": int(y * 32767 / 1583)}}])
+
+    def click(self, x, y, hold=0.08):
+        # Inside an encoder's circle but off its two triangles, a click pushes the encoder.
+        self.move(x, y)
+        self.events([{"type": "btn", "data": {"down": True, "button": "left"}}])
+        time.sleep(hold)
+        self.events([{"type": "btn", "data": {"down": False, "button": "left"}}])
 
     def wheel(self, up=True):
         b = "wheel-up" if up else "wheel-down"
@@ -381,15 +390,6 @@ class Sms:
 
 
 # ---------------------------------------------------------------- helpers
-
-def _oled_changed(png_a, png_b):
-    try:
-        a = open(png_a[:-4] + "-oled.png", "rb").read()
-        b = open(png_b[:-4] + "-oled.png", "rb").read()
-        return a != b
-    except OSError:
-        return False
-
 
 def wait_for(pred, timeout, what):
     t0 = time.time()
@@ -686,12 +686,14 @@ def run_tests(qmp, din, usb):
     for _ in range(4):
         qmp.wheel(up=True)
         time.sleep(0.05)
-    time.sleep(0.6)
+    time.sleep(1.0)
     qmp.shot("05-after-knob")
     p = c.take_pushes()
     chg = [x for x in p if "^chg" in x[1]]
     record("gold knob turn -> ^chg push", len(chg) >= 1,
            f"{len(p)} pushes: {[json.dumps(x[1]) for x in p][:4]}")
+    record("gold knob turn -> no ^dirty", not any("^dirty" in x[1] for x in p),
+           f"{[json.dumps(x[1]) for x in p if '^dirty' in x[1]]}")
     if chg:
         entries = [e for x in chg for e in x[1]["^chg"].get("p", [])]
         names = sorted({e.get("n") for e in entries})
@@ -702,26 +704,36 @@ def run_tests(qmp, din, usb):
             last = [e for e in entries if e.get("n") == names[0]][-1]
             record("param get agrees with last ^chg value", r.get("value") == last.get("v"),
                    f"get={r.get('value')} chg={last.get('v')}")
-    # a menu edit on the device -> ^dirty (open sound menu, enter, turn select, back out)
+        # Set to its top (knob position 64), the same knob turned further up changes nothing, so it brings
+        # neither a ^chg nor a ^dirty.
+        if len(names) == 1:
+            c.op({"param": {"name": names[0], "value": 0x7FFFFFFF}})
+            time.sleep(0.6)
+            c.take_pushes()
+            for _ in range(3):
+                qmp.wheel(up=True)
+                time.sleep(0.05)
+            time.sleep(1.0)
+            p = c.take_pushes()
+            record("knob at its end stop -> no ^chg", not any("^chg" in x[1] for x in p),
+                   f"{names[0]}: {[json.dumps(x[1]) for x in p][:4]}")
+            record("knob turned against its end stop -> no ^dirty", not any("^dirty" in x[1] for x in p),
+                   f"{[json.dumps(x[1]) for x in p if '^dirty' in x[1]]}")
+    # opening the sound menu, turning SELECT and backing out edits nothing, so nothing is pushed. (This
+    # used to hope for a ^dirty from a menu edit, but scrolling the top-level menu is not one, and the
+    # wheel seldom moves the emulated menu anyway; the kit tests push a gold knob for a real ^dirty.)
     c.take_pushes()
     qmp.press("ret")
     time.sleep(0.5)
-    before = qmp.shot("06-menu")
+    qmp.shot("06-menu")
     qmp.move(1067, 331)  # SELECT_ENC
     qmp.wheel(up=True)
     time.sleep(0.3)
-    after = qmp.shot("07-menu-turned")
-    changed = _oled_changed(before, after)
+    qmp.shot("07-menu-turned")
     qmp.press("backspace")
     time.sleep(1.0)
     p = c.take_pushes()
-    if changed:
-        record("menu selection change on device -> a push", len(p) >= 1, f"{[json.dumps(x[1]) for x in p][:6]}")
-    else:
-        # The emulated menu did not move under the wheel (a known DelugEmu input quirk), so there was
-        # nothing to report. ^dirty is exercised for real in the kit-knob test below.
-        record("menu selection change on device -> a push", True,
-               "skipped: the emulated menu did not respond to the encoder wheel (no edit to report)", info=True)
+    record("menu navigation on device -> no push", len(p) == 0, f"{[json.dumps(x[1]) for x in p][:6]}")
 
     # ---- kit: KIT button loads the first kit
     c.take_pushes()
@@ -733,7 +745,7 @@ def run_tests(qmp, din, usb):
     record("KIT button -> ^inst push with type kit", any(x[1]["^inst"].get("type") == "kit" for x in inst_p),
            f"{[json.dumps(x[1]) for x in p][:4]}")
     r, _, _, _ = c.op({"inst": {}})
-    record("inst on kit", r.get("type") == "kit" and r.get("name") == "VelKit" and "drum" in r and "entire" in r,
+    record("inst on kit", r.get("type") == "kit" and r.get("name") == "SampleKit" and "drum" in r and "entire" in r,
            json.dumps(r))
     r, _, _, _ = c.op({"select": {"drum": 1}})
     record("select drum 1", r.get("err") == 0 and r.get("drum") == 1 and r.get("drumKind") == "sound", json.dumps(r))
@@ -784,24 +796,34 @@ def run_tests(qmp, din, usb):
         record("kit pull shows kit bus volume", b'volume="0x22222222"' in kit_xml, f"{len(kit_xml)} B")
         record("kit pull shows by-index drum 0 volume", b'volume="0x11111111"' in kit_xml, f"{len(kit_xml)} B")
     # kit whole-document push: load the pulled kit back as itself
-    r, _, n, dt = c.op({"load": {"path": "/TEMP/KIT.XML", "name": "VelKit", "dir": "KITS"}}, timeout=20)
-    record("load kit from TEMP as KITS/VelKit", r.get("err") == 0 and r.get("type") == "kit" and r.get("edited") == 1,
+    r, _, n, dt = c.op({"load": {"path": "/TEMP/KIT.XML", "name": "SampleKit", "dir": "KITS"}}, timeout=20)
+    record("load kit from TEMP as KITS/SampleKit", r.get("err") == 0 and r.get("type") == "kit" and r.get("edited") == 1,
            f"{json.dumps(r)} ({dt*1000:.0f} ms)")
     r, _, _, _ = c.op({"param": {"name": "volumePostFX", "drum": 0}})
     record("drum 0 volumePostFX after kit reload", r.get("value") == 0x11111111, json.dumps(r))
     qmp.shot("10-kit-after-load")
-    # gold knob on a kit row
+    # gold knob on a kit row. ^dirty follows 300 ms after the last edit, so a second is long enough to
+    # know none is coming: the turn changes only a value, which the ^chg already carries.
     c.take_pushes()
     qmp.move(549, 469)
     qmp.wheel(up=True)
     qmp.wheel(up=True)
-    time.sleep(0.6)
+    time.sleep(1.0)
     p = c.take_pushes()
     chg = [e for x in p if "^chg" in x[1] for e in x[1]["^chg"].get("p", [])]
     record("kit knob turn -> ^chg with d or b", len(chg) >= 1 and all(("d" in e) or ("b" in e) for e in chg),
            f"{[json.dumps(x[1]) for x in p][:4]}")
-    record("a device edit also produces ^dirty", any("^dirty" in x[1] for x in p),
+    record("kit knob turn -> no ^dirty", not any("^dirty" in x[1] for x in p),
            f"{[json.dumps(x[1]) for x in p if '^dirty' in x[1]]}")
+    # pushing the same knob in its default mode (filter) steps the LPF mode, which no ^chg names
+    qmp.click(549, 469)
+    time.sleep(1.0)
+    qmp.shot("10b-kit-knob-push")
+    p = c.take_pushes()
+    record("gold knob push (LPF mode) -> ^dirty", any("^dirty" in x[1] for x in p),
+           f"{[json.dumps(x[1]) for x in p][:4]}")
+    record("gold knob push -> no ^chg", not any("^chg" in x[1] for x in p),
+           f"{[json.dumps(x[1]) for x in p if '^chg' in x[1]]}")
 
     # ---- unsubscribe
     r, _, _, _ = c.op({"sub": {"secs": 0}})

@@ -285,6 +285,16 @@ the device sends (sequence 0, command `Json`):
   per second. The editor answers a `^dirty` by pulling the preset and
   diffing it against its tree (`diffFlat`, `src/core/xml/flatten.ts`), so
   a pull that only confirms what `^chg` already delivered changes nothing.
+  An edit that only changes values is not a `^dirty`: a gold-knob turn
+  (`View::modEncoderAction`) and an automation-editor node edit
+  (`automation/editor_layout/mod_controllable.cpp`) run inside a
+  `smSysex::live::ParamEdit` scope, and `noteEdited` marks nothing for one
+  unless it changed a value `^chg` cannot name (a cable on a cable, no file
+  name). A knob turned against its end stop changes no value and sends
+  nothing at all. `beenEdited` still runs, so the instrument turns edited and
+  `^inst` reports it. A queue overflow still sends `^dirty`. Pushing a gold
+  knob (LPF mode, delay ping-pong, and so on) changes a setting that is not a
+  parameter value, so it runs outside a scope and sends `^dirty`.
 - **`^inst`** is not hooked at all. The drain task keeps a snapshot of what
   `^inst` reports (the output, the selected drum, AFFECT ENTIRE, the edited
   flag) and pushes when it differs. That covers a preset load from the
@@ -364,9 +374,26 @@ named for a Deluge (#41).
 the row path; (3) ~~re-run `tests/live-edit/live_smoke.py` to a clean
 pass~~ done, 74 passed on 2026-09-05; (4) ~~verify on hardware~~ done over
 USB, 39/39, with the fixes committed (`4a244f66`) and pushed to the fork's
-`local-fixes`; DIN open (#41); (5) stop the `^dirty` every gold-knob turn
-sends ~300 ms after it stops, which costs the editor a pull that finds
-nothing new (#42); (6) propose the protocol upstream (#43).
+`local-fixes`; DIN unverified (#41, closed: no 5-pin rig to test it on);
+(5) ~~stop the `^dirty` every gold-knob turn sent ~300 ms after it stopped,
+which cost the editor a pull that found nothing new~~ done (#42, fork
+`542d7eab`, merged into `local-fixes`), a turn now sends only `^chg`;
+(6) propose the protocol upstream (#43), later, as part of a broader
+realtime feature. Assessed 2026-09-21: the base is `upstream/main` (the
+default branch; `community` has not moved since January). The branch was
+cut from it and rebases with 8 conflicts, every one upstream's Shortcut
+Overlay toggle in the same list slots. The rebase builds. A PR has to carry
+the fork's two hot-reload commits, since `load` reuses that code, plus both
+toggles in `community_features.mdx` and the ops in `SysExProtocolNotes.md`.
+
+The 2026-09-05 clean pass ran against a `local-fixes` build: the harness's
+kit was the fork's velocity-layer kit, which stock firmware does not load,
+so on `feature/live-edit-sysex` every kit check ran against the synth and
+failed. The harness now loads a stock kit (`Kit Sample Rows.XML`) and passes
+on the branch itself: 80 passed, 0 failed, 3 informational on 2026-09-21
+with #42, where the unfixed branch fails only the three "knob turn -> no
+`^dirty`" checks (synth, kit row, and against the end stop). The real `^dirty` now comes from pushing the lower gold
+knob, which steps the LPF mode.
 
 - `src/deluge/storage/smsysex_live.{h,cpp}`: every op above (`inst`,
   `save`, `load`, `select`, `param`, `sub`), the shared
@@ -378,6 +405,9 @@ nothing new (#42); (6) propose the protocol upstream (#43).
 - Hooks: one line in `ParamManager::notifyParamModifiedInSomeWay`
   (`param_manager.cpp`) and one in `Instrument::beenEdited`
   (`instrument.cpp`). Both return at once unless a subscriber is live.
+- `ParamEdit` scopes around the value-only edits: the existent-param branch
+  of `View::modEncoderAction` (`view.cpp`) and the three node edits in
+  `automation/editor_layout/mod_controllable.cpp` (#42).
 - Community feature toggle **Sysex Live Edit** (`SysexLiveEdit`,
   `sysexLiveEdit` in `CommunityFeatures.XML`, 7-seg `SXLE`), default off,
   registered next to the fork's `sysexPresetReload`.

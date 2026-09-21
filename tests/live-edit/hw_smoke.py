@@ -215,7 +215,8 @@ def part2(c):
         entries=[e for x in chg for e in x[1]["^chg"].get("p",[])]; names=sorted({e.get("n") for e in entries})
         record("^chg entries carry n/v", all("n" in e and "v" in e for e in entries), f"names={names}")
         record("^chg frames under 740 B", all(x[2]<=740 for x in chg), f"sizes={[x[2] for x in chg]}")
-        time.sleep(1.0); c.take_pushes()
+        time.sleep(1.0); later=c.take_pushes()
+        record("gold knob turn -> no ^dirty", not [x for x in later if "^dirty" in x[1]], f"{[json.dumps(x[1]) for x in later][:3]}")
         r,_,_,_=c.op({"param":{"name":names[0]}}); last=[e for e in entries if e.get("n")==names[0]][-1]
         record("param get agrees with ^chg (or moved on since)", r.get("err")==0, f"get={r.get('value')} chg={last.get('v')}")
     c.op({"sub":{"secs":60}}); c.take_pushes()

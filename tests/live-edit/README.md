@@ -58,9 +58,10 @@ on exit and a second instance would clobber it.
 
 - **Self-contained card.** It copies two Deluge-authored fixtures from
   `tests/fixtures/` — a synth (`Sine AnalogSaw Patch Cables.XML`, saved as
-  `SYNTHS/Tim.XML` so the boot song loads it) and a kit
-  (`Kit Velocity Layers.XML`) — and writes a stand-in 8-frame WAV for every
-  sample the kit names. Nothing depends on a real Deluge card.
+  `SYNTHS/Tim.XML` so the boot song loads it) and a stock kit
+  (`Kit Sample Rows.XML`, as `KITS/SampleKit.XML`) — and writes a stand-in
+  8-frame WAV for every sample the kit names. Nothing depends on a real
+  Deluge card.
 - **Raw smSysex in Python.** `Sms` speaks the frame format from
   `src/core/sysex/frame.ts` and the 7-bit packing from
   `src/core/sysex/pack.ts`: a session handshake, msgId-matched requests, the
@@ -68,9 +69,10 @@ on exit and a second instance would clobber it.
   ops. Sequence-0 frames are collected as device pushes (`^inst`, `^chg`,
   `^dirty`).
 - **QMP for the device side.** `Qmp` sends key and pointer events over QEMU's
-  monitor socket to turn a gold knob, pick a kit row on the pads, open a
-  browser, and screendump the OLED — so device→editor pushes can be
-  provoked and checked.
+  monitor socket to turn and push a gold knob, open a menu and a browser,
+  and screendump the OLED — so device→editor pushes can be provoked and
+  checked. A wheel over an encoder turns it; a click inside its circle but
+  off its two triangles pushes it.
 
 ### The USB nudge
 
@@ -86,9 +88,8 @@ ignored. This is an **emulator** workaround, not a protocol requirement.
 
 `RESULTS.md` (and stdout) tag each check **PASS**, **FAIL**, or **INFO**.
 INFO rows are observations that are not pass/fail — a firmware `Error` number
-to reconcile with the doc, a check skipped because the emulated menu did not
-move, DIN behaviour that only hardware can confirm. The process exits non-zero
-only if a non-INFO check fails.
+to reconcile with the doc, DIN behaviour that only hardware can confirm. The
+process exits non-zero only if a non-INFO check fails.
 
 ## Known findings (2026-09-05, firmware `feature/live-edit-sysex`)
 
@@ -121,3 +122,24 @@ only if a non-INFO check fails.
   sysex-in over the `--midi` serial chardev the way it does USB, so no
   session grant arrives on DIN. The editor uses USB (Web MIDI); DIN needs a
   hardware check.
+
+## Known findings (2026-09-21, #42)
+
+- **A gold-knob turn no longer sends `^dirty`.** It used to follow every
+  turn ~300 ms after the knob stopped, and cost the editor a pull that found
+  nothing `^chg` had not carried. The harness now checks that a turn, on
+  the synth and on a kit row, brings `^chg` and no `^dirty`, and that a
+  turn against the knob's end stop, which changes nothing, brings neither.
+- **The real `^dirty` comes from pushing the lower gold knob.** In the
+  default filter mode that steps the LPF mode, which is not a parameter
+  value, so it must bring `^dirty` and no `^chg`. The old menu check never
+  produced a `^dirty`: scrolling the top-level sound menu is not an edit,
+  and the emulated menu seldom moved under the wheel. It now checks that
+  opening, scrolling and leaving the menu pushes nothing.
+- **The 2026-09-05 clean pass needed a `local-fixes` build.** The kit
+  fixture was the fork's velocity-layer kit, which stock firmware does not
+  load, so the KIT button left the synth in place and every kit check
+  failed on `feature/live-edit-sysex`. The harness now uses the stock
+  `Kit Sample Rows.XML`: 80 passed, 0 failed, 3 informational on the
+  branch with #42, in two runs; the unfixed branch fails only the three
+  "no `^dirty`" knob checks.
