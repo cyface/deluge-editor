@@ -81,148 +81,197 @@
   )
 </script>
 
+<!--
+  One row where it fits with room for the name; below that, two (issue #45):
+  the preset on top, what you do underneath. The rows are `.id` and `.acts`
+  at every width, so the narrow layout moves no element between them.
+-->
 <div class="bar">
-  <div class="logo"><Mark size={34} /><b>Deluge <span>{kind}</span></b></div>
-  <div class="namewrap">
-    {#if editor.preset}
-      <span class="name" data-testid="file-name">{editor.fileName || '(unnamed)'}</span>
-      {#if editor.preset.attrs.firmwareVersion}<span class="path">saved by firmware {editor.preset.attrs.firmwareVersion}</span>{/if}
-    {:else}
-      <span class="path">no preset loaded</span>
-    {/if}
+  <div class="id">
+    <div class="logo"><Mark size={34} /><b>Deluge <span>{kind}</span></b></div>
+    <div class="namewrap">
+      {#if editor.preset}
+        <span class="name" data-testid="file-name" title={editor.fileName || undefined}>{editor.fileName || '(unnamed)'}</span>
+        {#if editor.preset.attrs.firmwareVersion}<span class="path">saved by firmware {editor.preset.attrs.firmwareVersion}</span>{/if}
+      {:else}
+        <span class="path">no preset loaded</span>
+      {/if}
+    </div>
+    <label class="pill" title={fwTitle}>
+      {#if card.status === 'connected'}<span class="dot" class:amber={!!card.busy} class:pulse={!!card.busy} data-testid="deluge-dot" title={dotTitle}></span>{/if}
+      {#if fwLocked}
+        <span class="fw" data-testid="firmware-locked">{editor.firmware}</span>
+      {:else}
+        <select data-testid="firmware" bind:value={editor.firmware}>
+          {#each editor.firmwareChoices as v (v)}<option value={v}>{v}</option>{/each}
+        </select>
+      {/if}
+    </label>
   </div>
-  <label class="pill" title={fwTitle}>
-    {#if card.status === 'connected'}<span class="dot" class:amber={!!card.busy} class:pulse={!!card.busy} data-testid="deluge-dot" title={dotTitle}></span>{/if}
-    {#if fwLocked}
-      <span class="fw" data-testid="firmware-locked">{editor.firmware}</span>
-    {:else}
-      <select data-testid="firmware" bind:value={editor.firmware}>
-        {#each editor.firmwareChoices as v (v)}<option value={v}>{v}</option>{/each}
-      </select>
+  <div class="acts" data-testid="bar-actions">
+    <!--
+      The commands are grouped by verb (issue #37): ten buttons in a row left
+      the file name no room. Only the modes stay out as buttons — Follow Mode
+      and Changes carry live state, and a menu would hide exactly the thing you
+      glance at. New and Open › From this computer are `start.ts`'s, shared
+      with the landing page's tiles (issue #38).
+    -->
+    <Menu label="New" testid="menu-new" title={UI_HELP['ui.menu.new']}>
+      <MenuItem label="Synth" testid="new-synth" title={UI_HELP['ui.new.synth']} onclick={() => startNew('synth')} />
+      <MenuItem label="Kit" testid="new-kit" title={UI_HELP['ui.new.kit']} onclick={() => startNew('kit')} />
+      <!-- With nothing loaded it begins from the init synth and rolls that, so
+           it never needs a preset first. The panel it opens is the patch
+           generator; the arpeggiator's note Randomizer is a panel in the grid
+           and shares no wording with it. -->
+      <MenuItem
+        label="Randomize"
+        testid="randomize-button"
+        title={UI_HELP['ui.new.randomize']}
+        onclick={() => { if (!editor.preset) editor.newSynth(); randomizer.open = true }}
+      />
+    </Menu>
+    <!-- An ellipsis marks the items that need more from you before they act —
+         a file or folder picker, a save dialog with a name to type. The card
+         browsers act on the click that picks a file, so they have none. -->
+    <Menu label="Open" testid="menu-open" title={UI_HELP['ui.menu.open']}>
+      <MenuItem label="From this computer…" testid="file-open-button" title={UI_HELP['ui.open.file']} onclick={openFile} />
+      <MenuItem label="From Deluge" testid="card-open-button" title={midiTitle('ui.open.card')} onclick={() => card.openPanel('open')} />
+      <!-- The card's sample library lives under Open rather than as a fourth
+           menu: issue #37 folded the commands into three so the file name has
+           room, and a fourth costs exactly that room. It is set apart by a
+           rule because it opens the card's samples, not a preset. -->
+      <div class="sep" role="separator"></div>
+      <MenuItem
+        label="Sample library on Deluge"
+        testid="library-button"
+        title={midiTitle('ui.open.library')}
+        disabled={!card.supported || !!card.busy}
+        onclick={() => void library.openPanel()}
+      />
+      <!-- The same library over a card in a reader: the browser's folder
+           picker grants the write access, and a card of songs indexes in
+           seconds instead of minutes. Chrome and Edge only, like Web MIDI. -->
+      <MenuItem
+        label="Sample library on a card in this computer…"
+        testid="library-mounted-button"
+        title={canMountCard() ? UI_HELP['ui.open.mounted'] : NEEDS_FOLDER_ACCESS}
+        disabled={!canMountCard() || !!library.busy}
+        onclick={() => void library.openMounted()}
+      />
+    </Menu>
+    <!-- Save's items are disabled without a preset rather than the whole menu,
+         so it still says what it would do. -->
+    <Menu label="Save" testid="menu-save" title={UI_HELP['ui.menu.save']}>
+      <MenuItem label="Download XML" testid="download-xml" title={UI_HELP['ui.save.xml']} disabled={!editor.preset} onclick={download} />
+      {#if showZip}
+        <MenuItem label="Download zip" testid="download-zip-top" title={UI_HELP[editor.preset?.tag === 'kit' ? 'ui.save.zipKit' : 'ui.save.zip']} onclick={() => kit.downloadZip()} />
+      {/if}
+      <MenuItem label="To Deluge…" testid="card-save-button" title={midiTitle('ui.save.card')} disabled={!editor.preset} onclick={() => card.openPanel('save')} />
+      <!-- Straight back to the file it came from or last went to, no browser:
+           the hint is the path so the item says exactly what it overwrites.
+           Disabled, not hidden, when the preset has no card path yet, so the
+           command stays discoverable. Set apart by a rule: it is the one item
+           here that acts on the card at a click, so a slip off To Deluge
+           should not land on it. -->
+      <div class="sep" role="separator"></div>
+      <MenuItem
+        label="To Deluge — Overwrite"
+        testid="card-overwrite"
+        hint={editor.cardPath ?? undefined}
+        title={editor.cardPath ? midiTitle('ui.save.overwrite') : UI_HELP['ui.save.overwriteNone']}
+        disabled={!editor.cardPath || !!card.busy}
+        onclick={() => void card.overwrite()}
+      />
+    </Menu>
+    {#if follow.available}
+      <!-- Firmware-gated like every other control: Midi-Follow does not exist
+           below community 1.1.0 and on no official build, so the button is
+           absent there rather than disabled (docs/decisions.md). -->
+      <!-- Unlike the commands this one does not need a preset first: the mode
+           is a reason to start one, not something you do to one you already
+           have. With nothing loaded it opens the Deluge's own init synth for the
+           CCs to land in, the same file New › Synth would give you. -->
+      <button
+        type="button"
+        class="btn"
+        class:on={follow.on}
+        data-testid="follow-button"
+        title={UI_HELP['ui.follow.toggle']}
+        onclick={toggleFollow}
+      >
+        {#if follow.status === 'listening'}<span class="dot amber pulse"></span>{/if}<span>Follow<span class="long">{' '}Mode</span></span>
+      </button>
     {/if}
-  </label>
-  <!--
-    The commands are grouped by verb (issue #37): ten buttons in a row left
-    the file name no room. Only the modes stay out as buttons — Follow Mode
-    and Changes carry live state, and a menu would hide exactly the thing you
-    glance at. New and Open › From this computer are `start.ts`'s, shared
-    with the landing page's tiles (issue #38).
-  -->
-  <Menu label="New" testid="menu-new" title={UI_HELP['ui.menu.new']}>
-    <MenuItem label="Synth" testid="new-synth" title={UI_HELP['ui.new.synth']} onclick={() => startNew('synth')} />
-    <MenuItem label="Kit" testid="new-kit" title={UI_HELP['ui.new.kit']} onclick={() => startNew('kit')} />
-    <!-- With nothing loaded it begins from the init synth and rolls that, so
-         it never needs a preset first. The panel it opens is the patch
-         generator; the arpeggiator's note Randomizer is a panel in the grid
-         and shares no wording with it. -->
-    <MenuItem
-      label="Randomize"
-      testid="randomize-button"
-      title={UI_HELP['ui.new.randomize']}
-      onclick={() => { if (!editor.preset) editor.newSynth(); randomizer.open = true }}
-    />
-  </Menu>
-  <!-- An ellipsis marks the items that need more from you before they act —
-       a file or folder picker, a save dialog with a name to type. The card
-       browsers act on the click that picks a file, so they have none. -->
-  <Menu label="Open" testid="menu-open" title={UI_HELP['ui.menu.open']}>
-    <MenuItem label="From this computer…" testid="file-open-button" title={UI_HELP['ui.open.file']} onclick={openFile} />
-    <MenuItem label="From Deluge" testid="card-open-button" title={midiTitle('ui.open.card')} onclick={() => card.openPanel('open')} />
-    <!-- The card's sample library lives under Open rather than as a fourth
-         menu: issue #37 folded the commands into three so the file name has
-         room, and a fourth costs exactly that room. It is set apart by a
-         rule because it opens the card's samples, not a preset. -->
-    <div class="sep" role="separator"></div>
-    <MenuItem
-      label="Sample library on Deluge"
-      testid="library-button"
-      title={midiTitle('ui.open.library')}
-      disabled={!card.supported || !!card.busy}
-      onclick={() => void library.openPanel()}
-    />
-    <!-- The same library over a card in a reader: the browser's folder
-         picker grants the write access, and a card of songs indexes in
-         seconds instead of minutes. Chrome and Edge only, like Web MIDI. -->
-    <MenuItem
-      label="Sample library on a card in this computer…"
-      testid="library-mounted-button"
-      title={canMountCard() ? UI_HELP['ui.open.mounted'] : NEEDS_FOLDER_ACCESS}
-      disabled={!canMountCard() || !!library.busy}
-      onclick={() => void library.openMounted()}
-    />
-  </Menu>
-  <!-- Save's items are disabled without a preset rather than the whole menu,
-       so it still says what it would do. -->
-  <Menu label="Save" testid="menu-save" title={UI_HELP['ui.menu.save']}>
-    <MenuItem label="Download XML" testid="download-xml" title={UI_HELP['ui.save.xml']} disabled={!editor.preset} onclick={download} />
-    {#if showZip}
-      <MenuItem label="Download zip" testid="download-zip-top" title={UI_HELP[editor.preset?.tag === 'kit' ? 'ui.save.zipKit' : 'ui.save.zip']} onclick={() => kit.downloadZip()} />
+    {#if live.offered}
+      <!-- Gated by `FEATURES.liveEdit` for its presence and by the session
+           grant for whether it works (docs/live-edit.md, Capability): the grant
+           is only known once connected, so with no connection the button
+           connects, and a Deluge that has answered without `live` in its grant
+           leaves it disabled with the reason. Like Follow it needs no preset
+           first — it opens the one the Deluge has. -->
+      <button
+        type="button"
+        class="btn"
+        class:on={live.on}
+        disabled={!card.supported || (!live.on && live.refused)}
+        data-testid="live-button"
+        title={liveTitle}
+        onclick={toggleLive}
+      >
+        {#if live.status === 'live'}<span class="dot amber pulse"></span>{/if}<span>Live<span class="long">{' '}Edit</span></span>
+      </button>
     {/if}
-    <MenuItem label="To Deluge…" testid="card-save-button" title={midiTitle('ui.save.card')} disabled={!editor.preset} onclick={() => card.openPanel('save')} />
-    <!-- Straight back to the file it came from or last went to, no browser:
-         the hint is the path so the item says exactly what it overwrites.
-         Disabled, not hidden, when the preset has no card path yet, so the
-         command stays discoverable. Set apart by a rule: it is the one item
-         here that acts on the card at a click, so a slip off To Deluge
-         should not land on it. -->
-    <div class="sep" role="separator"></div>
-    <MenuItem
-      label="To Deluge — Overwrite"
-      testid="card-overwrite"
-      hint={editor.cardPath ?? undefined}
-      title={editor.cardPath ? midiTitle('ui.save.overwrite') : UI_HELP['ui.save.overwriteNone']}
-      disabled={!editor.cardPath || !!card.busy}
-      onclick={() => void card.overwrite()}
-    />
-  </Menu>
-  {#if follow.available}
-    <!-- Firmware-gated like every other control: Midi-Follow does not exist
-         below community 1.1.0 and on no official build, so the button is
-         absent there rather than disabled (docs/decisions.md). -->
-    <!-- Unlike the commands this one does not need a preset first: the mode
-         is a reason to start one, not something you do to one you already
-         have. With nothing loaded it opens the Deluge's own init synth for the
-         CCs to land in, the same file New › Synth would give you. -->
-    <button
-      type="button"
-      class="btn"
-      class:on={follow.on}
-      data-testid="follow-button"
-      title={UI_HELP['ui.follow.toggle']}
-      onclick={toggleFollow}
-    >
-      {#if follow.status === 'listening'}<span class="dot amber pulse"></span>{/if}Follow Mode
+    <button type="button" class="btn" class:on={editor.showChanges} disabled={!editor.preset} data-testid="changes-button" onclick={() => (editor.showChanges = !editor.showChanges)}>
+      Changes {#if editor.preset}<span class="badge" data-testid="change-count">{editor.changeCount}</span>{/if}
     </button>
-  {/if}
-  {#if live.offered}
-    <!-- Gated by `FEATURES.liveEdit` for its presence and by the session
-         grant for whether it works (docs/live-edit.md, Capability): the grant
-         is only known once connected, so with no connection the button
-         connects, and a Deluge that has answered without `live` in its grant
-         leaves it disabled with the reason. Like Follow it needs no preset
-         first — it opens the one the Deluge has. -->
-    <button
-      type="button"
-      class="btn"
-      class:on={live.on}
-      disabled={!card.supported || (!live.on && live.refused)}
-      data-testid="live-button"
-      title={liveTitle}
-      onclick={toggleLive}
-    >
-      {#if live.status === 'live'}<span class="dot amber pulse"></span>{/if}Live Edit
-    </button>
-  {/if}
-  <button type="button" class="btn" class:on={editor.showChanges} disabled={!editor.preset} data-testid="changes-button" onclick={() => (editor.showChanges = !editor.showChanges)}>
-    Changes {#if editor.preset}<span class="badge" data-testid="change-count">{editor.changeCount}</span>{/if}
-  </button>
+  </div>
 </div>
 
 <style>
   .bar {
-    display: flex; align-items: center; gap: 13px; height: 48px; position: sticky; top: 0; z-index: 40;
-    background: linear-gradient(180deg, #1c1916, #100e0d); border-bottom: 1px solid var(--edge);
-    margin: 0 calc((var(--cheek) + var(--gut)) * -1); padding: 0 calc(var(--cheek) + var(--gut) + 13px);
+    --inset: calc(var(--cheek) + var(--gut) + 13px);
+    --face: linear-gradient(180deg, #1c1916, #100e0d);
+    --row2: 38px;
+    display: flex; align-items: center; gap: 13px; height: var(--bar-h); position: sticky; top: 0; z-index: 40;
+    background: var(--face); border-bottom: 1px solid var(--edge);
+    margin: 0 calc((var(--cheek) + var(--gut)) * -1); padding: 0 var(--inset);
+  }
+  .id { flex: 1; min-width: 0; display: flex; align-items: center; gap: 13px; }
+  .acts { flex: none; display: flex; align-items: center; gap: 13px; }
+  /*
+   * Two rows below 1100px. One row needs 870px before the name gets a pixel
+   * (the mark and wordmark, the pill, three menus, Follow, Live and Changes,
+   * with their gaps and the page inset). A Deluge name runs 100 to 220px
+   * ("SYNT184.XML", "Default Synth.XML" 155, "Kit Velocity Layers.XML"), so
+   * at 1024 one row cut the name, which is the one thing on the bar about
+   * the preset. theme.css sets --bar-h at the same width, for what sits
+   * under the bar.
+   */
+  @media (max-width: 1099px) {
+    .bar { flex-direction: column; align-items: stretch; gap: 0; }
+    .acts { height: var(--row2); }
+  }
+  /*
+   * At the theme's narrow width the labels shorten (the OLED says what is
+   * loaded, so the wordmark can go), and when the buttons still do not fit,
+   * the row scrolls rather than the page. It reaches to the bar's edges, so
+   * the fades over its ends sit in the inset: at either end of the scroll
+   * they cover only padding, and mid-scroll they fade out the buttons that
+   * are off that side. They are the bar's face laid over the row, not a
+   * mask on it: a mask clips the row's descendants, and an open menu's list
+   * is one.
+   */
+  @media (max-width: 640px) {
+    .id, .acts { gap: 8px; }
+    .logo b, .long { display: none; }
+    .acts { overflow-x: auto; scrollbar-width: none; margin: 0 calc(var(--inset) * -1); padding: 0 var(--inset); }
+    .acts::-webkit-scrollbar { display: none; }
+    .bar::before, .bar::after {
+      content: ''; position: absolute; bottom: 0; z-index: 1; width: 24px; height: var(--row2); pointer-events: none;
+      background: var(--face) 0 100% / 100% calc(var(--bar-h) - 1px);
+    }
+    .bar::before { left: 0; mask-image: linear-gradient(to right, #000, transparent); }
+    .bar::after { right: 0; mask-image: linear-gradient(to left, #000, transparent); }
   }
   .logo { flex: none; display: flex; align-items: center; gap: 9px; color: var(--brass); }
   .logo b { font-family: var(--cond); font-weight: 700; letter-spacing: .15em; text-transform: uppercase; font-size: 14px; color: #e9e2d6; }

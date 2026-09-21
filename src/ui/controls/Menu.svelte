@@ -24,15 +24,26 @@
   let root: HTMLDivElement | undefined = $state()
   let button: HTMLButtonElement | undefined = $state()
   let list: HTMLDivElement | undefined = $state()
+  /** Where the open list sits, in viewport pixels (see `.list`). */
+  let at = $state<{ top: number; left: number } | null>(null)
 
   async function show(): Promise<void> {
     open = true
     await tick()
-    menuItems(list)[0]?.focus()
+    place()
+    menuItems(list)[0]?.focus({ preventScroll: true })
+  }
+
+  /** Under the button, kept inside the window: a button near the right edge of a phone would push the list off it. */
+  function place(): void {
+    if (!open || !button || !list) return
+    const r = button.getBoundingClientRect()
+    at = { top: r.bottom + 5, left: Math.max(8, Math.min(r.left, window.innerWidth - list.offsetWidth - 8)) }
   }
   function hide(refocus = true): void {
     if (!open) return
     open = false
+    at = null
     if (refocus) button?.focus()
   }
 
@@ -62,7 +73,8 @@
   }
 </script>
 
-<svelte:window onpointerdown={onWindowPointer} />
+<!-- Scroll does not bubble, so the capture phase is what hears the bar's own row scrolling. -->
+<svelte:window onpointerdown={onWindowPointer} onscrollcapture={place} onresize={place} />
 
 <div class="wrap" bind:this={root}>
   <button
@@ -86,6 +98,8 @@
       id="{testid}-list"
       aria-label={label}
       data-testid="{testid}-list"
+      style:top={at ? `${at.top}px` : null}
+      style:left={at ? `${at.left}px` : null}
       bind:this={list}
       onkeydown={onListKey}
       onclick={onListClick}
@@ -100,11 +114,14 @@
   .caret { margin-left: 6px; font-size: 10px; opacity: .7; }
   /*
    * The same face as the cable picker (`CablePicker.svelte`): the app has one
-   * kind of menu. Under the button rather than fixed, since the bar is sticky
-   * and the list scrolls away with it.
+   * kind of menu. Fixed, and placed under its button by `place`, because on a
+   * phone the bar's second row scrolls sideways (issue #45), and a scrolling
+   * row clips anything absolutely positioned inside it. The bar is sticky,
+   * so the button only moves when that row scrolls or the window resizes,
+   * and both re-place the list.
    */
   .list {
-    position: absolute; top: calc(100% + 5px); left: 0; z-index: 60; min-width: 196px;
+    position: fixed; z-index: 60; min-width: 196px;
     background: var(--raised-hi); border: 1px solid var(--edge-hi); border-radius: 4px;
     box-shadow: 0 12px 34px rgba(0,0,0,.6); padding: 4px;
   }

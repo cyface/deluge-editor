@@ -374,8 +374,8 @@ test('the top bar’s commands live under New, Open and Save; the modes stay out
   // Mode and Live Edit are there because, with nothing loaded, both are ways
   // to start a preset rather than things done to one.)
   const buttons = () =>
-    page.locator('.bar').evaluate((bar) =>
-      [...bar.querySelectorAll(':scope > button, :scope > .wrap > button')].map((el) => (el.textContent ?? '').trim()).join(' | '),
+    page.getByTestId('bar-actions').evaluate((row) =>
+      [...row.querySelectorAll(':scope > button, :scope > .wrap > button')].map((el) => (el.textContent ?? '').trim()).join(' | '),
     )
   expect(await buttons()).toBe('New▾ | Open▾ | Save▾ | Follow Mode | Live Edit | Changes')
 

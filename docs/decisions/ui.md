@@ -168,6 +168,24 @@ Escape and a click outside close it and return focus. Save's items are
 disabled without a preset rather than the whole menu, so it still says what it
 would do.
 
+**Narrower than 1100px the bar is two rows** (issue #45). One row needed
+870px before the name got a pixel, so below that the page scrolled sideways,
+and well before that the name was cut short. The top row is the preset: the
+mark, the name and the firmware pill. The second row is what you do: New,
+Open and Save, then Follow, Live and Changes, in the same order. The
+breakpoint is measured, not round. A Deluge name runs 100 to 220px, and at
+1024 one row left "Default Synth.XML" (155px) no slack. At the theme's 640px
+the labels shorten: the wordmark goes, since the OLED says what is loaded,
+and the modes read Follow and Live. On a phone the buttons still need about
+500px, so the second row scrolls sideways within itself, with fades over its
+ends, and the page never does. Folding the modes into a menu to make them
+fit was ruled out by the paragraph above, and letting the flex row wrap gave
+a ragged second line that moved with the name's length. Because that row
+scrolls, a menu's list is `position: fixed` and placed under its button: a
+scrolling row clips anything absolutely positioned inside it. For the same
+reason the fades are the bar's face laid over the row's ends, not a mask on
+the row, which would clip the list too.
+
 ## Every section at once, dealt into measured columns
 
 The overview is not CSS multicolumn. Panels are rendered, measured, and dealt

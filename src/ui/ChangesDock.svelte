@@ -76,7 +76,7 @@
 </aside>
 
 <style>
-  .dock { position: fixed; right: var(--cheek); top: 48px; bottom: 0; width: 360px; max-width: 88vw; background: var(--raised); border-left: 1px solid var(--edge); padding: 12px; overflow: auto; z-index: 60; transform: translateX(102%); transition: transform .18s ease; }
+  .dock { position: fixed; right: var(--cheek); top: var(--bar-h); bottom: 0; width: 360px; max-width: 88vw; background: var(--raised); border-left: 1px solid var(--edge); padding: 12px; overflow: auto; z-index: 60; transform: translateX(102%); transition: transform .18s ease; }
   .dock.open { transform: none; box-shadow: -20px 0 44px rgba(0,0,0,.55); }
   /* The header is theme.css's .ph; here it sits flush with the dock's edge. */
   .dock :global(.ph) { margin: 0 0 8px; }
