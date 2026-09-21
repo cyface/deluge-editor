@@ -9,6 +9,7 @@
 
 import { errorText } from '../errtext'
 import { editor } from './editor.svelte'
+import { live } from './live.svelte'
 
 export interface Question {
   question: string
@@ -53,3 +54,5 @@ export const confirm = new Confirm()
 export const loadedName = (): string => editor.fileName || 'your unsaved preset'
 export const changesNote = (): string =>
   editor.changeCount > 0 ? ` — ${editor.changeCount} unsaved change${editor.changeCount === 1 ? '' : 's'}` : ''
+/** A new preset ends Live Edit (`live.replaced`), so a question about one says that too. */
+export const liveNote = (): string => (live.endsOnNewDocument ? ' and leaves Live Edit' : '')

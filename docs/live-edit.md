@@ -436,12 +436,15 @@ request here is small, and preset bytes travel through the existing
   `editor.flatOutput` diffs it against a baseline; a changed path that
   classifies as fast is queued as a `param`, latest value per path, drained
   one request at a time; anything else marks the document for a push,
-  debounced 150 ms, retried after 2 s when the device answers `busy`. Fast
-  sends are held while a push is pending. Our own writes are filtered on the
-  way back by (path, value) for one second, every recent value per path; a
-  value that arrived from the device is written into the baseline and not
-  re-sent. The lease is 10 s, renewed every 4 s, released on leaving.
-  `docs/decisions/live.md` has the reasons.
+  debounced 150 ms, retried after 2 s when the device answers `busy` or not
+  at all, and otherwise held for the next edit. Fast sends are held while a
+  push is pending. Our own writes are filtered on the way back by (path,
+  value) for one second, every recent value per path; a value that arrived
+  from the device is written into the baseline and not re-sent. A new
+  document in the editor (New, an Open, a drop) is not pushed: it ends the
+  mode, and the Deluge keeps its sound (issue #46). The lease is 10 s,
+  renewed every 4 s, released on leaving. `docs/decisions/live.md` has the
+  reasons.
 - ~~Incoming `^chg`~~ writes through the ordered accessors (`applyChange`).
   ~~Incoming `^dirty`~~ pulls and, when the pulled document differs from the
   tree, adopts it whole rather than applying the diff, so the ordered

@@ -14,6 +14,8 @@ interface FakeCardWindow {
       loadInstrument: (xml: string, name: string, dir: string) => void
       deviceChange: (change: { name: string; value: number }) => void
       requests: Record<string, Record<string, unknown>>[]
+      live: { type: string; name: string; dir: string; edited: boolean }
+      currentPreset: () => string
     }
   }
 }
@@ -135,4 +137,97 @@ test('entering Live Edit over unsaved changes asks first, and Cancel connects no
   await page.getByTestId('live-button').click()
   await expect(page.getByTestId('live-header')).toHaveCount(0)
   await expect(page.getByTestId('confirm')).toHaveCount(0)
+})
+
+test('another preset, or a new one, leaves Live Edit and the Deluge keeps its sound (issue #46)', async ({ page }) => {
+  const RINGMOD = path.resolve('tests/fixtures/community-c1.3.0-beta-3f898e9/Ringmod.XML')
+  await page.addInitScript((seed) => {
+    ;(globalThis as unknown as { __cardSeed: unknown }).__cardSeed = seed
+  }, { '/SYNTHS/Tim.XML': fixtureText })
+  await page.addInitScript({ path: path.resolve('tests/e2e/fake-deluge.js') })
+  await page.goto('/')
+  await page.evaluate((xml) => (globalThis as unknown as FakeCardWindow).__fakeCard.deluge.loadInstrument(xml, 'Tim', 'SYNTHS'), fixtureText)
+  const device = () =>
+    page.evaluate(() => {
+      const d = (globalThis as unknown as FakeCardWindow).__fakeCard.deluge
+      return { ...d.live, preset: d.currentPreset(), loads: d.requests.filter((r) => 'load' in r).length }
+    })
+  await page.getByTestId('live-button').click()
+  await expect(page.getByTestId('live-status')).toContainText('Live')
+
+  // Nothing is unsaved, so Open › From this computer just goes, as it does
+  // outside the mode. The file is a new document, not an edit to send: the
+  // mode ends, and the Deluge still has Tim, untouched.
+  await page.getByTestId('file-input').setInputFiles(RINGMOD)
+  await expect(page.getByTestId('file-name')).toHaveText('Ringmod.XML')
+  await expect(page.getByTestId('live-header')).toHaveCount(0)
+  await expect(page.getByTestId('live-button')).not.toHaveClass(/\bon\b/)
+  await expect(page.getByTestId('change-count')).toHaveText('0')
+  expect(await device()).toMatchObject({ type: 'synth', name: 'Tim', dir: 'SYNTHS', edited: false, preset: fixtureText, loads: 0 })
+
+  // Back in, with an edit the Deluge has taken. The edit is the Deluge's, so
+  // nothing is discarded: an Open asks, says the mode ends, and says where
+  // the work stays. Cancel keeps both the mode and the edit.
+  await page.getByTestId('live-button').click()
+  await expect(page.getByTestId('live-status')).toContainText('Live')
+  await expect(page.getByTestId('file-name')).toHaveText('Tim.XML')
+  const knob = page.locator('[data-param="lpfFrequency"]')
+  await knob.focus()
+  await page.keyboard.press('ArrowDown')
+  await expect(page.getByTestId('live-counters')).toContainText('1 to Deluge')
+  await expect(page.getByTestId('change-count')).toHaveText('1')
+  await page.getByTestId('file-input').setInputFiles(RINGMOD)
+  await expect(page.getByTestId('confirm')).toContainText('Open Ringmod.XML and leave Live Edit? The Deluge keeps Tim and its 1 unsaved change.')
+  await expect(page.getByTestId('confirm-go')).toHaveText('Open')
+  await page.getByTestId('confirm-cancel').click()
+  await expect(page.getByTestId('live-status')).toContainText('Live')
+  await expect(page.getByTestId('change-count')).toHaveText('1')
+
+  // New › Kit asks the same way, and its button is what it does. The blank
+  // kit is an ordinary file, and no kit went to the synth clip, which the
+  // Deluge would refuse. It keeps Tim, edit and all.
+  await choose(page, 'new-kit')
+  await expect(page.getByTestId('confirm')).toContainText('Leave Live Edit for a new kit? The Deluge keeps Tim and its 1 unsaved change.')
+  await expect(page.getByTestId('confirm-go')).toHaveText('New kit')
+  await page.getByTestId('confirm-go').click()
+  await expect(page.getByTestId('live-header')).toHaveCount(0)
+  await expect(page.getByTestId('file-name')).toHaveText('(unnamed)')
+  await expect(page.getByTestId('kit-rows')).toBeVisible()
+  expect(await device()).toMatchObject({ type: 'synth', name: 'Tim', dir: 'SYNTHS', edited: true, loads: 0 })
+})
+
+test('an edit the Deluge has not taken is the one thing leaving Live Edit discards, and it says so (issue #46)', async ({ page }) => {
+  // A menu open on the Deluge: it refuses every whole-document load as busy.
+  await page.addInitScript((seed) => {
+    const w = globalThis as unknown as { __cardSeed: unknown; __fakeOpts: unknown }
+    w.__cardSeed = seed
+    w.__fakeOpts = { liveBusy: true }
+  }, { '/SYNTHS/Tim.XML': fixtureText })
+  await page.addInitScript({ path: path.resolve('tests/e2e/fake-deluge.js') })
+  await page.goto('/')
+  await page.evaluate((xml) => (globalThis as unknown as FakeCardWindow).__fakeCard.deluge.loadInstrument(xml, 'Tim', 'SYNTHS'), fixtureText)
+  await page.getByTestId('live-button').click()
+  await expect(page.getByTestId('live-status')).toContainText('Live')
+
+  // An enum goes by the whole document, which the Deluge refuses.
+  await page.locator('[data-attr="polyphonic"]').selectOption('mono')
+  await expect(page.getByTestId('live-error')).toContainText('menu or browser open')
+
+  // New › Kit tries once more before asking; refused, the edit would be lost,
+  // so this question says Discard.
+  await choose(page, 'new-kit')
+  await expect(page.getByTestId('confirm')).toContainText('Discard the edit the Deluge hasn’t taken? Starting a new kit leaves Live Edit.')
+  await expect(page.getByTestId('confirm-go')).toHaveText('Discard')
+  await page.getByTestId('confirm-cancel').click()
+  await expect(page.getByTestId('live-status')).toContainText('Live')
+  await expect(page.locator('[data-attr="polyphonic"]')).toHaveValue('mono')
+
+  await choose(page, 'new-kit')
+  await page.getByTestId('confirm-go').click()
+  await expect(page.getByTestId('live-header')).toHaveCount(0)
+  const polyphony = await page.evaluate(() => {
+    const d = (globalThis as unknown as FakeCardWindow).__fakeCard.deluge
+    return /polyphonic="(\w+)"/.exec(d.currentPreset())?.[1]
+  })
+  expect(polyphony).toBe('poly')
 })

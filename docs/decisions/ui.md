@@ -248,3 +248,11 @@ the Deluge and leaves Follow Mode running if it was.
 A switch of instrument on the Deluge while Live Edit is on (`^inst`) re-opens
 without asking. The page is a view of the device's sound then, and the switch
 was made on the device.
+
+While Live Edit is on, anything else that replaces the preset also ends the
+mode (`decisions/live.md`, "A new document leaves Live Edit"). The rule for
+asking stays the same, but the words change, because the Deluge keeps the
+unsaved changes: "Leave Live Edit for a new kit? The Deluge keeps Tim and
+its 1 unsaved change." Only an edit the Deluge has refused is asked about
+as discarded. `start.ts` (`replacePreset`) words every one of these
+questions, for New, Open › From this computer and a dropped file alike.

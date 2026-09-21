@@ -32,6 +32,10 @@
  *   the pads selects here. The device's report of its row is not taken while
  *   a pick of ours is on its way, and a whole-document load resets the
  *   device's row, so the editor's is re-asserted after every push.
+ * - **A new document** (New, an Open, a drop) is not an edit, and it leaves
+ *   the mode. The store knows the tree it put in the editor; any other tree
+ *   ends the view, the Deluge keeps its sound, and the new preset is an
+ *   ordinary file (issue #46).
  * - **The lease.** `sub` latches this cable for `LEASE_SECS`; the store
  *   renews every `RENEW_MS`, so an unplugged editor stops costing the device
  *   anything within seconds. A renewal that fails is reported and retried on
@@ -49,8 +53,10 @@
 import { untrack } from 'svelte'
 import { applyChange, changePath, classifyPath, LiveTransfer, presetIdentity } from '../../core/live'
 import { hexToInt, intToHex, isHexParam } from '../../core/params/hex'
+import type { Preset } from '../../core/preset'
 import {
   LiveError,
+  NO_REPLY,
   SmsClient,
   SysexError,
   type LiveAddress,
@@ -70,7 +76,7 @@ export const LEASE_SECS = 10
 export const RENEW_MS = 4000
 /** A structural edit waits this long for the next one before the document goes, ms. */
 export const PUSH_DEBOUNCE_MS = 150
-/** A push the device refused (`busy`: a menu is open) is retried after this, ms. */
+/** A push the device refused as `busy` (a menu is open), or did not answer, is retried after this, ms. */
 export const PUSH_RETRY_MS = 2000
 /** Our own value coming back within this window is an echo, not a move. `midiFollowFeedbackFilter`'s one second. */
 const ECHO_FOR = 1000
@@ -78,6 +84,10 @@ const ECHO_FOR = 1000
 /** FatFS results that mean the file simply is not there (`src/core/sysex/fatfs.ts`). */
 const FR_NO_FILE = 4
 const FR_NO_PATH = 5
+
+/** A push failure that can clear without anything here changing: a menu open on the device, or no answer. */
+const passing = (e: unknown): boolean =>
+  (e instanceof LiveError && e.why === 'busy') || (e instanceof SysexError && e.code === NO_REPLY)
 
 export type LiveStatus =
   /** Not in the mode. */
@@ -144,6 +154,8 @@ class Live extends Activity {
   readonly refused = $derived(card.status === 'connected' && card.liveVersion === null)
   /** The mode holds a preset: the document is the device's, and a save is the device's own write. */
   readonly active = $derived(this.on && this.status === 'live')
+  /** A new document now would end the mode (`replaced`), so a question about replacing the preset says so. */
+  readonly endsOnNewDocument = $derived(this.on && this.status !== 'starting')
 
   private client: SmsClient | null = null
   /** A client handed in by a test, used instead of the card store's connection. */
@@ -152,6 +164,13 @@ class Live extends Activity {
   private identity: Identity | null = null
   /** The document as the device holds it, flattened; null while nothing is being tracked. */
   private baseline: FlatXML | null = null
+  /**
+   * The tree this store last put in the editor (`openNow`, `resync`), or the
+   * one the editor held when the mode started. Edits change that tree in
+   * place, so a different `editor.preset` is a new document, not an edit
+   * (`replaced`).
+   */
+  private doc: Preset | null = null
   /** The device's `gen` as of the last whole-document exchange (pull or push): a `^dirty` at or below it is stale. */
   private docGen = 0
   /** The highest `gen` seen from any reply or push. */
@@ -203,6 +222,9 @@ class Live extends Activity {
     this.on = true
     this.status = 'starting'
     this.linkError = null
+    // What the editor holds already is not a new document: the device's
+    // replaces it, or a clip that is not an instrument leaves it be.
+    this.doc = editor.preset
     this.resetCounters()
     const ok = await this.serial(() =>
       this.run('Opening the Deluge’s sound', async () => {
@@ -271,6 +293,7 @@ class Live extends Activity {
    */
   offer(flat: FlatXML | null): void {
     if (!this.tracking || flat === null) return
+    if (editor.preset !== this.doc) return // a new document: `replaced` leaves, and nothing of it is sent
     const baseline = this.baseline!
     let whole = false
     for (const [path, value] of flat) {
@@ -281,8 +304,25 @@ class Live extends Activity {
     }
     if (!whole) for (const path of baseline.keys()) if (!flat.has(path)) whole = true
     this.baseline = new Map(flat)
-    if (whole) this.schedulePush()
+    // A push still wanted with nothing scheduled is one the device refused
+    // for good (`pushNow`); a new edit is the time to try it again.
+    if (whole || this.pushWanted) this.schedulePush()
     else this.drain()
+  }
+
+  /**
+   * The editor's tree changed (`editor.preset`, offered by the effect below).
+   * A tree this store did not put there is a new document (New, an Open, a
+   * drop), not an edit, so the mode ends: the Deluge keeps the sound it
+   * holds, and the new preset is an ordinary file. Pushing it instead
+   * would give the device a different preset under its instrument's name, or
+   * a kit over a synth, which it refuses (issue #46). While the mode is
+   * starting, the device's sound is on its way and replaces whatever is
+   * loaded, as entering always does.
+   */
+  replaced(preset: Preset | null): void {
+    if (!this.endsOnNewDocument || preset === this.doc) return
+    void this.stop()
   }
 
   /**
@@ -352,6 +392,25 @@ class Live extends Activity {
     })
   }
 
+  /**
+   * Send whatever the Deluge has not taken yet (a pending push, queued fast
+   * writes) and say whether it now holds every edit made here. For a
+   * question about leaving the mode: what the Deluge holds, it keeps. A
+   * device that will not take the document is false, and the push goes back
+   * to its usual handling, retried or reported (`pushNow`), in case the
+   * question is cancelled.
+   */
+  async deliver(): Promise<boolean> {
+    if (!this.tracking) return false
+    try {
+      await this.serial(() => this.flush())
+      return true
+    } catch {
+      if (this.tracking && this.pushWanted) this.schedulePush()
+      return false
+    }
+  }
+
   /** Resolves once nothing is in flight: no push, no pull, no fast writes. Tests wait on it. */
   async idle(): Promise<void> {
     for (;;) {
@@ -404,6 +463,7 @@ class Live extends Activity {
     const path = `/${inst.dir}/${name}`
     editor.load(xml, name)
     if (editor.error) throw new Error(editor.error)
+    this.doc = editor.preset
     editor.cardPath = path
     editor.source = await this.readSource(client, path)
     if (inst.type === 'kit' && inst.drum !== undefined && inst.drum >= 0) editor.row = inst.drum
@@ -547,6 +607,7 @@ class Live extends Activity {
           return
         }
         editor.preset = parseXML(xml)
+        this.doc = editor.preset
         this.baseline = flat
         this.pending.clear()
         this.resynced += 1
@@ -598,12 +659,30 @@ class Live extends Activity {
     this.pushTimer = null
   }
 
-  /** Push the current document. Failure keeps it wanted and retries later; the baseline already reads as pushed. */
+  /**
+   * Push the current document. Failure keeps it wanted; the baseline already
+   * reads as pushed. A failure that can clear on its own is retried on a
+   * timer: `busy` ends when the menu on the device closes, and a Deluge that
+   * did not answer may answer next time. Anything else the device said, it
+   * would say again (`load`: it could not load the file, and its instrument
+   * is as it was), so the push waits for the next edit instead of rewriting
+   * `/TEMP/LIVE.XML` every two seconds for ever.
+   */
   private pushNow(): Promise<void> {
     return this.serial(async () => {
       if (!this.pushWanted || !this.tracking) return
-      const ok = await this.run('Sending the preset to the Deluge', () => this.pushOnce())
+      let failure: unknown = null
+      const ok = await this.run('Sending the preset to the Deluge', () =>
+        this.pushOnce().catch((e: unknown) => {
+          failure = e
+          throw e
+        }),
+      )
       if (!ok && this.tracking) {
+        if (failure !== null && !passing(failure)) {
+          this.error = `${errorText(failure)} — the next edit sends it again`
+          return
+        }
         this.pushTimer ??= setTimeout(() => {
           this.pushTimer = null
           void this.pushNow()
@@ -744,6 +823,7 @@ class Live extends Activity {
     this.transfer = null
     this.identity = null
     this.baseline = null
+    this.doc = null
     this.inst = null
     this.pending.clear()
     this.echo.clear()
@@ -793,13 +873,18 @@ export const live = new Live()
 // Every way a value can change here — a knob, a curve drag, a select, the
 // randomiser — ends in `editor.flatOutput`, so one effect on it is the whole
 // outgoing side. The offer runs untracked: it writes the baseline and queues
-// sends, none of which the effect should depend on. And the mode cannot
-// outlive the connection: when the card store loses the port, the lease is
-// gone with it.
+// sends, none of which the effect should depend on. A new tree is a new
+// document, not an edit, and ends the mode; whichever of the two effects
+// runs first, the offer sends nothing of it. And the mode cannot outlive the
+// connection: when the card store loses the port, the lease is gone with it.
 $effect.root(() => {
   $effect(() => {
     const flat = editor.flatOutput
     untrack(() => live.offer(flat))
+  })
+  $effect(() => {
+    const preset = editor.preset
+    untrack(() => live.replaced(preset))
   })
   $effect(() => {
     const row = editor.row

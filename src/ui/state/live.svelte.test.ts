@@ -15,13 +15,14 @@ import { LIVE_TEMP_PATH } from '../../core/live'
 import { isKit } from '../../core/preset'
 import { setParamHex } from '../../core/preset/sound'
 import { FakeDeluge, type FakeOptions } from '../../core/sysex/fake-deluge'
-import { SmsClient } from '../../core/sysex'
+import { LiveError, NO_REPLY, SmsClient, SysexError } from '../../core/sysex'
 import { flattenXML, setAttr } from '../../core/xml'
 import { card } from './card.svelte'
 import { editor, FALLBACK_FIRMWARE } from './editor.svelte'
-import { LEASE_SECS, live, NO_LIVE_EDIT, RENEW_MS } from './live.svelte'
+import { LEASE_SECS, live, NO_LIVE_EDIT, PUSH_RETRY_MS, RENEW_MS } from './live.svelte'
 
 const SYNTH = fixtureText('community-c1.3.0-beta-3f898e9/Default Synth.XML')
+const RINGMOD = fixtureText('community-c1.3.0-beta-3f898e9/Ringmod.XML')
 const KIT = fixtureText('community-c1.3.0-beta-3f898e9/Kit Sample Rows.XML')
 /** The card's copy of the synth, differing from what the device holds by one attribute. */
 const SYNTH_ON_CARD = SYNTH.replace('polyphonic="poly"', 'polyphonic="mono"')
@@ -195,7 +196,7 @@ describe('editor → device', () => {
     expect(flattenXML(fake.currentPreset()).get('sound@polyphonic')).toBe('mono')
   })
 
-  it('retries a push the device refused, keeping the edit', async () => {
+  it('retries a push the device refused as busy, keeping the edit', async () => {
     vi.useFakeTimers()
     const { fake } = liveRig({ liveEdit: 'on', liveBusy: true })
     fake.loadInstrument(SYNTH, 'Tim', 'SYNTHS')
@@ -208,6 +209,126 @@ describe('editor → device', () => {
     expect(editor.flatOutput!.get('sound@polyphonic')).toBe('mono')
     await vi.advanceTimersByTimeAsync(2100)
     expect(requests(fake, 'load')).toHaveLength(2)
+  })
+
+  it('retries a push the device did not answer', async () => {
+    vi.useFakeTimers()
+    const { fake, client } = liveRig()
+    fake.loadInstrument(SYNTH, 'Tim', 'SYNTHS')
+    await live.start()
+    const load = vi.spyOn(client, 'load').mockRejectedValueOnce(new SysexError('load', LIVE_TEMP_PATH, NO_REPLY))
+    setAttr(editor.preset!, 'polyphonic', 'mono')
+    flushSync()
+    await vi.advanceTimersByTimeAsync(200)
+    expect(load).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(PUSH_RETRY_MS + 100)
+    expect(load).toHaveBeenCalledTimes(2)
+    expect(flattenXML(fake.currentPreset()).get('sound@polyphonic')).toBe('mono')
+  })
+
+  it('does not retry a refusal that will not clear, and the next edit sends it again', async () => {
+    vi.useFakeTimers()
+    const { fake, client } = liveRig()
+    fake.loadInstrument(SYNTH, 'Tim', 'SYNTHS')
+    await live.start()
+    const load = vi.spyOn(client, 'load').mockRejectedValueOnce(new LiveError('load', 'load', 5))
+    setAttr(editor.preset!, 'polyphonic', 'mono')
+    flushSync()
+    await vi.advanceTimersByTimeAsync(200)
+    expect(load).toHaveBeenCalledTimes(1)
+    expect(live.error).toBe('Load: the Deluge could not load the file — the next edit sends it again')
+    await vi.advanceTimersByTimeAsync(PUSH_RETRY_MS * 5)
+    expect(load).toHaveBeenCalledTimes(1)
+    expect(editor.flatOutput!.get('sound@polyphonic')).toBe('mono') // the edit is kept
+    // A knob turn is the next edit: the whole document goes, carrying both.
+    setParamHex(editor.sound!, 'lpfFrequency', '0x40000000')
+    flushSync()
+    await vi.advanceTimersByTimeAsync(200)
+    expect(load).toHaveBeenCalledTimes(2)
+    expect(live.error).toBe(null)
+    const device = flattenXML(fake.currentPreset())
+    expect(device.get('sound@polyphonic')).toBe('mono')
+    expect(device.get(LPF)).toBe('0x40000000')
+  })
+})
+
+describe('a new document', () => {
+  it('leaves the mode, and the Deluge keeps its instrument', async () => {
+    const { fake } = await enterSynth()
+    editor.load(RINGMOD, 'Ringmod.XML')
+    await settle()
+    expect(live.on).toBe(false)
+    expect(fake.subscribed).toBe(false)
+    expect(requests(fake, 'load')).toEqual([])
+    expect(requests(fake, 'param')).toEqual([])
+    expect(fake.currentPreset()).toBe(SYNTH)
+    expect(fake.live).toMatchObject({ type: 'synth', name: 'Tim', dir: 'SYNTHS', edited: false })
+    // The new preset is an ordinary file: its own name, no card path, nothing unsaved.
+    expect(editor.fileName).toBe('Ringmod.XML')
+    expect(editor.cardPath).toBe(null)
+    expect(editor.changeCount).toBe(0)
+  })
+
+  it('delivers what is still on its way, for a question about leaving to say the Deluge keeps it', async () => {
+    const { fake } = await enterSynth()
+    setAttr(editor.preset!, 'polyphonic', 'mono')
+    flushSync() // the push is waiting on its debounce
+    expect(await live.deliver()).toBe(true)
+    expect(requests(fake, 'load')).toHaveLength(1)
+    expect(flattenXML(fake.currentPreset()).get('sound@polyphonic')).toBe('mono')
+  })
+
+  it('says when the Deluge will not take it, and the push goes back to being retried', async () => {
+    vi.useFakeTimers()
+    const { fake } = liveRig({ liveEdit: 'on', liveBusy: true })
+    fake.loadInstrument(SYNTH, 'Tim', 'SYNTHS')
+    await live.start()
+    setAttr(editor.preset!, 'polyphonic', 'mono')
+    flushSync()
+    expect(await live.deliver()).toBe(false)
+    expect(requests(fake, 'load')).toHaveLength(1)
+    await vi.advanceTimersByTimeAsync(200)
+    expect(requests(fake, 'load')).toHaveLength(2)
+    expect(live.error).toBe('Load: the Deluge has a menu or browser open')
+  })
+
+  it('a new kit over a live synth leaves too, and sends nothing', async () => {
+    const { fake } = await enterSynth()
+    editor.newKit()
+    await settle()
+    expect(live.on).toBe(false)
+    expect(requests(fake, 'load')).toEqual([])
+    expect(fake.live.type).toBe('synth')
+  })
+
+  it('leaves while waiting for a synth or kit, so the Deluge’s next one does not replace it', async () => {
+    const { fake } = liveRig()
+    await live.start()
+    expect(live.status).toBe('waiting')
+    editor.load(RINGMOD, 'Ringmod.XML')
+    await settle()
+    expect(live.on).toBe(false)
+    fake.loadInstrument(SYNTH, 'Tim', 'SYNTHS')
+    await live.idle()
+    expect(editor.fileName).toBe('Ringmod.XML')
+  })
+
+  it('stays when the file does not load, and when the Deluge’s own document replaces the tree', async () => {
+    const { fake } = await enterSynth()
+    editor.load('<notapreset/>', 'Bad.XML')
+    await settle()
+    expect(editor.error).toContain('Bad.XML')
+    expect(live.on).toBe(true)
+    // A pull adopted whole and a re-open both put a new tree in the editor; both are the device's.
+    fake.live.preset = SYNTH.replace('polyphonic="poly"', 'polyphonic="legato"')
+    fake.deviceEdit()
+    await settle()
+    expect(live.resynced).toBe(1)
+    fake.loadInstrument(KIT, 'Drums', 'KITS')
+    await settle()
+    expect(editor.fileName).toBe('Drums.XML')
+    expect(live.on).toBe(true)
+    expect(live.status).toBe('live')
   })
 })
 

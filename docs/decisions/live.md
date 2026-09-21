@@ -99,12 +99,19 @@ row index the device does not have yet (a row just added, or the rows after
 a deleted one) would land on the wrong row. They resume once the load has
 answered; a value the push already carried is sent once more, harmlessly.
 
-When the device refuses the push (`busy`: a menu or browser is open on it),
-the store does not pull to restore the truth — that would throw the user's
-edit away for the sake of a menu being open. It keeps the document wanted,
-says why in `error`, and retries every 2 s until the device takes it. A
-`param` the device refuses (`noDrum`, `name`) falls back to the whole
-document the same way, since the document carries every value.
+When the device refuses the push as `busy` (a menu or browser is open on
+it), the store does not pull to restore the truth — that would throw the
+user's edit away for the sake of a menu being open. It keeps the document
+wanted, says why in `error`, and retries every 2 s until the device takes
+it. A push the device did not answer at all is retried the same way. Any
+other refusal would come back every time: `load` (it could not load the
+file, and its instrument is as it was) and `path` do not clear by waiting,
+and a retry every 2 s rewrote `/TEMP/LIVE.XML` on the card for ever
+(issue #46). Those keep the edit and say so, "the next edit sends it
+again", and the next edit of any kind, a knob turn included, sends the
+whole document again. A `param` the device refuses (`noDrum`, `name`) falls
+back to the whole document the same way, since the document carries every
+value.
 
 ## The echo filter remembers every recent value, not the last
 
@@ -215,3 +222,75 @@ the transition is not acted on while that save is between its request and
 its `markSaved` — the device's `^inst` for our save can arrive before the
 reply is handled. A save on the device to a different name arrives as a
 different identity and re-opens, which reads `source` anyway.
+
+## A new document leaves Live Edit; it is not sent to the Deluge
+
+While the mode is on, the editor's document is the device's instrument, and
+the store sends any change a `param` cannot carry as a whole-document push.
+A new document is not a change. New, Open › From this computer, Open › From
+Deluge, a dropped preset, and a kit started from dropped samples all put a
+different tree in the editor. Pushing it did one of two wrong things
+(issue #46):
+
+- **The same type loaded under the old name.** `load {as}` keeps the
+  instrument's `name` and `dir`, so the Deluge played the opened preset
+  calling it the old one, marked edited, and its own Save → Synth would
+  write it over the old file. The editor told three stories at once: the
+  file name was the opened file, the header the device's instrument, and
+  the Changes dock counted against the opened file's bytes.
+- **The other type was refused.** `swapInstrumentFromFile` loads the file as
+  the clip's own type (`oldInstrument->type`), `openInstrumentFile` looks
+  for `<sound>` in a synth clip and `<kit>` in a kit clip, and
+  `XMLDeserializer::openXMLFile` skips any other top-level element and ends
+  `FILE_CORRUPTED`, answered as `why: "load"` (`smsysex_live.cpp`,
+  `storage_manager.cpp`, `Deserializer.cpp` on `feature/live-edit-sysex`).
+  The store then retried every 2 s for ever, and the editor showed a kit
+  the device would never have.
+
+So a new document ends the mode. The lease is released as the Live button
+releases it, the Deluge keeps the sound it holds, and the new preset is an
+ordinary file. The store tells a new document from an edit by the tree
+itself (`live.replaced`, from an effect on `editor.preset`): edits change
+`editor.preset` in place, and the only trees the store expects are the one
+the editor held when the mode started and the ones it puts there itself
+(the pull on entry or on a re-open, a pull adopted whole). Any other tree
+is new. That covers every way in, present and future, without each command
+having to know about the mode. The offer checks the same thing, so
+whichever effect runs first, nothing of the new document goes out. A file
+that fails to load changes no tree and leaves the mode on. While the mode
+is starting, a new tree is not acted on: the device's sound is on its way
+and replaces it, as entering always does.
+
+When to ask is `decisions/ui.md`'s rule: a command asks only with unsaved
+changes, a drop always. But the unsaved changes are the Deluge's, and it
+keeps them when the mode ends, so the question does not call them
+discarded. It leads with leaving the mode, the part that surprises, and
+says where the work stays: "Open Ringmod.XML and leave Live Edit? The
+Deluge keeps Tim and its 1 unsaved change." New's button is what it does,
+"New kit", not "Discard". It names the sound as the Deluge's header does,
+Tim, since the file on the card is untouched either way.
+
+That is only true of edits the Deluge has taken. One still on its way (a
+push waiting out its debounce) or refused (a menu open) would be dropped
+with the mode. So before asking, `start.ts` sends whatever is pending
+(`live.deliver`, the same flush Save uses). If the Deluge refuses it, the
+question does say Discard, "Discard the edit the Deluge hasn't taken?", and
+asks even when nothing is unsaved against the card. A Cancel hands the push
+back to its usual retry or report. In the other states the editor's changes
+are not known to be on the Deluge (the mode waiting for a synth or kit, or
+its link down), so the ordinary question stands with "and leaves Live Edit"
+added. The paths that do not ask through `start.ts`, such as the card
+browser's armed Open, leave through `live.replaced` without delivering;
+what they can drop is at most an edit less than 150 ms old.
+
+Two other shapes were turned down. Refusing to open while live ("leave Live
+Edit first") is an extra step that buys no safety this doesn't. Sending a
+file to the Deluge on purpose is a real feature, auditioning a preset on
+the device, but it needs its own answers: same type only; which name the
+device shows (a plain `load` names it `LIVE`, after the TEMP path); whether
+it is marked edited; and what Save means afterwards. It should be a command
+of its own, not a side effect of Open.
+
+The fake Deluge's `load` now refuses a mismatched root the same way, so the
+tests see what the device does. Before, it accepted a kit over a synth, and
+nothing noticed.

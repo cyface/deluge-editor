@@ -14,8 +14,10 @@
  * - the Live Edit ops (`smsysex_live.cpp` on the fork's
  *   `feature/live-edit-sysex`; `docs/live-edit.md`), when `liveEdit` is set:
  *   an in-RAM instrument whose parameters `param` reads and writes, `save`
- *   that serialises it, `load` that replaces it, `select`, and a `sub` lease
- *   behind which the device pushes `^chg`/`^dirty`/`^inst` on msgId 0
+ *   that serialises it, `load` that replaces it with a preset of its own
+ *   type (a kit over a synth is refused, as the firmware refuses it),
+ *   `select`, and a `sub` lease behind which the device pushes
+ *   `^chg`/`^dirty`/`^inst` on msgId 0
  *
  * Used by unit tests only; nothing in the app imports it.
  */
@@ -116,6 +118,7 @@ export interface FakeInstrument {
 }
 
 /** Firmware `Error` values the live ops answer with (`src/definitions_cxx.hpp`). */
+const ERR_FILE_CORRUPTED = 5
 const ERR_FILE_ALREADY_EXISTS = 17
 const ERR_FILE_NOT_FOUND = 18
 
@@ -457,6 +460,13 @@ export class FakeDeluge {
     const bytes = this.files.get(path)
     if (!bytes) return this.replyStatus(msgId, '^load', ERR_FILE_NOT_FOUND, 'notFound', false)
     const xml = String.fromCharCode(...bytes)
+    // `swapInstrumentFromFile` loads the file as the clip's own type, so
+    // `openInstrumentFile` looks for `<sound>` in a synth clip and `<kit>` in
+    // a kit clip, and `XMLDeserializer::openXMLFile` skips any other
+    // top-level element and ends FILE_CORRUPTED. The instrument is untouched.
+    if ((isKit(parseXML(xml)) ? 'kit' : 'synth') !== this.live.type) {
+      return this.replyStatus(msgId, '^load', ERR_FILE_CORRUPTED, 'load', false)
+    }
     const as = typeof args.name === 'string'
     this.setInstrument(xml, as ? (args.name as string) : split.name, as && typeof args.dir === 'string' ? args.dir : split.dir, as)
     this.replyStatus(msgId, '^load', 0, null, true)

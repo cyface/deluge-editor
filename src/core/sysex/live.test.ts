@@ -13,6 +13,7 @@ import { NO_REPLY, SysexError } from './client'
 import { LiveError, type LivePush } from './live'
 
 const SYNTH = fixtureText('Sine AnalogSaw Patch Cables')
+const OTHER_SYNTH = fixtureText('Ringmod')
 const KIT = fixtureText('Kit Sample Rows')
 
 const liveRig = (opts: Parameters<typeof rig>[0] = {}, clientOpts: Parameters<typeof rig>[1] = {}) => rig({ liveEdit: 'on', ...opts }, clientOpts)
@@ -134,12 +135,24 @@ describe('save and load', () => {
   it('load replaces the instrument, keeping the identity it is given', async () => {
     const { client, fake } = liveRig()
     fake.loadInstrument(SYNTH, 'Tim', 'SYNTHS')
-    fake.putFile('/TEMP/LIVE.XML', KIT)
+    fake.putFile('/TEMP/LIVE.XML', OTHER_SYNTH)
     await expect(client.load('/TEMP/NOPE.XML', { name: 'Tim', dir: 'SYNTHS' })).rejects.toMatchObject({ why: 'notFound', code: 18 })
     await expect(client.load('TEMPLIVE')).rejects.toMatchObject({ why: 'path' })
-    expect(await client.load('/TEMP/LIVE.XML', { name: 'Tim', dir: 'SYNTHS' })).toMatchObject({ type: 'kit', name: 'Tim', dir: 'SYNTHS', edited: true })
+    expect(await client.load('/TEMP/LIVE.XML', { name: 'Tim', dir: 'SYNTHS' })).toMatchObject({ type: 'synth', name: 'Tim', dir: 'SYNTHS', edited: true })
+    expect(fake.currentPreset()).toBe(OTHER_SYNTH)
     expect(fake.requests.at(-1)).toEqual({ load: { path: '/TEMP/LIVE.XML', name: 'Tim', dir: 'SYNTHS' } })
     expect(await client.load('/TEMP/LIVE.XML')).toMatchObject({ name: 'LIVE', dir: 'TEMP', edited: false })
+  })
+  it('load refuses a preset of the other type as FILE_CORRUPTED, and the instrument stays', async () => {
+    // The file is loaded as the clip's own type, and the loader skips a root it is not looking for.
+    for (const [held, file] of [[SYNTH, KIT], [KIT, SYNTH]]) {
+      const { client, fake } = liveRig()
+      fake.loadInstrument(held, 'Held', 'SYNTHS')
+      fake.putFile('/TEMP/LIVE.XML', file)
+      await expect(client.load('/TEMP/LIVE.XML', { name: 'Held', dir: 'SYNTHS' })).rejects.toMatchObject({ why: 'load', code: 5 })
+      expect(fake.currentPreset()).toBe(held)
+      expect(fake.live).toMatchObject({ name: 'Held', dir: 'SYNTHS', edited: false })
+    }
   })
   it('load is refused while a menu is open on the device', async () => {
     const { client, fake } = liveRig({ liveBusy: true })

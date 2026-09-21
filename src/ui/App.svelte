@@ -19,7 +19,7 @@
   import TopBar from './TopBar.svelte'
   import { collectDroppedSamples } from './dropdir'
   import { takeFiles } from './filepick'
-  import { attachPresetInput } from './start'
+  import { attachPresetInput, replacePreset } from './start'
   import { card } from './state/card.svelte'
   import { editor } from './state/editor.svelte'
   import { follow } from './state/follow.svelte'
@@ -29,7 +29,7 @@
   import { kit as kitBuilder } from './state/kit.svelte'
   import { library } from './state/library.svelte'
   import { multisample } from './state/multisample.svelte'
-  import { changesNote, confirm, loadedName } from './state/confirm.svelte'
+  import { confirm } from './state/confirm.svelte'
   import { samplePick } from './state/samplepick.svelte'
   import { samples as stash } from './state/samples.svelte'
 
@@ -74,17 +74,12 @@
   }
   /**
    * A preset file replaces what is loaded, and asks first when that could
-   * lose something. A drop asks whenever a preset is loaded, since a stray
-   * drag is easy to make; a pick is a command, and asks only when there are
-   * unsaved changes, as New does (issue #44).
+   * lose something: a drop whenever a preset is loaded, a pick only over
+   * unsaved changes (issues #44, #46). `replacePreset` has the rule and the
+   * words.
    */
   function openPreset(text: string, name: string, how: 'drop' | 'pick'): void {
-    const run = () => editor.load(text, name)
-    if (editor.preset && (how === 'drop' || editor.changeCount > 0)) {
-      confirm.ask({ question: `Open ${name}? It replaces ${loadedName()}${changesNote()}.`, verb: 'Open', run })
-      return
-    }
-    run()
+    void replacePreset({ kind: 'open', name, how }, () => editor.load(text, name))
   }
   const kit = $derived(editor.preset?.tag === 'kit' ? editor.preset : undefined)
 
