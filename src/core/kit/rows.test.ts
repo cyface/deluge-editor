@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import blankKit from '../../assets/templates/Default Kit.XML?raw'
 import { fixtureKit, fixtureSound, parseKit } from '../../../tests/helpers/fixtures'
 import { drumRows, type DrumRow } from '../preset'
-import { rowDescription, rowSampleFile, rowSampleOsc, rowSourceAction } from './rows'
+import { rowDescription, rowSampleFile, rowSampleOsc, rowSampleZone, rowSourceAction } from './rows'
 
 const byName = (rows: DrumRow[], name: string): DrumRow => {
   const r = rows.find((row) => row.attrs.name === name)
@@ -68,5 +68,14 @@ describe('rowSourceAction', () => {
     const rows = drumRows(fixtureKit('Kit Velocity Layers'))
     expect(rowSourceAction(byName(rows, 'KICK'))).toBe('layers')
     expect(rowSourceAction(fixtureSound('Sample Ranges'))).toBe('ranges')
+  })
+})
+
+describe('rowSampleZone', () => {
+  it('is the sounding range’s zone, in frames; nothing for a row with no sample', () => {
+    const rows = drumRows(fixtureKit('Kit Sample Rows'))
+    expect(rowSampleZone(rows[0])).toEqual({ start: 0, end: 7824 })
+    const midi = drumRows(fixtureKit('Kit MIDI CV Rows')).find((r) => r.tag !== 'sound')!
+    expect(rowSampleZone(midi)).toEqual({ start: 0, end: 0 })
   })
 })

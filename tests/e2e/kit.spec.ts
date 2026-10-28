@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { choose } from './bar.js'
-import { monoWav as wavBytes } from '../helpers/wav.js'
+import { monoWav as wavBytes, toneWav } from '../helpers/wav.js'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -72,11 +72,11 @@ test('build a kit from a sample folder: guessed order, reorder, rename, share zi
   await expect(rows.nth(1)).toContainText('Kick')
 
   // Rename the selected row inline.
-  await rows.nth(0).click()
+  await rows.nth(0).locator('td.num').first().click() // the row number, clear of the row's controls
   const name = page.getByTestId('row-name')
   await name.fill('SNR')
   await name.blur()
-  await rows.nth(1).click() // deselect: the name renders as text again
+  await rows.nth(1).locator('td.num').first().click() // deselect: the name renders as text again
   await expect(rows.nth(0)).toContainText('SNR')
 
   // The Changes dock collapses each built row to one entry (and the blank
@@ -153,4 +153,45 @@ test("a row's sample is chosen from the rows table itself", async ({ page }) => 
   await expect(rows.nth(1)).toHaveClass(/on/)
   await expect(rows.nth(1).getByTestId('row-name')).toHaveValue('U2')
   await expect(rows.nth(1)).toContainText('(no file)')
+})
+
+test('kit levels: each row shows how loud it plays, Match levels evens them out, Put back undoes it', async ({ page }) => {
+  const dir = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'deluge-kit-')), 'Levels')
+  fs.mkdirSync(dir)
+  fs.writeFileSync(path.join(dir, 'Kick.wav'), toneWav(22050, 0.8))
+  fs.writeFileSync(path.join(dir, 'Snare.wav'), toneWav(22050, 0.4)) // 6 dB under the kick
+
+  await page.goto('/')
+  await choose(page, 'new-kit')
+  await page.getByTestId('folder-input').setInputFiles(dir)
+  const rows = page.locator('[data-testid="kit-rows"] tbody tr')
+  await expect(rows).toHaveCount(2)
+
+  // Built rows share a Volume, so the level is the samples' own difference.
+  const level = (i: number) => rows.nth(i).getByTestId('row-level')
+  const vol = (i: number) => rows.nth(i).getByTestId('row-vol')
+  await expect(level(0)).toHaveText('0')
+  await expect(level(1)).toHaveText('−6.0')
+  const before = [await vol(0).inputValue(), await vol(1).inputValue()]
+  expect(before[0]).toBe(before[1])
+
+  // The snare can come up only a little, so the kick comes down to meet it.
+  await page.getByTestId('match-levels').click()
+  await expect(page.getByTestId('levels-matched')).toContainText('so they play equally loud')
+  await expect(level(0)).toHaveText('0')
+  await expect(level(1)).toHaveText('0')
+  expect(Number(await vol(0).inputValue())).toBeLessThan(Number(before[0]))
+
+  await page.getByTestId('levels-put-back').click()
+  await expect(page.getByTestId('levels-matched')).toHaveCount(0)
+  await expect(level(1)).toHaveText('−6.0')
+  expect([await vol(0).inputValue(), await vol(1).inputValue()]).toEqual(before)
+
+  // In turn plays the rows one after another, and stops on a second click.
+  const turn = page.getByTestId('rows-in-turn')
+  await turn.click()
+  await expect(turn).toHaveText('■ Stop')
+  await turn.click()
+  await expect(turn).toHaveText('▶ In turn')
+  await expect(page.locator('p.err')).toHaveCount(0)
 })

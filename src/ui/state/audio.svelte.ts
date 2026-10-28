@@ -7,12 +7,34 @@
 
 import { untrack } from 'svelte'
 import { cardPath } from '../../core/library'
+import { hitLoudness } from '../../core/samples/loudness'
 import { computePeaks, type Peaks } from '../../core/samples/peaks'
 import { NOT_ON_THIS_COMPUTER } from '../copy'
 import { errorText } from '../errtext'
 import { Activity } from './activity.svelte'
 import { card } from './card.svelte'
 import { samples } from './samples.svelte'
+
+/** How a sample plays in preview: as its row plays it, where the row says. */
+export interface PlayOptions {
+  /** Gain relative to the file as it is, dB; 0 (the default) plays it unchanged. */
+  gainDb?: number
+  /** First frame played (the zone's `startSamplePos`). */
+  start?: number
+  /** Frame after the last played; 0 or omitted is the end of the file. */
+  end?: number
+}
+
+/** One row's turn in `playInTurn`. */
+export interface TurnItem extends PlayOptions {
+  fileName: string
+  reversed?: boolean
+}
+
+/** `playing` while `playInTurn` runs. Not a file name: no file is named this. */
+export const IN_TURN = '*rows in turn*'
+/** Each row's turn in `playInTurn`, seconds; a longer sample is cut there. */
+const TURN_SECONDS = 0.5
 
 class AudioPreview extends Activity {
   /** fileName of the row playing right now. The one loading is `busy`; the last failure is `error`. */
@@ -23,10 +45,11 @@ class AudioPreview extends Activity {
   private ctx: AudioContext | null = null
   private cache = new Map<string, AudioBuffer>()
   private peaks = new Map<string, Peaks>()
+  private levels = new Map<string, number>()
   private decoding = new Set<string>()
   /** Counts prefetch runs, so a newer preset or connection retires the older run. */
   private prefetchGen = 0
-  private source: AudioBufferSourceNode | null = null
+  private sources: AudioBufferSourceNode[] = []
 
   /**
    * Where card-only bytes come from while the sample library is browsing a
@@ -42,16 +65,39 @@ class AudioPreview extends Activity {
   }
 
   stop(): void {
-    try {
-      this.source?.stop()
-    } catch {
-      // already ended
+    for (const source of this.sources) {
+      try {
+        source.stop()
+      } catch {
+        // already ended, or never started
+      }
     }
-    this.source = null
+    this.sources = []
     this.playing = null
   }
 
-  async toggle(fileName: string, reversed = false): Promise<void> {
+  /** A source for `buffer` through a gain of `gainDb`, wired to the speakers. */
+  private node(ctx: AudioContext, buffer: AudioBuffer, gainDb: number): AudioBufferSourceNode {
+    const source = ctx.createBufferSource()
+    source.buffer = buffer
+    if (gainDb === 0) source.connect(ctx.destination)
+    else {
+      const gain = ctx.createGain()
+      gain.gain.value = gainDb === -Infinity ? 0 : 10 ** (gainDb / 20)
+      source.connect(gain).connect(ctx.destination)
+    }
+    return source
+  }
+
+  /** The zone `opts` names, in seconds of `buffer`, read the way the row plays it (a reversed row starts from the zone's end). */
+  private span(buffer: AudioBuffer, reversed: boolean, opts: PlayOptions): { offset: number; duration: number } {
+    const start = Math.max(0, Math.min(buffer.length, opts.start ?? 0))
+    const end = opts.end && opts.end > start ? Math.min(buffer.length, opts.end) : buffer.length
+    const from = reversed ? buffer.length - end : start
+    return { offset: from / buffer.sampleRate, duration: (end - start) / buffer.sampleRate }
+  }
+
+  async toggle(fileName: string, reversed = false, opts: PlayOptions = {}): Promise<void> {
     if (this.playing === fileName) {
       this.stop()
       return
@@ -72,24 +118,97 @@ class AudioPreview extends Activity {
           const ctx = this.ctx
           const buffer = reversed ? this.reversedOf(fileName, buffer0) : buffer0
           if (ctx.state === 'suspended') await ctx.resume()
-          const source = ctx.createBufferSource()
-          source.buffer = buffer
-          source.connect(ctx.destination)
+          const source = this.node(ctx, buffer, opts.gainDb ?? 0)
           source.onended = () => {
-            if (this.source === source) {
-              this.source = null
+            if (this.sources.includes(source)) {
+              this.sources = []
               this.playing = null
             }
           }
-          this.source = source
+          this.sources = [source]
           this.playing = fileName
-          source.start()
+          const { offset, duration } = this.span(buffer, reversed, opts)
+          source.start(0, offset, duration)
         } catch (e) {
           throw new Error(`${fileName}: ${errorText(e)}`)
         }
       },
       { supersede: true },
     )
+  }
+
+  /**
+   * The rows one after another, each as its row plays it, half a second
+   * apart — so their levels can be compared by ear without a click per
+   * row. A second call while they play stops them. Samples not yet in the
+   * browser are read first, as a preview would.
+   */
+  async playInTurn(items: readonly TurnItem[]): Promise<void> {
+    if (this.playing === IN_TURN) {
+      this.stop()
+      return
+    }
+    this.stop()
+    await this.run(
+      'Playing the rows in turn',
+      async (live) => {
+        const buffers: AudioBuffer[] = []
+        for (const item of items) {
+          const buffer = await this.load(item.fileName)
+          buffers.push(item.reversed ? this.reversedOf(item.fileName, buffer) : buffer)
+        }
+        if (!live() || items.length === 0) return
+        this.ctx ??= new AudioContext()
+        const ctx = this.ctx
+        if (ctx.state === 'suspended') await ctx.resume()
+        const t0 = ctx.currentTime + 0.05
+        const sources = items.map((item, i) => {
+          const source = this.node(ctx, buffers[i], item.gainDb ?? 0)
+          const { offset, duration } = this.span(buffers[i], !!item.reversed, item)
+          source.start(t0 + i * TURN_SECONDS, offset, Math.min(duration, TURN_SECONDS))
+          return source
+        })
+        sources[sources.length - 1].onended = () => {
+          if (this.sources === sources) {
+            this.sources = []
+            this.playing = null
+          }
+        }
+        this.sources = sources
+        this.playing = IN_TURN
+      },
+      { supersede: true },
+    )
+  }
+
+  /** The decoded audio, or undefined while it isn't; local bytes start decoding on the first ask. */
+  private buffer(fileName: string): AudioBuffer | undefined {
+    void this.version // re-derive when a decode lands
+    const hit = this.cache.get(fileName)
+    if (hit) return hit
+    const bytes = samples.bytes.get(fileName)
+    if (bytes && !this.decoding.has(fileName)) {
+      this.decoding.add(fileName)
+      void this.decodeLocal(fileName, bytes)
+    }
+    return undefined
+  }
+
+  /**
+   * How loud the zone `start`…`end` of a sample is (`hitLoudness`, dB), or
+   * null while its audio isn't in the browser. Cached per zone: the rows
+   * table asks on every render.
+   */
+  loudnessFor(fileName: string, start = 0, end = 0): number | null {
+    const key = `${fileName}@${start}-${end}`
+    const hit = this.levels.get(key)
+    if (hit !== undefined) return hit
+    const buffer = this.buffer(fileName)
+    if (!buffer) return null
+    const channels = Array.from({ length: buffer.numberOfChannels }, (_, i) => buffer.getChannelData(i))
+    const level = hitLoudness(channels, buffer.sampleRate, { start, end })
+    this.levels.set(key, level)
+    return level
   }
 
   /**
@@ -103,19 +222,12 @@ class AudioPreview extends Activity {
     const key = `${fileName}@${buckets}`
     const hit = this.peaks.get(key)
     if (hit) return hit
-    const buffer = this.cache.get(fileName)
-    if (buffer) {
-      const channels = Array.from({ length: buffer.numberOfChannels }, (_, i) => buffer.getChannelData(i))
-      const computed = computePeaks(channels, buckets)
-      this.peaks.set(key, computed)
-      return computed
-    }
-    const bytes = samples.bytes.get(fileName)
-    if (bytes && !this.decoding.has(fileName)) {
-      this.decoding.add(fileName)
-      void this.decodeLocal(fileName, bytes)
-    }
-    return null
+    const buffer = this.buffer(fileName)
+    if (!buffer) return null
+    const channels = Array.from({ length: buffer.numberOfChannels }, (_, i) => buffer.getChannelData(i))
+    const computed = computePeaks(channels, buckets)
+    this.peaks.set(key, computed)
+    return computed
   }
 
   /**

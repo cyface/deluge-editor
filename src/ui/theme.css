@@ -196,6 +196,8 @@ table.rows tbody tr { cursor: pointer; }
 table.rows tbody tr:hover { background: #1a1713; }
 table.rows tbody tr.on { background: #231c12; box-shadow: inset 2px 0 0 var(--brass); }
 table.rows td.num, table.rows th.num { text-align: right; font-family: var(--mono); font-size: 10.5px; color: #cfc6b6; }
+/* A column of input boxes (Vol, Pan) centres them under the label. */
+table.rows td.mid, table.rows th.mid { text-align: center; }
 .pad { width: 11px; height: 11px; border-radius: 2px; display: inline-block; vertical-align: -1px; }
 .rname { font-family: var(--cond); font-size: 13px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: #e0d7c7; }
 .file { font-family: var(--mono); font-size: 9.5px; color: var(--faint); display: block; margin-top: 1px; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

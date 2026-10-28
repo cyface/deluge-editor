@@ -1,6 +1,7 @@
 /**
  * What the kit table says about a row: its one-line description, the sample
- * it plays, and what its Source button should offer. Read straight off the
+ * it plays and the part of it that plays, and what its Source button should
+ * offer. Read straight off the
  * row's element through `core/preset`; nothing here writes.
  */
 
@@ -47,6 +48,18 @@ export function rowSampleFile(r: DrumRow): string | undefined {
   if (!o) return undefined
   // The lowest range's sample stands for the row: the pad plays it first.
   return soundingOrder(sampleRanges(o))[0]?.fileName || undefined
+}
+
+/**
+ * The part of the row's sample that plays, in frames, for preview and for
+ * measuring it: the sounding range's zone. `end` 0 is the end of the file,
+ * as the firmware reads `endSamplePos="0"`.
+ */
+export function rowSampleZone(r: DrumRow): { start: number; end: number } {
+  const o = rowSampleOsc(r)
+  const zone = o ? soundingOrder(sampleRanges(o))[0]?.zone : undefined
+  const frame = (s: string | undefined) => Math.max(0, Number.parseInt(s ?? '0', 10) || 0)
+  return { start: frame(zone?.attrs.startSamplePos), end: frame(zone?.attrs.endSamplePos) }
 }
 
 /**

@@ -179,7 +179,7 @@ test('in a kit the layer editor follows the selected row', async ({ page }) => {
   await expect(editor.locator('[data-range="0"]')).toContainText('vel-kick-1.wav')
 
   // Selecting another pad shows that row's layers, in place.
-  await page.locator('[data-testid="kit-rows"] tbody tr').nth(1).click()
+  await page.locator('[data-testid="kit-rows"] tbody tr').nth(1).locator('td.num').first().click() // the row number, clear of the row's controls
   await expect(editor.locator('[data-range="0"]')).toContainText('vel-snare-1.wav')
 })
 

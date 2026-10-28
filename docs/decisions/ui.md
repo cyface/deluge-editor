@@ -375,3 +375,56 @@ preset or a dropped connection ends the run between files. A sample the
 card doesn't have is skipped, because the missing count already says so.
 The decoded audio is the preview's cache, so ▶ on a row that has its
 waveform plays at once.
+
+## A kit's rows show how loud they play, and Match levels evens them with Volume
+
+The rows table has a Rel lvl column. It says how loud each sample row plays
+against the kit's loudest row, in dB (0 is the loudest). Two buttons sit
+with the Rows actions: ▶ In turn plays the sample rows one after another,
+and Match levels sets each row's Volume so they all play equally loud. Put
+back undoes the match.
+
+- **What is measured** (`core/samples/loudness.ts`): the loudest 100 ms of
+  the part of the sample the zone plays, after BS.1770's K-weighting, with
+  the channels averaged. The ear model is there so a kick's sub doesn't
+  outweigh a hat's top end. The window is 100 ms rather than BS.1770's
+  400 ms because a 60 ms hat would read 8 dB quieter than it sounds. A
+  sample's level is known once its audio is in the browser: local files
+  decode in the background, and a kit's samples on the Deluge are read in
+  the background too.
+- **What the controls do** (`core/kit/levels.ts`): the file's `volume` is
+  the Deluge's Volume menu (`GLOBAL_VOLUME_POST_FX`), and it and
+  `oscAVolume` are volume params, which the firmware squares. So the gain
+  is `40·log10` of the knob, with 25 as 0 dB and 50 as +12 dB (citations in
+  the module). Preview now plays a row through both, and plays only its
+  zone, so preview compares the way the Deluge will.
+- **What a match does**: each row's Volume is set so its level equals one
+  target. The target is the highest level every row can reach with Volume
+  at the top, and never above the loudest row as it plays now. A match
+  evens a kit out; it doesn't make it louder. Volume 40 to 50 is under
+  4 dB, so in practice the loud rows come down to the quiet one. Volume is
+  written as the exact value the match needs, not the nearest menu step,
+  so the cell may show 37 for a value between 37 and 38, as the Deluge
+  would. Synth rows, MIDI rows and samples not yet measured are left alone.
+
+Cables into the volumes (velocity, envelope) aren't counted, because a
+stock kit has the same ones on every row.
+
+## A kit's rows table packs its columns left, and the spare width goes past Pan
+
+Each column is as wide as what it holds, and the table's spare width goes
+to the last column, which holds the row's ▲ ▼ × buttons at the right edge.
+Before, Source took all the spare width, which opened a gap between the
+path and Repeat. The Row column also had a 150 px minimum, which left a gap
+before Source. That minimum is now 90 px, still enough to type a name.
+Source no longer wraps: the Sample… chip and the path stay on one line, and
+the table scrolls sideways when the screen runs out.
+
+Vol, Rel lvl and Pan are centred under their labels. Vol and Pan are
+boxes, and their values are centred in the box. The column labels all share
+one face. Vol and Pan no longer use the numeric (monospace, right-aligned)
+style; the row number still does.
+
+The Source and Repeat labels sit 4 px further in than the others. A label
+lined up exactly with a drop-down's or chip's edge reads as left of it,
+because the box's border and padding push its text in.

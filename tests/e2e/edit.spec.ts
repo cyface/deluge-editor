@@ -301,7 +301,7 @@ test('a kit shows its rows and edits the selected one', async ({ page }) => {
   await expect(page.getByTestId('summary')).toHaveCount(0)
   const rows = page.locator('[data-testid="kit-rows"] tbody tr')
   await expect(rows).toHaveCount(5)
-  await rows.nth(1).click()
+  await rows.nth(1).locator('td.num').first().click()
   await expect(rows.nth(1)).toHaveClass(/on/)
   const knob = page.locator('[data-param="volume"]').first()
   await knob.focus()

@@ -1,12 +1,13 @@
 <script lang="ts">
   /**
    * One row of the kit table (`KitRows.svelte`): its grip, preview, pad
-   * colour, name, source, repeat and direction, volume and pan, and the
-   * reorder/remove actions. What it shows is read straight off the row's
+   * colour, name, source, repeat and direction, volume, level and pan, and
+   * the reorder/remove actions. What it shows is read straight off the row's
    * element through `core/preset`; the table owns the selection and the
    * drag, and hears about them through the callbacks.
    */
-  import { rowDescription as describe, rowSampleFile as sampleFile, rowSampleOsc as sampleOsc, rowSourceAction as sourceAction } from '../core/kit/rows'
+  import { previewGainDb, rowLevelControls } from '../core/kit/levels'
+  import { rowDescription as describe, rowSampleFile as sampleFile, rowSampleOsc as sampleOsc, rowSampleZone, rowSourceAction as sourceAction } from '../core/kit/rows'
   import { parsePan } from '../core/params/scale'
   import { OSC_ATTR_ORDER, type DrumRow } from '../core/preset'
   import { paramMenu, setParamMenu } from '../core/preset/sound'
@@ -28,6 +29,8 @@
     selected: boolean
     /** A dragged row is about to land here. */
     over: boolean
+    /** How loud the row plays against the kit's loudest row, dB (0 is the loudest); null while it can't be measured. */
+    level: number | null
     onselect: () => void
     onkeydown: (e: KeyboardEvent) => void
     ondragstart: (e: DragEvent) => void
@@ -39,7 +42,7 @@
     onrename: (name: string) => void
     onpick: () => void
   }
-  let { row: r, i, count, selected, over, onselect, onkeydown, ondragstart, ondragend, ondragover, ondrop, onmove, onremove, onrename, onpick }: Props = $props()
+  let { row: r, i, count, selected, over, level, onselect, onkeydown, ondragstart, ondragend, ondragover, ondrop, onmove, onremove, onrename, onpick }: Props = $props()
 
   const PADS = ['--osc', '--at', '--flt', '--env1', '--lfo1', '--lfo2', '--fx', '--vel']
   const DIRECTIONS = [{ value: '0', label: 'Fwd' }, { value: '1', label: 'Rev' }]
@@ -78,6 +81,14 @@
   }
   const file = $derived(sampleFile(r))
   const sampled = $derived(sampleOsc(r))
+
+  /** Preview plays the row as the Deluge will: through its Volume and oscillator level, and only the part its zone plays. */
+  function preview(file: string) {
+    if (!isSoundRow(r)) return
+    void audio.toggle(file, sampled?.attrs.reversed === '1', { gainDb: previewGainDb(rowLevelControls(r)), ...rowSampleZone(r) })
+  }
+
+  const levelText = $derived(level === null ? '' : level === -Infinity ? 'silent' : level > -0.05 ? '0' : `−${Math.abs(level).toFixed(1)}`)
 </script>
 
 <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
@@ -110,7 +121,7 @@
         disabled={audio.busy !== null || (!audio.canPreview(file) && audio.playing !== file)}
         title={UI_HELP[audio.playing === file ? 'ui.preview.stop' : audio.canPreview(file) ? 'ui.preview.play' : 'ui.preview.unavailable']}
         aria-label="Preview row {i + 1}"
-        onclick={() => audio.toggle(file, sampled?.attrs.reversed === '1')}
+        onclick={() => preview(file)}
       >{audio.playing === file ? '■' : audio.busy === file ? `${Math.round(audio.progress * 100)}%` : '▶'}</button>
     {/if}
   </td>
@@ -190,7 +201,7 @@
       />
     {/if}
   </td>
-  <td class="num">
+  <td class="num mid">
     {#if isSoundRow(r)}
       <input
         class="cell"
@@ -204,7 +215,8 @@
       />
     {/if}
   </td>
-  <td class="num">
+  <td class="lvl" data-testid="row-level" title={level === null ? '' : UI_HELP['ui.row.level']}>{levelText}</td>
+  <td class="num mid">
     {#if isSoundRow(r)}
       <input
         class="cell"
@@ -240,7 +252,9 @@
     letter-spacing: .05em; text-transform: uppercase; color: #e0d7c7;
   }
   .rename:focus { outline: 1px solid var(--brass); }
-  .acts { white-space: nowrap; }
+  /* The table's spare width goes here, past Pan, so every column sits
+     against the one before it; the buttons keep to the right edge. */
+  .acts { width: 100%; white-space: nowrap; text-align: right; }
   .act {
     background: none; border: 0; color: var(--faint); cursor: pointer; font-size: 9px; padding: 2px 3px; line-height: 1;
   }
@@ -249,19 +263,20 @@
   .act.x { font-size: 13px; vertical-align: -1px; }
   .act.x:hover { color: var(--bad-text); }
   .playcell { width: 30px; text-align: center; }
+  .lvl { text-align: center; font-family: var(--mono); font-size: 10.5px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
   .wavecell { width: 88px; line-height: 0; }
   /* The greedy Source column must not squeeze names into wrapping. */
-  .namecell { min-width: 150px; }
+  .namecell { min-width: 90px; }
   .namecell :global(.rname) { white-space: nowrap; }
   .cell {
     width: 34px; box-sizing: border-box; background: var(--well); border: 1px solid var(--edge); border-radius: var(--r-s);
-    color: #cfc6b6; font-family: var(--mono); font-size: 10.5px; padding: 2px 4px; text-align: right;
+    color: #cfc6b6; font-family: var(--mono); font-size: 10.5px; padding: 2px 4px; text-align: center;
   }
   .cell:hover, .cell:focus { border-color: var(--brass-dim); color: #efe6d7; outline: none; }
   .cell::placeholder { color: var(--faint); }
-  /* Source takes all spare width; the path only ellipsizes when the screen
-     truly runs out (the .scroll wrapper still allows a horizontal scroll). */
-  .src { width: 100%; }
+  /* Source is as wide as its longest path; it never ellipsizes (the .scroll
+     wrapper allows a horizontal scroll when the screen runs out). */
+  .src { white-space: nowrap; }
   .src :global(.file) { display: inline; max-width: none; }
   .pick {
     background: none; border: 1px solid var(--edge); border-radius: var(--r-s); color: var(--muted); cursor: pointer;

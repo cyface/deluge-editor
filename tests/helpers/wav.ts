@@ -106,6 +106,17 @@ export function wavBytes({
 export const monoWav = (frames: number, root?: number): Uint8Array => wavBytes({ channels: 1, frames, root })
 
 /**
+ * A 16-bit mono WAV at 44.1 kHz holding a sine of `hz` at `amplitude`
+ * (0–1 of full scale), for tests that need a sample with a level.
+ */
+export function toneWav(frames: number, amplitude: number, hz = 1000): Uint8Array {
+  const out = wavBytes({ channels: 1, frames })
+  const dv = new DataView(out.buffer)
+  for (let i = 0; i < frames; i++) dv.setInt16(44 + 2 * i, Math.round(32767 * amplitude * Math.sin((2 * Math.PI * hz * i) / 44100)), true)
+  return out
+}
+
+/**
  * A small mono 16-bit WAV at 4096 Hz as a latin1 string, for the e2e fake
  * card's seed. The seed crosses into the page as JSON text and is UTF-8
  * encoded there, so a header byte over 0x7F comes out as two bytes: up to 45

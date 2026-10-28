@@ -81,3 +81,5 @@ at the end of its area file and gets a line here.
 - [Missing samples are split by what can be done, and can be found elsewhere on the card](decisions/ui.md#missing-samples-are-split-by-what-can-be-done-and-can-be-found-elsewhere-on-the-card)
 - [Open › Recent reopens a file where it lives now](decisions/ui.md#open--recent-reopens-a-file-where-it-lives-now)
 - [A preset's samples on the Deluge draw their waveforms without a click](decisions/ui.md#a-presets-samples-on-the-deluge-draw-their-waveforms-without-a-click)
+- [A kit's rows show how loud they play, and Match levels evens them with Volume](decisions/ui.md#a-kits-rows-show-how-loud-they-play-and-match-levels-evens-them-with-volume)
+- [A kit's rows table packs its columns left, and the spare width goes past Pan](decisions/ui.md#a-kits-rows-table-packs-its-columns-left-and-the-spare-width-goes-past-pan)

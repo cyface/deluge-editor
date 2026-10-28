@@ -7,10 +7,13 @@
    * select the focused row. Each row is a `KitRow`.
    */
   import { moveRow, removeRow, renameRow } from '../core/kit/build'
-  import { MIDI_OUTPUT_ATTR_ORDER, referencedSampleFiles, type DrumRow, type KitElement } from '../core/preset'
+  import { matchLevels, previewGainDb, restoreRowVolume, rowLevelControls, rowLevelDb, setRowVolume, type RowLevel } from '../core/kit/levels'
+  import { rowSampleFile, rowSampleZone } from '../core/kit/rows'
+  import type { HexParam } from '../core/params/hex'
+  import { MIDI_OUTPUT_ATTR_ORDER, referencedSampleFiles, type DrumRow, type KitElement, type SoundElement } from '../core/preset'
   import { sampleRanges } from '../core/preset/ranges'
   import { UI_HELP } from './help'
-  import { osc } from '../core/preset/sound'
+  import { osc, paramHex } from '../core/preset/sound'
   import { setAttr } from '../core/xml'
   import KitRow from './KitRow.svelte'
   import KitStatus from './KitStatus.svelte'
@@ -19,7 +22,7 @@
   import Status from './controls/Status.svelte'
   import { HELP } from './help'
   import { midiTip } from './copy'
-  import { audio } from './state/audio.svelte'
+  import { audio, IN_TURN } from './state/audio.svelte'
   import { card } from './state/card.svelte'
   import { editor, isSoundRow } from './state/editor.svelte'
   import { follow } from './state/follow.svelte'
@@ -74,6 +77,58 @@
   }
   /** The builder's panel is up (a kit with no samples yet), and it shows the builder's status itself. */
   const builderPanel = $derived(!kitBuilder.built && !follow.on)
+
+  /**
+   * Each row's level: its sample's loudness and its level controls, or null
+   * for a row that can't be measured — a synth or MIDI row, or a sample whose
+   * audio isn't in the browser yet (a kit from the Deluge reads them in the
+   * background, `audio.prefetch`).
+   */
+  const levels = $derived<(RowLevel | null)[]>(
+    editor.rows.map((r) => {
+      const file = rowSampleFile(r)
+      if (!file || !isSoundRow(r)) return null
+      const zone = rowSampleZone(r)
+      const loudness = audio.loudnessFor(file, zone.start, zone.end)
+      return loudness === null ? null : { loudness, ...rowLevelControls(r) }
+    }),
+  )
+  /** How loud the loudest row plays now; each row's level is shown against it. */
+  const loudest = $derived(Math.max(...levels.flatMap((l) => (l && Number.isFinite(rowLevelDb(l)) ? [rowLevelDb(l)] : []))))
+  const relative = (l: RowLevel | null): number | null => (l === null || !Number.isFinite(loudest) ? null : rowLevelDb(l) - loudest)
+  const match = $derived(matchLevels(levels))
+  const sampleRows = $derived(editor.rows.filter((r) => rowSampleFile(r) !== undefined).length)
+  const measured = $derived(levels.filter((l) => l !== null).length)
+
+  /** What the last Match changed, to put back: each row's `volume` as stored before. Only for the kit it was made on. */
+  let matched = $state<{ kit: KitElement; before: { row: SoundElement; hex: HexParam | undefined }[] } | null>(null)
+
+  function matchRows() {
+    if (!match) return
+    const before: { row: SoundElement; hex: HexParam | undefined }[] = []
+    editor.rows.forEach((r, i) => {
+      const v = match.volumes[i]
+      if (v === null || !isSoundRow(r) || rowLevelControls(r).volume === v) return
+      before.push({ row: r, hex: paramHex(r, 'volume') })
+      setRowVolume(r, v)
+    })
+    matched = { kit, before }
+  }
+
+  function putBack() {
+    for (const { row, hex } of matched?.before ?? []) restoreRowVolume(row, hex)
+    matched = null
+  }
+
+  function inTurn() {
+    void audio.playInTurn(
+      editor.rows.flatMap((r) => {
+        const file = rowSampleFile(r)
+        if (!file || !isSoundRow(r)) return []
+        return [{ fileName: file, reversed: osc(r, 1)?.attrs.reversed === '1', gainDb: previewGainDb(rowLevelControls(r)), ...rowSampleZone(r) }]
+      }),
+    )
+  }
 
   const sel = $derived(editor.selectedRow)
   const kit = $derived(editor.preset as KitElement)
@@ -148,6 +203,25 @@
         onclick={() => kitBuilder.locateMissing()}
       >Find on card</button>
     {/if}
+    {#if sampleRows > 1}
+      <button
+        type="button"
+        class="btn small"
+        class:live={audio.playing === IN_TURN}
+        data-testid="rows-in-turn"
+        disabled={audio.busy !== null && audio.playing !== IN_TURN}
+        title={UI_HELP['ui.rows.inTurn']}
+        onclick={inTurn}
+      >{audio.playing === IN_TURN ? '■ Stop' : '▶ In turn'}</button>
+      <button
+        type="button"
+        class="btn small"
+        data-testid="match-levels"
+        disabled={!match}
+        title={UI_HELP['ui.rows.match'] + (measured < sampleRows ? ` — ${sampleRows - measured} of ${sampleRows} sample rows aren’t measured yet and are left alone` : '')}
+        onclick={matchRows}
+      >Match levels</button>
+    {/if}
     {#if pushCount > 0}
       <button
         type="button"
@@ -161,7 +235,7 @@
   {/snippet}
   <div class="scroll">
     <table class="rows" data-testid="kit-rows" bind:this={table}>
-      <thead><tr><th></th><th></th><th></th><th></th><th class="num">#</th><th>Row</th><th>Source</th><th>Repeat</th><th>Direction</th><th class="num">Vol</th><th class="num">Pan</th><th></th></tr></thead>
+      <thead><tr><th></th><th></th><th></th><th></th><th class="num">#</th><th>Row</th><th class="selhead">Source</th><th class="selhead">Repeat</th><th>Direction</th><th class="mid">Vol</th><th class="lvlhead" title={UI_HELP['ui.row.level']}>Rel lvl</th><th class="mid">Pan</th><th></th></tr></thead>
       <tbody>
         {#each editor.rows as r, i (r)}
           <KitRow
@@ -170,6 +244,7 @@
             count={editor.rows.length}
             selected={i === editor.row}
             over={i === dragOver && dragFrom !== null && dragFrom !== i}
+            level={relative(levels[i])}
             onselect={() => (editor.row = i)}
             onkeydown={(e) => rowKey(e, i)}
             ondragstart={(e) => { dragFrom = i; e.dataTransfer?.setData('text/plain', String(i)) }}
@@ -199,6 +274,12 @@
       </div>
     </div>
   {/if}
+  {#if matched && matched.kit === kit}
+    <Status kind="ok" testid="levels-matched">
+      {matched.before.length ? `Volume set on ${matched.before.length} row${matched.before.length === 1 ? '' : 's'} so they play equally loud.` : 'The rows already play equally loud.'}
+      {#if matched.before.length}<button type="button" class="btn small" data-testid="levels-put-back" onclick={putBack}>Put back</button>{/if}
+    </Status>
+  {/if}
   {#if !builderPanel && !kitBuilder.addOpen}<KitStatus />{/if}
   {#if audio.error}<Status kind="err">{audio.error}</Status>{/if}
   {#if stash.checkError}<Status kind="err" testid="missing-check-error">Could not check the card for these samples: {stash.checkError}</Status>{/if}
@@ -214,6 +295,10 @@
 </Panel>
 
 <style>
+  /* The one header with a tooltip: say so, rather than the text cursor a header shows by default. */
+  .lvlhead { text-align: center; cursor: help; white-space: nowrap; }
+  /* 4px in, so a label over a drop-down or chip reads as over it rather than left of it. */
+  .selhead { padding-left: 11px; }
   .scroll { overflow-x: auto; max-height: 300px; overflow-y: auto; }
   .misscount { all: unset; cursor: pointer; color: var(--bad-text); text-decoration: underline dotted; text-underline-offset: 2px; }
   .misscount:hover { text-decoration-style: solid; }

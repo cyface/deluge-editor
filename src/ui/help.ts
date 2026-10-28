@@ -417,12 +417,15 @@ export const UI_HELP: Record<string, string> = {
   // --- Kit table -----------------------------------------------------------
   'ui.rows.add': 'Add an empty row, as the Deluge’s drum creator does',
   'ui.rows.addSamples': 'Add a row per WAV, from a folder on this computer or on the Deluge',
+  'ui.rows.match': 'Set each sample row’s Volume so the rows play equally loud — as loud as the quietest can reach, never louder than the loudest is now',
+  'ui.rows.inTurn': 'Play the sample rows one after another, each at its own Volume, to compare them by ear',
   'ui.row.drag': 'Drag to reorder',
   'ui.row.layers': 'Show this row’s velocity layers',
   'ui.row.ranges': 'Show this row’s ranges',
   'ui.row.pickSample': 'Choose the sample this row plays',
   'ui.row.direction': 'Which way the sample plays: forwards, or reversed',
   'ui.row.volume': 'Volume, 0–50 on the Deluge’s own scale — blank means the firmware’s default',
+  'ui.row.level': 'Relative level: how loud this row plays against the kit’s loudest row, in dB (0 is the loudest, so a matched kit reads 0 throughout): its sample’s loudest 100 ms as the ear weights it, through Volume and the oscillator’s level',
   // The knob's spelling (`HexKnob`, docs/decisions.md); `parsePan` takes any.
   'ui.row.pan': 'Pan as the knob shows it: CTR, L1–L25 or R1–R25 — a bare L or R pans hard, and a signed number works too (negative is left)',
   'ui.row.up': 'Move up (towards the bottom pad)',
