@@ -12,8 +12,8 @@ import initKitTemplate from '../../assets/templates/Default Kit.XML?raw'
 import { addBlankRow, addSampleRows, rowNameFor, rowTemplateFrom, type SampleRowSpec } from '../../core/kit/build'
 import { orderSamples } from '../../core/kit/classify'
 import { shareZip, type ShareSample } from '../../core/kit/share'
-import { baseName, joinPath, xmlPath } from '../../core/library'
-import { isKit, drumRows, type KitElement, type SoundElement } from '../../core/preset'
+import { baseName, cardPath, joinPath, locateSamples, xmlPath } from '../../core/library'
+import { isKit, drumRows, retargetSampleFiles, type KitElement, type SoundElement } from '../../core/preset'
 import { bufferReader, readWavInfo } from '../../core/samples/wav'
 import { saveBlob } from '../saveblob'
 import { noWavs } from '../copy'
@@ -25,14 +25,38 @@ import { samples } from './samples.svelte'
 import { cleanFolder, count, isWav, readEach, wavsOf, withSkipped, type LocalSample } from './wavfiles'
 
 class KitBuilder extends Activity {
-  /** The share README's credits. */
+  /** The share README's credits, asked for by the share dialog. */
   author = $state('')
   license = $state('')
   sampleSource = $state('')
+  /** The share dialog (credits, then the zip) is up. */
+  shareOpen = $state(false)
+  /** The Add samples dialog is up: the builder's ways in, once the kit has samples. */
+  addOpen = $state(false)
+  /**
+   * What the last Find on the card turned up: each missing sample (as the
+   * XML names it) with the nearest file of the same name, and how many other
+   * copies there were. Null until a search has run; cleared once used.
+   */
+  found = $state<{ from: string; to: string; others: number }[] | null>(null)
   /** The on-device folder browser, on this panel's busy line. */
   readonly browser = new CardBrowser(this)
 
   private template: SoundElement | null = null
+
+  /**
+   * The kit names a sample somewhere. Until it does the builder is a panel —
+   * it is what a new kit is for; after, it is the rows' Add samples dialog.
+   */
+  get built(): boolean {
+    return samples.fileKey !== ''
+  }
+
+  /** Close the Add samples dialog, and the card browser that may be open in it. */
+  closeAdd(): void {
+    this.addOpen = false
+    this.browser.close()
+  }
 
   /**
    * Build (or extend) the kit from local WAV files. Creates a new kit first
@@ -63,6 +87,7 @@ class KitBuilder extends Activity {
       )
       this.buildRows(specs, folder)
       samples.hold(loaded)
+      this.addOpen = false
       this.notice = withSkipped(`${count(specs.length, 'row')} added from ${folder}`, skipped)
     })
   }
@@ -92,9 +117,51 @@ class KitBuilder extends Activity {
         (p) => (this.progress = p),
       )
       this.buildRows(specs, baseName(path) || null)
-      this.browser.close()
+      this.closeAdd()
       this.notice = withSkipped(`${count(specs.length, 'row')} added from ${path}`, skipped)
     })
+  }
+
+  /**
+   * Look on the card for the missing samples the editor holds no bytes for:
+   * the same file name, nearest folder first (`locateSamples`). Only lists
+   * folders; nothing changes until `useFound()`.
+   */
+  async locateMissing(): Promise<void> {
+    const wanted = [...samples.missing].filter((f) => !samples.bytes.has(f))
+    if (wanted.length === 0) return
+    this.found = null
+    const MAX = 400
+    await this.run(`Looking for ${count(wanted.length, 'sample')} on the card`, async () => {
+      const { found, truncated } = await locateSamples((p) => card.listPath(p), wanted.map(cardPath), {
+        maxFolders: MAX,
+        onProgress: ({ listed }) => (this.progress = listed / MAX),
+      })
+      const hits = wanted.flatMap((from) => {
+        const at = found.get(cardPath(from))
+        return at ? [{ from, to: xmlPath(at[0]), others: at.length - 1 }] : []
+      })
+      const where = truncated ? `in the first ${MAX} folders of SAMPLES/` : 'anywhere under SAMPLES/'
+      if (hits.length === 0) this.notice = `${wanted.length === 1 ? 'Not' : 'None of them'} found ${where} — choose another sample with Sample…, or remove the row`
+      else {
+        this.found = hits
+        if (hits.length < wanted.length) this.notice = `${wanted.length - hits.length} not found ${where}`
+      }
+    })
+  }
+
+  /**
+   * Point every reference to each found sample at the file that was found.
+   * Only the path changes: it is the same file by name, so the zone, loop
+   * points and tuning set for it stay as they are.
+   */
+  useFound(): void {
+    const preset = editor.preset
+    if (!preset || !this.found) return
+    const to = new Map(this.found.map((f) => [f.from, f.to]))
+    const moved = retargetSampleFiles(preset, (from) => to.get(from) ?? null)
+    this.found = null
+    this.notice = `${count(moved.length, 'sample')} repointed`
   }
 
   /** The builder panel's push button: the shared sync, on this panel's status line. */

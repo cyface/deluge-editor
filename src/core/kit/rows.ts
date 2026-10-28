@@ -7,11 +7,13 @@
 import { isVelocityKeyed, sampleRanges, soundingOrder } from '../preset/ranges'
 import { isSoundRow } from '../preset/rows'
 import { osc } from '../preset/sound'
+import { summariseSound } from '../preset/summary'
 import type { DrumRow, OscElement } from '../preset/types'
 
 /**
  * One line naming what the row is: the MIDI or gate output, the sample file
- * (or how many), or the synth mode and oscillator type.
+ * (or how many), or for a synth row the OLED sentence a synth preset gets —
+ * the kit page has no sentence of its own, and a sample row's file says more.
  */
 export function rowDescription(r: DrumRow): string {
   if (r.tag === 'midiOutput') return `MIDI ch ${Number(r.attrs.channel ?? 0) + 1} · note ${r.attrs.note ?? '?'}`
@@ -29,7 +31,7 @@ export function rowDescription(r: DrumRow): string {
     if (files.length === 0) return '(no file)'
     return files.length === 1 ? files[0] : `${files.length} samples · ${files[0]}`
   }
-  return `${r.attrs.mode ?? 'subtractive'} · ${t}`
+  return summariseSound(r).sentence.replace(/\.$/, '')
 }
 
 /** The oscillator whose play mode the Mode column edits: osc1 when it plays a sample. */

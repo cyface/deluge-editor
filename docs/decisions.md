@@ -76,3 +76,7 @@ at the end of its area file and gets a line here.
 - [Gold knobs are a panel of summaries](decisions/ui.md#gold-knobs-are-a-panel-of-summaries)
 - [The landing page offers the actions, it does not describe the bar](decisions/ui.md#the-landing-page-offers-the-actions-it-does-not-describe-the-bar)
 - [A command that replaces the preset asks when it would lose changes; a drop always asks](decisions/ui.md#a-command-that-replaces-the-preset-asks-when-it-would-lose-changes-a-drop-always-asks)
+- [The kit builder is a panel until the kit has samples; credits belong to the zip](decisions/ui.md#the-kit-builder-is-a-panel-until-the-kit-has-samples-credits-belong-to-the-zip)
+- [A kit has no OLED sentence; a synth row's sentence is its Source cell](decisions/ui.md#a-kit-has-no-oled-sentence-a-synth-rows-sentence-is-its-source-cell)
+- [Missing samples are split by what can be done, and can be found elsewhere on the card](decisions/ui.md#missing-samples-are-split-by-what-can-be-done-and-can-be-found-elsewhere-on-the-card)
+- [Open › Recent reopens a file where it lives now](decisions/ui.md#open--recent-reopens-a-file-where-it-lives-now)

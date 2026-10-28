@@ -17,6 +17,7 @@ import {
   groupFlatDiff, parseXML, removeAttr, removeChild, setAttr,
   type FlatDiff, type GroupedFlatDiff,
 } from '../../core/xml'
+import { recent } from './recent.svelte'
 
 /** Firmware the user can target. The loaded file's own version is added if it isn't one of these. */
 const FIRMWARE_CHOICES = ['4.1.4', 'c1.0.1', 'c1.1.1', 'c1.2.1', 'c1.3.0'] as const
@@ -249,6 +250,7 @@ class Editor {
     this.source = written
     this.fileName = name
     this.cardPath = path
+    void recent.addDeluge(path)
   }
 
   /** A Deluge answered the identity inquiry: select its firmware. The choice sticks after disconnect. */

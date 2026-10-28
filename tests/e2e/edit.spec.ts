@@ -5,6 +5,14 @@ import path from 'node:path'
 
 const FIXTURE = path.resolve('tests/fixtures/community-c1.3.0-beta-3f898e9/Default Synth.XML')
 
+/**
+ * Take the File System Access picker away, so Open › From this computer
+ * falls back to the file input Playwright's file chooser can answer — the
+ * native picker is out of its reach.
+ */
+const withoutFilePicker = (page: import('@playwright/test').Page) =>
+  page.addInitScript(() => delete (window as { showOpenFilePicker?: unknown }).showOpenFilePicker)
+
 test('load a fixture, see the whole preset, focus a block, edit one value, see exactly that change', async ({ page }) => {
   await page.goto('/')
   await page.getByTestId('file-input').setInputFiles(FIXTURE)
@@ -138,6 +146,7 @@ test('New asks before discarding unsaved changes, in the same dialog a dropped p
 })
 
 test('Open › From this computer asks before discarding unsaved changes, and only then (issue #44)', async ({ page }) => {
+  await withoutFilePicker(page)
   const RINGMOD = path.resolve('tests/fixtures/community-c1.3.0-beta-3f898e9/Ringmod.XML')
   const input = page.getByTestId('file-input')
   await page.goto('/')
@@ -200,6 +209,7 @@ test('New Synth starts from the Deluge-authored init template (issue #25)', asyn
 })
 
 test('the landing page’s tiles are the New and Open menus’ own actions (issue #38)', async ({ page }) => {
+  await withoutFilePicker(page)
   const download = async (): Promise<string> => {
     const pending = page.waitForEvent('download')
     await choose(page, 'download-xml')
@@ -287,7 +297,8 @@ test('re-targeting the firmware drops controls it cannot honour, without touchin
 test('a kit shows its rows and edits the selected one', async ({ page }) => {
   await page.goto('/')
   await page.getByTestId('file-input').setInputFiles(path.resolve('tests/fixtures/community-c1.3.0-beta-3f898e9/Kit Sample Rows.XML'))
-  await expect(page.getByTestId('summary')).toContainText('Sample kick.wav')
+  // A kit has no OLED sentence: the rows table says what each row is.
+  await expect(page.getByTestId('summary')).toHaveCount(0)
   const rows = page.locator('[data-testid="kit-rows"] tbody tr')
   await expect(rows).toHaveCount(5)
   await rows.nth(1).click()
@@ -422,7 +433,7 @@ test('the top bar’s commands live under New, Open and Save; the modes stay out
   // Download zip is conditional: a kit grows it, between XML and the Deluge.
   await choose(page, 'new-kit')
   await page.getByTestId('menu-save').click()
-  await expect(list.getByRole('menuitem')).toHaveText(['Download XML', 'Download zip', 'To Deluge…', 'To Deluge — Overwrite'])
+  await expect(list.getByRole('menuitem')).toHaveText(['Download XML', 'Download zip…', 'To Deluge…', 'To Deluge — Overwrite'])
   await expect(page.getByTestId('download-xml')).toBeEnabled()
   await page.keyboard.press('Escape')
 

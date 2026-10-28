@@ -11,7 +11,8 @@
   import { live } from './state/live.svelte'
   import { midiTip } from './copy'
   import { UI_HELP } from './help'
-  import { openFile, startNew } from './start'
+  import { openFile, openRecent, startNew } from './start'
+  import { recent } from './state/recent.svelte'
 </script>
 
 <div class="land" data-testid="landing">
@@ -42,6 +43,29 @@
       >
         <span class="t">From Deluge</span><span class="d">browse its card over USB, in Chrome or Edge</span>
       </button>
+      <!-- Open › Recent, as a list under the tiles: the same entries and the
+           same action as the menu's. Rows, not tiles — they are many and
+           alike, and a returning user scans them by name. Absent until there
+           is something in it; the menu is where an empty list is shown. -->
+      {#if recent.entries.length}
+        <h3>Recent</h3>
+        <ul class="recent" data-testid="landing-recent">
+          {#each recent.entries as r, i (r.at + ':' + i)}
+            <li>
+              <button
+                type="button"
+                data-testid="landing-recent-{i}"
+                disabled={(r.kind === 'deluge' && !card.supported) || !!card.busy}
+                title={r.kind === 'deluge' ? midiTip(`Open ${r.path} from the Deluge`, card.supported) : `Open ${r.name} from this computer`}
+                onclick={() => void openRecent(r)}
+              >
+                <span class="n">{r.name}</span>
+                <span class="w">{r.kind === 'deluge' ? (r.path.slice(1, r.path.lastIndexOf('/')) || 'card root') : 'this computer'}</span>
+              </button>
+            </li>
+          {/each}
+        </ul>
+      {/if}
     </section>
   </div>
   <!-- Drop is the one way in that isn't a click, so it is a sentence, not a tile. -->
@@ -74,6 +98,17 @@
   .t { font-family: var(--cond); font-size: 21px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--brass); }
   .tile:hover .t { color: var(--brass-hi); }
   .d { font-size: 12.5px; color: var(--muted); }
+  h3 { margin: 6px 0 -4px 2px; font-family: var(--cond); font-size: 10.5px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); }
+  .recent { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+  .recent button {
+    display: flex; align-items: baseline; gap: 10px; width: 100%; padding: 5px 8px; text-align: left; cursor: pointer;
+    background: transparent; border: 0; border-radius: var(--r-s);
+  }
+  .recent button:hover:not(:disabled), .recent button:focus-visible { background: #221d17; outline: none; }
+  .recent button:disabled { opacity: .45; cursor: default; }
+  .n { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--cond); font-size: 13.5px; letter-spacing: .04em; color: var(--text-hi); }
+  .recent button:hover:not(:disabled) .n { color: var(--brass-hi); }
+  .w { flex: none; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); font-size: 10px; color: var(--faint); }
   .aside { margin: 26px 0 0; text-align: center; font-family: var(--cond); font-size: 14px; letter-spacing: .03em; color: var(--muted); }
   .aside + .aside { margin-top: 8px; }
   .aside b { color: var(--text-hi); font-weight: 600; }

@@ -39,6 +39,7 @@ export {
   type IndexedFile,
   type ReferenceIndex,
 } from './usages'
+export { locateSamples, type ListDir, type LocateProgress, type LocateResult } from './locate'
 export { scanReferences, type ScanProgress } from './scan'
 export { smsFS } from './sms'
 export {

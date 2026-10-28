@@ -34,10 +34,8 @@ describe('rowDescription', () => {
     expect(rowDescription(byName(rows, 'CLAP'))).toBe('MIDI ch 10 · note 39')
     expect(rowDescription(byName(rows, 'GATE'))).toBe('Gate 3')
   })
-  it('names a synth row by mode and oscillator type', () => {
-    expect(rowDescription(fixtureSound('Default Synth'))).toBe('subtractive · saw')
-    // The FM fixture's <osc1> carries no `type`, so the Source constructor's default shows.
-    expect(rowDescription(fixtureSound('FM Modulators'))).toBe('fm · square')
+  it('describes a synth row in the OLED sentence, without its full stop', () => {
+    expect(rowDescription(fixtureSound('Kit Row Sound'))).toBe('One sine wave over noise, plucked, with Env 2 on osc b pitch, a little reverb')
   })
 })
 

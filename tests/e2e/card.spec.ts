@@ -45,13 +45,18 @@ test('kit builder: rows from card samples via header reads, local samples pushed
   const dir = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'deluge-push-')), 'Loops')
   fs.mkdirSync(dir)
   fs.writeFileSync(path.join(dir, 'Clap.wav'), Buffer.from(asciiWav(40), 'latin1'))
+  // The kit has samples now, so the builder panel has become the rows' Add samples dialog.
+  await expect(page.getByTestId('kit-builder')).toHaveCount(0)
+  await page.getByTestId('add-samples').click()
   await page.getByTestId('folder-input').setInputFiles(dir)
   await expect(rows).toHaveCount(3)
+  await expect(page.getByTestId('kit-add-samples')).toHaveCount(0) // closes itself once rows are added
 
   // The local sample isn't on the card yet: its row carries a warning (amber
   // "will be copied" — we hold the bytes); the card-sourced rows don't.
   await expect(page.getByTestId('row-missing')).toHaveCount(1)
-  await expect(page.getByTestId('missing-count')).toContainText('1 sample not on the card')
+  await expect(page.getByTestId('tosend-count')).toContainText('1 sample to send')
+  await expect(page.getByTestId('missing-count')).toHaveCount(0) // nothing the editor can't send
 
   // Saving the kit retargets its local samples to the saved folder path
   // (KITS/Rumbles.XML → SAMPLES/Rumbles/) and copies them along.
@@ -83,6 +88,50 @@ test('kit builder: rows from card samples via header reads, local samples pushed
   // (The save closed the dialog by itself, so the builder is reachable.)
   await page.getByTestId('push-samples').click()
   await expect(page.getByTestId('kit-notice')).toContainText('already on the card')
+})
+
+test('a kit whose samples moved: the missing count walks the rows, Find on card repoints them', async ({ page }) => {
+  const kitText = fs.readFileSync(path.resolve('tests/fixtures/community-c1.3.0-beta-3f898e9/Kit Sample Rows.XML'), 'utf8')
+  await page.addInitScript((seed) => {
+    ;(globalThis as unknown as { __cardSeed: unknown }).__cardSeed = seed
+  }, {
+    '/KITS/Moved.XML': kitText,
+    '/SAMPLES/Fixtures/kick.wav': asciiWav(32),
+    // Two of the kit's samples sit somewhere else; two are nowhere.
+    '/SAMPLES/Fixtures/Fixtures/snare.wav': asciiWav(45),
+    '/SAMPLES/Other/HAT-CLOSED.WAV': asciiWav(20),
+  })
+  await page.addInitScript({ path: path.resolve('tests/e2e/fake-deluge.js') })
+  await page.goto('/')
+
+  await choose(page, 'card-open-button')
+  await page.getByTestId('card-panel').getByRole('button', { name: 'Up', exact: true }).click()
+  await page.locator('[data-entry="KITS"]').click()
+  await page.locator('[data-entry="Moved.XML"]').click()
+  const rows = page.locator('[data-testid="kit-rows"] tbody tr')
+  await expect(rows).toHaveCount(5)
+
+  const missing = page.getByTestId('missing-count')
+  await expect(missing).toHaveText('⚠ 4 samples missing')
+  await expect(page.getByTestId('tosend-count')).toHaveCount(0)
+
+  // The count is a way to the rows it means: the next one after the selection, then round again.
+  await missing.click()
+  await expect(rows.nth(1)).toHaveClass(/on/)
+
+  // Find on card looks nearest first, case-insensitively, and changes nothing until asked.
+  await page.getByTestId('find-missing').click()
+  const found = page.getByTestId('found-missing')
+  await expect(found).toContainText('SAMPLES/Fixtures/Fixtures/snare.wav')
+  await expect(found).toContainText('SAMPLES/Other/HAT-CLOSED.WAV')
+  await expect(page.getByTestId('kit-notice')).toContainText('2 not found anywhere under SAMPLES/')
+  await expect(missing).toHaveText('⚠ 4 samples missing')
+
+  await page.getByTestId('use-found').click()
+  await expect(found).toHaveCount(0)
+  await expect(rows.nth(1)).toContainText('SAMPLES/Fixtures/Fixtures/snare.wav')
+  await expect(missing).toHaveText('⚠ 2 samples missing')
+  await expect(page.getByTestId('change-count')).toHaveText('2')
 })
 
 test('card: connect, browse, load, edit, save with verification, reload', async ({ page }) => {

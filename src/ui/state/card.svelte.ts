@@ -23,6 +23,7 @@ import { errorText } from '../errtext'
 import { Activity } from './activity.svelte'
 import { editor } from './editor.svelte'
 import type { LiveSaveResult } from './live.svelte'
+import { recent } from './recent.svelte'
 import { samples } from './samples.svelte'
 import { count } from './wavfiles'
 
@@ -358,6 +359,7 @@ class Card extends Activity {
       if (!editor.error) {
         editor.cardPath = path
         this.open = false
+        void recent.addDeluge(path)
       }
     })
   }
@@ -620,6 +622,29 @@ class Card extends Activity {
   liveClient(): SmsClient {
     return this.need()
   }
+
+  /**
+   * Open › Recent's read of a preset by path: connects first if need be, on
+   * the bar's busy dot. Returns the text, or null with the reason in `error`
+   * (a path the card no longer has reads as `notFound`, which the caller
+   * checks with `isNotFound(lastFailure)`).
+   */
+  async fetchPreset(path: string): Promise<string | null> {
+    let text: string | null = null
+    this.lastFailure = null
+    await this.run(`Reading ${baseName(path)}`, async () => {
+      await this.require()
+      try {
+        text = new TextDecoder().decode(await this.need().readFile(clean(path), (d, t) => (this.progress = t ? d / t : 0)))
+      } catch (e) {
+        this.lastFailure = e
+        throw e
+      }
+    })
+    return text
+  }
+  /** What the last `fetchPreset` failed on, for telling a moved file from a dropped link. */
+  lastFailure: unknown = null
 
   /** Read a whole file off the card — a sample for preview, a `SETTINGS/*.XML`. */
   async readFile(path: string, onProgress?: (done: number, total: number) => void): Promise<Uint8Array> {

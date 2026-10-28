@@ -6,6 +6,7 @@
   import EmptyState from './EmptyState.svelte'
   import FlowStrip from './FlowStrip.svelte'
   import FollowView from './FollowView.svelte'
+  import KitAddSamples from './KitAddSamples.svelte'
   import KitBuilder from './KitBuilder.svelte'
   import KitRows from './KitRows.svelte'
   import LibraryPanel from './LibraryPanel.svelte'
@@ -16,10 +17,12 @@
   import RangeEditor from './RangeEditor.svelte'
   import Randomize from './Randomize.svelte'
   import SamplePicker from './SamplePicker.svelte'
+  import ShareZip from './ShareZip.svelte'
   import TopBar from './TopBar.svelte'
   import { collectDroppedSamples } from './dropdir'
   import { takeFiles } from './filepick'
-  import { attachPresetInput, replacePreset } from './start'
+  import { attachPresetInput, openPreset } from './start'
+  import type { RecentHandle } from './state/recent.svelte'
   import { card } from './state/card.svelte'
   import { editor } from './state/editor.svelte'
   import { follow } from './state/follow.svelte'
@@ -40,6 +43,11 @@
     dragging = false
     confirm.cancel()
     if (!e.dataTransfer) return
+    // A dropped file's handle, for Open › Recent (Chrome, Edge). It must be
+    // asked for before the first await: the DataTransfer empties after.
+    const handleP = (e.dataTransfer.items[0] as DataTransferItem & { getAsFileSystemHandle?: () => Promise<RecentHandle | null> } | undefined)
+      ?.getAsFileSystemHandle?.()
+      .then((h) => (h?.kind === 'file' ? h : null))
     // A folder (or loose WAVs) builds an instrument from samples; a file is a
     // preset. Over a synth the folder is a multi-sample import: it opens the
     // review and builds the ranges there and then, on an oscillator that was
@@ -65,21 +73,13 @@
     }
     const f = e.dataTransfer.files?.[0]
     if (!f) return
-    openPreset(await f.text(), f.name, 'drop') // read now: the DataTransfer dies with the event
+    const text = await f.text() // read now: the DataTransfer dies with the event
+    openPreset(text, f.name, 'drop', (await handleP?.catch(() => null)) ?? undefined)
   }
-  /** Open › From this computer, from the bar or the landing page (`start.ts`). */
+  /** Open › From this computer without the File System Access picker (`start.ts`). */
   async function pick(e: Event) {
     const [f] = takeFiles(e)
     if (f) openPreset(await f.text(), f.name, 'pick')
-  }
-  /**
-   * A preset file replaces what is loaded, and asks first when that could
-   * lose something: a drop whenever a preset is loaded, a pick only over
-   * unsaved changes (issues #44, #46). `replacePreset` has the rule and the
-   * words.
-   */
-  function openPreset(text: string, name: string, how: 'drop' | 'pick'): void {
-    void replacePreset({ kind: 'open', name, how }, () => editor.load(text, name))
   }
   const kit = $derived(editor.preset?.tag === 'kit' ? editor.preset : undefined)
 
@@ -114,6 +114,8 @@
 
 {#if multisample.open}<FolderImport />{/if}
 {#if samplePick.open}<SamplePicker />{/if}
+{#if kitBuilder.addOpen && kit}<KitAddSamples />{/if}
+{#if kitBuilder.shareOpen && editor.preset}<ShareZip />{/if}
 
 <!-- The one question dialog (`state/confirm.svelte.ts`): a drop over a
      preset, samples onto a kit, New over unsaved work. Above everything,
@@ -161,7 +163,7 @@
     <Oled />
     <!-- Follow Mode keeps the row table (it picks the row the CCs land on)
          but not the sample builder, which is a different job entirely. -->
-    {#if kit}{#if !follow.on}<KitBuilder />{/if}<KitRows />{/if}
+    {#if kit}{#if !follow.on && !kitBuilder.built}<KitBuilder />{/if}<KitRows />{/if}
     {#if follow.on}
       <!-- Follow Mode replaces the editor's own view with the subset MIDI
            Follow can reach (issue #9). The flow strip's pins and the range

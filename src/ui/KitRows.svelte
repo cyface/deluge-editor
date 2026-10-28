@@ -7,18 +7,22 @@
    * select the focused row. Each row is a `KitRow`.
    */
   import { moveRow, removeRow, renameRow } from '../core/kit/build'
-  import { MIDI_OUTPUT_ATTR_ORDER, type DrumRow, type KitElement } from '../core/preset'
+  import { MIDI_OUTPUT_ATTR_ORDER, referencedSampleFiles, type DrumRow, type KitElement } from '../core/preset'
   import { sampleRanges } from '../core/preset/ranges'
   import { UI_HELP } from './help'
   import { osc } from '../core/preset/sound'
   import { setAttr } from '../core/xml'
   import KitRow from './KitRow.svelte'
+  import KitStatus from './KitStatus.svelte'
   import NumberField from './controls/NumberField.svelte'
   import Panel from './controls/Panel.svelte'
   import Status from './controls/Status.svelte'
   import { HELP } from './help'
+  import { midiTip } from './copy'
   import { audio } from './state/audio.svelte'
+  import { card } from './state/card.svelte'
   import { editor, isSoundRow } from './state/editor.svelte'
+  import { follow } from './state/follow.svelte'
   import { kit as kitBuilder } from './state/kit.svelte'
   import { ranges as rangeEditor } from './state/ranges.svelte'
   import { samplePick } from './state/samplepick.svelte'
@@ -44,6 +48,32 @@
         onFolder: (path, entries) => kitBuilder.addCardFolder(path, entries),
       })
   }
+
+  const pushCount = $derived(stash.pushable.length)
+  /**
+   * The card's missing samples split by what can be done about them: the
+   * ones this session holds go with Send (or the next save to the Deluge);
+   * the rest can only be found elsewhere on the card, or replaced.
+   */
+  const toSend = $derived([...stash.missing].filter((f) => stash.bytes.has(f)).length)
+  const lost = $derived([...stash.missing].filter((f) => !stash.bytes.has(f)))
+  /** Found copies still worth offering: their sample is still missing. */
+  const found = $derived(kitBuilder.found?.filter((f) => stash.missing.has(f.from)) ?? [])
+
+  /** Rows that name a sample the card lacks and the editor can't send. */
+  const lostRows = $derived(
+    editor.rows.flatMap((r, i) => (isSoundRow(r) && referencedSampleFiles(r).some((f) => stash.missing.has(f) && !stash.bytes.has(f)) ? [i] : [])),
+  )
+
+  /** The missing count's click: select the next such row after the selected one, and bring it into view. */
+  function nextLost() {
+    if (!lostRows.length) return
+    const to = lostRows.find((i) => i > editor.row) ?? lostRows[0]
+    editor.row = to
+    table?.querySelector<HTMLElement>(`[data-row="${to}"]`)?.scrollIntoView({ block: 'nearest' })
+  }
+  /** The builder's panel is up (a kit with no samples yet), and it shows the builder's status itself. */
+  const builderPanel = $derived(!kitBuilder.built && !follow.on)
 
   const sel = $derived(editor.selectedRow)
   const kit = $derived(editor.preset as KitElement)
@@ -89,12 +119,45 @@
 
 <Panel title="Rows" flow>
   {#snippet subtitle()}
-    {#if stash.missing.size}<span class="misscount" data-testid="missing-count">⚠ {stash.missing.size} sample{stash.missing.size === 1 ? '' : 's'} not on the card</span> · {/if}{editor.rows.length} in pad order · bottom row first in the file · drag or ▲▼ to reorder
+    {#if lost.length}<button
+        type="button"
+        class="misscount"
+        data-testid="missing-count"
+        title="These rows will be silent on the Deluge. Click to go to the next one, then choose another sample with Sample… or remove the row — or Find on card"
+        onclick={nextLost}
+      >⚠ {lost.length} sample{lost.length === 1 ? '' : 's'} missing</button> · {/if}{#if toSend}<span
+        class="tosend"
+        data-testid="tosend-count"
+        title="Not on the card yet — Send them, or save the kit to the Deluge, to copy them there"
+      >⚠ {toSend} sample{toSend === 1 ? '' : 's'} to send</span> · {/if}{editor.rows.length} in pad order · bottom row first in the file · drag or ▲▼ to reorder
   {/snippet}
   {#snippet actions()}
     <!-- The instrument's own gesture: a new drum arrives silent and named
          U1, U2, … and gets its sample afterwards. -->
     <button type="button" class="btn small" data-testid="add-row" title={UI_HELP['ui.rows.add']} onclick={() => kitBuilder.addRow()}>Add row</button>
+    {#if kitBuilder.built && !follow.on}
+      <button type="button" class="btn small" data-testid="add-samples" title={UI_HELP['ui.rows.addSamples']} disabled={!!kitBuilder.busy} onclick={() => (kitBuilder.addOpen = true)}>Add samples…</button>
+    {/if}
+    {#if lost.length && card.status === 'connected'}
+      <button
+        type="button"
+        class="btn small"
+        data-testid="find-missing"
+        disabled={!!kitBuilder.busy}
+        title="Look under SAMPLES/ on the Deluge for files with the same names, nearest folder first"
+        onclick={() => kitBuilder.locateMissing()}
+      >Find on card</button>
+    {/if}
+    {#if pushCount > 0}
+      <button
+        type="button"
+        class="btn small"
+        data-testid="push-samples"
+        disabled={!card.supported || !!kitBuilder.busy}
+        title={midiTip(`Write ${pushCount} sample file${pushCount === 1 ? '' : 's'} to SAMPLES/${stash.folder ?? ''} on the card`, card.supported)}
+        onclick={() => kitBuilder.pushToCard()}
+      >Send {pushCount} sample{pushCount === 1 ? '' : 's'} to the card</button>
+    {/if}
   {/snippet}
   <div class="scroll">
     <table class="rows" data-testid="kit-rows" bind:this={table}>
@@ -122,6 +185,21 @@
       </tbody>
     </table>
   </div>
+  {#if found.length}
+    <div class="found" data-testid="found-missing">
+      <p>Found on the card:</p>
+      <ul>
+        {#each found as f (f.from)}
+          <li><s>{f.from}</s> → <b>{f.to}</b>{#if f.others} <i>(+{f.others} other cop{f.others === 1 ? 'y' : 'ies'})</i>{/if}</li>
+        {/each}
+      </ul>
+      <div class="btns">
+        <button type="button" class="btn go small" data-testid="use-found" onclick={() => kitBuilder.useFound()}>Use {found.length === 1 ? 'it' : 'them'}</button>
+        <button type="button" class="btn small" onclick={() => (kitBuilder.found = null)}>Dismiss</button>
+      </div>
+    </div>
+  {/if}
+  {#if !builderPanel && !kitBuilder.addOpen}<KitStatus />{/if}
   {#if audio.error}<Status kind="err">{audio.error}</Status>{/if}
   {#if stash.checkError}<Status kind="err" testid="missing-check-error">Could not check the card for these samples: {stash.checkError}</Status>{/if}
   {#if sel && !isSoundRow(sel)}
@@ -137,5 +215,14 @@
 
 <style>
   .scroll { overflow-x: auto; max-height: 300px; overflow-y: auto; }
-  .misscount { color: var(--bad-text); }
+  .misscount { all: unset; cursor: pointer; color: var(--bad-text); text-decoration: underline dotted; text-underline-offset: 2px; }
+  .misscount:hover { text-decoration-style: solid; }
+  .misscount:focus-visible { outline: 1px solid var(--brass-dim); outline-offset: 2px; }
+  .tosend { color: var(--warn-text); }
+  .found { margin: 8px 0 0 4px; font-family: var(--cond); font-size: 11.5px; color: var(--muted); }
+  .found p { margin: 0 0 4px; }
+  .found ul { margin: 0 0 6px; padding-left: 16px; font-family: var(--mono); font-size: 10.5px; }
+  .found s { color: var(--faint); }
+  .found b { color: var(--text-hi); font-weight: 500; }
+  .found .btns { display: flex; gap: 6px; }
 </style>

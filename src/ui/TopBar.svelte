@@ -15,7 +15,8 @@
   import { midiTip, NEEDS_FOLDER_ACCESS } from './copy'
   import { UI_HELP } from './help'
   import { saveBlob } from './saveblob'
-  import { openFile, startNew } from './start'
+  import { openFile, openRecent, startNew } from './start'
+  import { recent } from './state/recent.svelte'
 
   function download() {
     saveBlob(
@@ -136,6 +137,27 @@
     <Menu label="Open" testid="menu-open" title={UI_HELP['ui.menu.open']}>
       <MenuItem label="From this computer…" testid="file-open-button" title={UI_HELP['ui.open.file']} onclick={openFile} />
       <MenuItem label="From Deluge" testid="card-open-button" title={midiTitle('ui.open.card')} onclick={() => card.openPanel('open')} />
+      <!-- Recent opens and saves, newest first (`state/recent.svelte.ts`).
+           The hint says where each lives: its folder on the Deluge, or this
+           computer. The section stays when empty, so the command is there
+           to find before it has anything in it. -->
+      <div class="sep" role="separator"></div>
+      <div class="mh" role="presentation">Recent</div>
+      {#each recent.entries as r, i (r.at + ':' + i)}
+        <MenuItem
+          label={r.name}
+          testid="recent-{i}"
+          hint={r.kind === 'deluge' ? (r.path.slice(1, r.path.lastIndexOf('/')) || 'card root') : 'this computer'}
+          title={r.kind === 'deluge' ? midiTip(`Open ${r.path} from the Deluge`, card.supported) : `Open ${r.name} from this computer`}
+          disabled={(r.kind === 'deluge' && !card.supported) || !!card.busy}
+          onclick={() => void openRecent(r)}
+        />
+      {:else}
+        <MenuItem label="Nothing yet" testid="recent-none" disabled onclick={() => {}} />
+      {/each}
+      {#if recent.entries.length}
+        <MenuItem label="Clear recent" testid="recent-clear" onclick={() => void recent.clear()} />
+      {/if}
       <!-- The card's sample library lives under Open rather than as a fourth
            menu: issue #37 folded the commands into three so the file name has
            room, and a fourth costs exactly that room. It is set apart by a
@@ -164,7 +186,7 @@
     <Menu label="Save" testid="menu-save" title={UI_HELP['ui.menu.save']}>
       <MenuItem label="Download XML" testid="download-xml" title={UI_HELP['ui.save.xml']} disabled={!editor.preset} onclick={download} />
       {#if showZip}
-        <MenuItem label="Download zip" testid="download-zip-top" title={UI_HELP[editor.preset?.tag === 'kit' ? 'ui.save.zipKit' : 'ui.save.zip']} onclick={() => kit.downloadZip()} />
+        <MenuItem label="Download zip…" testid="download-zip-top" title={UI_HELP['ui.save.zip']} onclick={() => (kit.shareOpen = true)} />
       {/if}
       <MenuItem label="To Deluge…" testid="card-save-button" title={midiTitle('ui.save.card')} disabled={!editor.preset} onclick={() => card.openPanel('save')} />
       <!-- Straight back to the file it came from or last went to, no browser:
@@ -289,4 +311,5 @@
   .pill select:focus { outline: none; }
   /* Rendered inside the menu's list (the snippet compiles here, so the style reaches it). */
   .sep { height: 1px; margin: 4px 6px; background: var(--edge-hi); }
+  .mh { padding: 3px 8px 2px; font-family: var(--cond); font-size: 9.5px; font-weight: 600; letter-spacing: .13em; text-transform: uppercase; color: var(--faint); }
 </style>

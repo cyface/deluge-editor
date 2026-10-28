@@ -19,7 +19,7 @@ const MENU: Record<string, string> = {
 }
 
 function menuOf(item: string): string {
-  const menu = MENU[item]
+  const menu = MENU[item] ?? (item.startsWith('recent-') ? 'menu-open' : undefined)
   if (!menu) throw new Error(`no top-bar menu holds ${item}`)
   return menu
 }

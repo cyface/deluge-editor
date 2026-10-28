@@ -278,3 +278,82 @@ The card browser's armed row says the same, shortened to fit a row:
 "leaves Live Edit? The Deluge keeps Tim and its 1 unsaved change" in place
 of "discards your changes?" (issue #47). Those labels are long, so the
 row's label wraps under a cap instead of squeezing out the file name.
+
+## The kit builder is a panel until the kit has samples; credits belong to the zip
+
+The kit builder used to be one panel holding the ways samples come in
+(drop, choose a folder, browse the Deluge), the push to the card, and the
+share zip's credits (author, licensing, source). The credits matter only to
+the zip, and they sat under a "Build from samples" heading.
+
+The credits are now asked for by Save › Download zip…, a dialog with the
+three fields and the download button (`ShareZip.svelte`). Any preset that
+shares as a zip gets them, a sample-based synth as well as a kit.
+
+The builder panel shows only while the kit names no sample (`kit.built`):
+that is what a new kit is for. After that, the same controls are the Rows
+panel's Add samples… dialog (`KitAddSamples.svelte`), which closes itself
+once rows land. Send N samples to the card sits in the Rows panel's actions,
+next to the count of samples not on the card. The builder's status lines
+(`KitStatus.svelte`) show wherever the builder is: its panel, the dialog, or
+the Rows panel when neither is up. Dropping a folder on the page works the
+same either way.
+
+## A kit has no OLED sentence; a synth row's sentence is its Source cell
+
+The OLED sentence and chips describe a synth preset. On a kit they used to
+describe the selected row, which read as a description of the whole kit;
+a sentence for the kit itself (row count and names) said nothing the rows
+table doesn't, and a sample row's sentence ("Sample kick.wav, sustained…")
+said less than its file name. So a kit shows none. A synth row is the one
+row whose file name can't say what it is, so its Source cell carries the
+sentence a synth preset gets (`core/kit/rows.ts`, `rowDescription`) in
+place of "subtractive · saw".
+
+## Missing samples are split by what can be done, and can be found elsewhere on the card
+
+The Rows header used to say "⚠ N samples not on the card" in red for two
+different things. Now it says each one with what can be done about it:
+
+- **To send** (amber): the editor holds the bytes. Send N samples to the
+  card copies them, and so does saving the kit to the Deluge.
+- **Missing** (red, a button): the card lacks the file and the editor has
+  no copy, so the row will be silent. Clicking the count selects the next
+  such row and scrolls to it.
+
+Find on card (shown while a Deluge is connected and something is missing)
+looks under `SAMPLES/` for a file of the same name, case-insensitively,
+starting at the missing file's folder and widening one parent at a time
+(`core/library/locate.ts`). Nearest first, because a kit whose folder was
+moved or nested usually has its files one level away. It lists each folder
+at most once and stops after 400 folders. What it finds is offered with a
+Use them button; nothing changes until then. Using them rewrites only the
+path. It is the same file by name, so the zone, loop points and tuning
+stay as they are.
+
+## Open › Recent reopens a file where it lives now
+
+Open lists the last eight presets opened or saved, newest first, each with
+where it lives: its folder on the Deluge, or "this computer"
+(`state/recent.svelte.ts`).
+
+- A Deluge entry is a card path. Opening it connects if need be and reads
+  that path. Saving to the card adds the path too, because that is the
+  file you will want back.
+- A computer entry is the browser's file handle, so it reads the file as
+  it is on disk now, not a copy from when it was opened. Open › From this
+  computer uses the File System Access picker where the browser has one
+  (Chrome, Edge) because only that gives a handle; a dropped file gives
+  one too. A file opened through the plain input has no handle and is not
+  listed. The browser asks again for read permission after a reload.
+
+A file that is gone leaves the list, and the error says so. One that
+can't be read just now (no Deluge, permission refused) stays. Opening an
+entry asks before replacing the preset exactly as any other open does
+(`start.ts`). The list is kept in IndexedDB, since handles can't go in
+localStorage. Without IndexedDB it lasts for the session.
+
+The start page lists the same entries under its Open tiles, as rows rather
+than tiles because they are many and alike. Opening one there is the same
+action as in the menu. The page leaves the list out while it is empty; the
+menu's greyed-out "Nothing yet" is where an empty list shows.

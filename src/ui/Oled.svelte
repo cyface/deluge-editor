@@ -1,13 +1,10 @@
 <script lang="ts">
-  import { summarise, summariseSound } from '../core/preset/summary'
+  import { summarise } from '../core/preset/summary'
   import { editor } from './state/editor.svelte'
   import Mark from './Mark.svelte'
-  const s = $derived.by(() => {
-    if (!editor.preset) return null
-    // A kit shows its selected row's summary when a sound row is selected, else the kit's.
-    if (editor.preset.tag === 'kit' && editor.sound) return summariseSound(editor.sound)
-    return summarise(editor.preset)
-  })
+  // A synth only. A kit's sentence said little the rows table doesn't, and a
+  // synth row's sentence is its Source cell (`core/kit/rows.ts`).
+  const s = $derived(editor.preset && editor.preset.tag !== 'kit' ? summarise(editor.preset) : null)
 </script>
 
 {#if s}

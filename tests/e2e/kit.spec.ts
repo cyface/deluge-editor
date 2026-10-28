@@ -96,10 +96,12 @@ test('build a kit from a sample folder: guessed order, reorder, rename, share zi
   await expect(page.getByTestId('change-count')).toHaveText('4')
   await page.getByTestId('changes-button').click() // close the dock
 
-  // Share zip: README + KITS/ + the three samples still in the kit.
+  // Share zip: the credits are asked for in its dialog, then README + KITS/ +
+  // the three samples still in the kit.
+  await choose(page, 'download-zip-top')
   await page.locator('#kit-author').fill('Tim')
   const downloadPromise = page.waitForEvent('download')
-  await choose(page, 'download-zip-top')
+  await page.getByTestId('share-zip-download').click()
   const download = await downloadPromise
   const zipPath = await download.path()
   const zip = fs.readFileSync(zipPath!)

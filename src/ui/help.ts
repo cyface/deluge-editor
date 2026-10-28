@@ -399,8 +399,7 @@ export const UI_HELP: Record<string, string> = {
   'ui.open.mounted': 'Choose the root folder of a Deluge card in a card reader, then browse and reorganise its samples with every song, kit and synth updated to follow',
   'ui.menu.save': 'Download the preset, or write it to the Deluge',
   'ui.save.xml': 'Just the preset file being edited',
-  'ui.save.zip': 'Preset + samples + README, ready to share',
-  'ui.save.zipKit': 'Preset + samples + README, ready to share — credits are set in the Share section below',
+  'ui.save.zip': 'Preset + samples + README with your credits, ready to share',
   'ui.save.card': 'Write the current preset to the Deluge’s SD card',
   'ui.save.overwrite': 'Write the preset straight back to the file it was opened from, or last saved to, with no dialog',
   'ui.save.overwriteNone': 'Open a preset from the Deluge, or save one there, and this writes it back to the same file',
@@ -417,6 +416,7 @@ export const UI_HELP: Record<string, string> = {
 
   // --- Kit table -----------------------------------------------------------
   'ui.rows.add': 'Add an empty row, as the Deluge’s drum creator does',
+  'ui.rows.addSamples': 'Add a row per WAV, from a folder on this computer or on the Deluge',
   'ui.row.drag': 'Drag to reorder',
   'ui.row.layers': 'Show this row’s velocity layers',
   'ui.row.ranges': 'Show this row’s ranges',
