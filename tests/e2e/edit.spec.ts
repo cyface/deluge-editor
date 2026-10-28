@@ -11,7 +11,7 @@ const FIXTURE = path.resolve('tests/fixtures/community-c1.3.0-beta-3f898e9/Defau
  * native picker is out of its reach.
  */
 const withoutFilePicker = (page: import('@playwright/test').Page) =>
-  page.addInitScript(() => delete (window as { showOpenFilePicker?: unknown }).showOpenFilePicker)
+  page.addInitScript(() => delete (globalThis as { showOpenFilePicker?: unknown }).showOpenFilePicker)
 
 test('load a fixture, see the whole preset, focus a block, edit one value, see exactly that change', async ({ page }) => {
   await page.goto('/')

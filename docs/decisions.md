@@ -80,3 +80,4 @@ at the end of its area file and gets a line here.
 - [A kit has no OLED sentence; a synth row's sentence is its Source cell](decisions/ui.md#a-kit-has-no-oled-sentence-a-synth-rows-sentence-is-its-source-cell)
 - [Missing samples are split by what can be done, and can be found elsewhere on the card](decisions/ui.md#missing-samples-are-split-by-what-can-be-done-and-can-be-found-elsewhere-on-the-card)
 - [Open › Recent reopens a file where it lives now](decisions/ui.md#open--recent-reopens-a-file-where-it-lives-now)
+- [A preset's samples on the Deluge draw their waveforms without a click](decisions/ui.md#a-presets-samples-on-the-deluge-draw-their-waveforms-without-a-click)

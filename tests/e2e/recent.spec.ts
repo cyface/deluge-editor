@@ -68,7 +68,7 @@ test('Open › Recent: a file picked on this computer reopens through its handle
       isSameEntry: async (o: { name: string }) => o.name === disk.name,
       queryPermission: async () => 'granted',
     }
-    const w = window as unknown as Record<string, unknown>
+    const w = globalThis as unknown as Record<string, unknown>
     w.showOpenFilePicker = async () => [handle]
     w.__disk = disk
     w.__ringmod = texts.ringmod
@@ -84,7 +84,7 @@ test('Open › Recent: a file picked on this computer reopens through its handle
   // The file changes on disk; Recent reads it again rather than a copy.
   await choose(page, 'new-synth')
   await page.evaluate(() => {
-    const w = window as unknown as { __disk: { text: string }; __ringmod: string }
+    const w = globalThis as unknown as { __disk: { text: string }; __ringmod: string }
     w.__disk.text = w.__ringmod
   })
   await choose(page, 'recent-0')

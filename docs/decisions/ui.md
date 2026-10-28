@@ -357,3 +357,21 @@ The start page lists the same entries under its Open tiles, as rows rather
 than tiles because they are many and alike. Opening one there is the same
 action as in the menu. The page leaves the list out while it is empty; the
 menu's greyed-out "Nothing yet" is where an empty list shows.
+
+## A preset's samples on the Deluge draw their waveforms without a click
+
+Row thumbnails used to come only from audio already in the browser: local
+files decoded in the background, but a sample that lived only on the card
+got its waveform after you previewed it. So a kit opened from the Deluge
+showed an empty column, which reads as broken. Now, while a Deluge is
+connected, the editor reads each such sample over SysEx in the background
+and decodes it for its thumbnail (`audio.prefetch`, kicked off like the
+missing-on-card check: on connecting, and when the preset names a
+different set of files).
+
+The reads go one at a time and give way. While the card store or a
+preview is busy with something asked for, the next read waits. A newer
+preset or a dropped connection ends the run between files. A sample the
+card doesn't have is skipped, because the missing count already says so.
+The decoded audio is the preview's cache, so ▶ on a row that has its
+waveform plays at once.

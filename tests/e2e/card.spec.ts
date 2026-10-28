@@ -115,6 +115,10 @@ test('a kit whose samples moved: the missing count walks the rows, Find on card 
   await expect(missing).toHaveText('⚠ 4 samples missing')
   await expect(page.getByTestId('tosend-count')).toHaveCount(0)
 
+  // The one sample the card has draws its waveform without being previewed; the missing ones have none.
+  await expect(rows.nth(0).getByTestId('row-wave')).toBeVisible()
+  await expect(rows.nth(1).getByTestId('row-wave')).toHaveCount(0)
+
   // The count is a way to the rows it means: the next one after the selection, then round again.
   await missing.click()
   await expect(rows.nth(1)).toHaveClass(/on/)

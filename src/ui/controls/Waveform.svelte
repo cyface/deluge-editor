@@ -3,7 +3,7 @@
    * A row's waveform thumbnail: peak buckets from the audio-preview cache,
    * drawn as one filled max/min outline. Renders nothing until the sample's
    * audio is available (local bytes decode in the background; a card-only
-   * sample appears after it has been previewed).
+   * sample's are read from the Deluge in the background, `audio.prefetch`).
    */
   import { audio } from '../state/audio.svelte'
 
