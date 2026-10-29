@@ -13,7 +13,7 @@ import { fixtureText } from '../../../tests/helpers/fixtures'
 import { rig, TEST_TIMEOUTS } from '../../../tests/helpers/rig'
 import { LIVE_TEMP_PATH } from '../../core/live'
 import { isKit } from '../../core/preset'
-import { setParamHex } from '../../core/preset/sound'
+import { addCable, cables, setParamHex } from '../../core/preset/sound'
 import { FakeDeluge, type FakeOptions } from '../../core/sysex/fake-deluge'
 import { LiveError, NO_REPLY, SmsClient, SysexError } from '../../core/sysex'
 import { flattenXML, setAttr } from '../../core/xml'
@@ -207,6 +207,40 @@ describe('editor → device', () => {
     await settle()
     expect(requests(fake, 'load')).toHaveLength(2)
     expect(fake.requests.filter(writesPad)).toHaveLength(1)
+  })
+
+  it('lets a knob through during the sample copy, unless it addresses what the device has not loaded yet', async () => {
+    const { fake } = liveRig({ liveEdit: 'on', holdWrites: true })
+    fake.putFile('/SYNTHS/Tim.XML', SYNTH_ON_CARD)
+    fake.loadInstrument(SYNTH, 'Tim', 'SYNTHS')
+    await live.start()
+    const PAD = 'SAMPLES/Tim/Pad.wav'
+    setAttr(editor.preset!.children.find((c) => c.tag === 'osc2')!, 'fileName', PAD)
+    samples.hold([[PAD, new Uint8Array(4096)]])
+    addCable(editor.sound!, 'lfo1', 'pitch')
+    flushSync()
+    await vi.waitFor(() => expect(requests(fake, 'write').length).toBeGreaterThan(0))
+
+    // the copy is stalled mid-file; the filter is the same parameter on the device, the new cable is not there yet
+    setParamHex(editor.sound!, 'lpfFrequency', '0x40000000')
+    setAttr(cables(editor.sound!).find((c) => c.attrs.source === 'lfo1')!, 'amount', '0x20000000')
+    flushSync()
+    await vi.waitFor(() => expect(requests(fake, 'param')).toEqual([{ param: { name: 'lpfFrequency', value: 0x40000000 } }]))
+    expect(requests(fake, 'load')).toEqual([])
+
+    await vi.waitFor(
+      () => {
+        while (fake.releaseWrite());
+        expect(requests(fake, 'load')).toHaveLength(1)
+      },
+      { timeout: 5000, interval: 5 },
+    )
+    await settle()
+    const device = flattenXML(fake.currentPreset())
+    expect(device.get('sound/defaultParams@lpfFrequency')).toBe('0x40000000')
+    expect([...device].some(([k, v]) => k.endsWith('@amount') && v === '0x20000000')).toBe(true)
+    // the cable's value rode the push: no param ever went out for it
+    expect(requests(fake, 'param').some((r) => (r.param as { src?: string }).src === 'lfo1')).toBe(false)
   })
 
   it('a knob turned while a push is pending rides along and is not lost', async () => {

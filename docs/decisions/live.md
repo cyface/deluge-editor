@@ -317,3 +317,12 @@ save (samples first, preset second, copying only files missing from the card
 or at a different size). It uses the mode's own connection. A push with nothing held
 costs nothing, and once a sample is on the card the next push only lists its folder.
 A sample copy that fails fails the push, which leaves it wanted.
+
+Knobs are not held for the copy. A folder of samples takes minutes at
+SysEx speed, and holding every fast write behind it made the editor feel
+dead. While the samples copy, a queued `param` goes out when it addresses the
+same parameter (name, cable source, row) in the document the device last
+loaded (`held`) as in the editor's. A write for a row or cable only the
+pending document has waits, and the push carries its value. After the load,
+queued writes the pushed document already holds at the same value are dropped
+rather than sent twice.

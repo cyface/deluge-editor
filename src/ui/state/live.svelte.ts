@@ -15,7 +15,9 @@
  *   document for a push, debounced so a burst of clicks is one push and a
  *   push in flight queues the next. Fast sends are held while a whole push
  *   is pending: the push carries the latest document anyway, and a row
- *   index the device does not have yet would land on the wrong row.
+ *   index the device does not have yet would land on the wrong row. The
+ *   push's sample copy is the exception, being minutes long: a knob that
+ *   means the same parameter in the document the device holds goes out.
  * - **Device → editor.** `^chg` writes through the ordered accessors
  *   (`applyChange`), so an attribute the file lacked lands where the firmware
  *   writes it. Our own writes coming back are filtered by (path, value) for
@@ -168,6 +170,12 @@ class Live extends Activity {
   /** The document as the device holds it, flattened; null while nothing is being tracked. */
   private baseline: FlatXML | null = null
   /**
+   * The document the device last loaded whole (open, pull, push), flattened.
+   * The baseline runs ahead of it while a structural edit waits behind a
+   * sample copy; a knob is addressed against this one to go out meanwhile.
+   */
+  private held: FlatXML | null = null
+  /**
    * The tree this store last put in the editor (`openNow`, `resync`), or the
    * one the editor held when the mode started. Edits change that tree in
    * place, so a different `editor.preset` is a new document, not an edit
@@ -191,6 +199,8 @@ class Live extends Activity {
 
   private pushWanted = false
   private pushing = false
+  /** A push is copying its samples: the device still holds `held`, and knobs that address the same thing there go out. */
+  private copying = false
   private pushTimer: ReturnType<typeof setTimeout> | null = null
   private resyncWanted = false
   /** A save of ours is between its request and its `markSaved`: the device's `edited: 0` is that save, not one of its own. */
@@ -476,6 +486,7 @@ class Live extends Activity {
     this.rowWanted = null
     this.identity = { name: inst.name, dir: inst.dir }
     this.baseline = flattenXML(xml)
+    this.held = this.baseline
     this.pending.clear()
     this.pushWanted = false
     this.docGen = saved.gen
@@ -505,6 +516,7 @@ class Live extends Activity {
   private park(): void {
     this.identity = null
     this.baseline = null
+    this.held = null
     this.pending.clear()
     this.pushWanted = false
     this.rowWanted = null
@@ -609,11 +621,13 @@ class Live extends Activity {
         const current = editor.flatOutput
         if (current !== null && isClean(diffFlat(flat, current))) {
           this.baseline = flat
+          this.held = flat
           return
         }
         editor.preset = parseXML(xml)
         this.doc = editor.preset
         this.baseline = flat
+        this.held = flat
         this.pending.clear()
         this.resynced += 1
       })
@@ -622,13 +636,22 @@ class Live extends Activity {
 
   // ---- editor → device -------------------------------------------------------
 
-  /** Send the queued fast writes, one at a time, latest value per path. Held while a whole push is pending. */
+  /**
+   * Send the queued fast writes, one at a time, latest value per path. Held
+   * while a whole push is pending, except during its sample copy, which can
+   * run for minutes: then a write goes out when it addresses the same
+   * parameter in the document the device holds (`held`) as in the editor's,
+   * and one that does not (a row or cable the device has not loaded yet)
+   * waits for the push, which carries its value anyway.
+   */
   private drain(): void {
     if (this.draining !== null || this.pushWanted || this.pushing) return
     if (this.pending.size === 0 || !this.tracking) return
     const send = async (): Promise<void> => {
       while (this.pending.size > 0 && this.tracking && !this.pushWanted && !this.pushing) {
-        const [path, { address, value }] = this.pending.entries().next().value!
+        const next = [...this.pending].find(([path, { address }]) => this.sendable(path, address))
+        if (!next) return
+        const [path, { address, value }] = next
         this.pending.delete(path)
         const mine = { value, at: Date.now() }
         this.echo.set(path, [...(this.echo.get(path) ?? []), mine])
@@ -648,6 +671,13 @@ class Live extends Activity {
     // `.finally` runs as a microtask, so the field is set before it is cleared
     // even if the loop were to finish without awaiting.
     this.draining = send().finally(() => (this.draining = null))
+  }
+
+  /** Whether a fast write can go now: always, but during a sample copy only if the device's document agrees on its address. */
+  private sendable(path: string, address: LiveAddress): boolean {
+    if (!this.copying) return true
+    const there = this.held && classifyPath(path, this.held)
+    return !!there && there.name === address.name && there.src === address.src && there.drum === address.drum && there.bus === address.bus
   }
 
   private schedulePush(): void {
@@ -702,14 +732,29 @@ class Live extends Activity {
   /** One push of the current document, inside a serial job; a throw leaves it wanted. */
   private async pushOnce(): Promise<void> {
     this.pushWanted = false
-    this.pushing = true
     try {
       // Samples first, preset second, as the card store's save does: the
       // device loads a preset whose samples are absent and plays it silent
       // (`Source::loadAllSamples`, `processing/source.cpp:105`), and a sample
       // picked from this computer exists only in the stash until copied.
-      await samples.syncMissingToCard(this.sampleLink(this.client!), (label, p) => this.step(label, p))
-      const inst = await this.transfer!.push(editor.output, this.identity!)
+      // Knobs keep going out meanwhile (`drain`, `sendable`).
+      this.copying = true
+      this.drain()
+      try {
+        await samples.syncMissingToCard(this.sampleLink(this.client!), (label, p) => this.step(label, p))
+      } finally {
+        this.copying = false
+      }
+      this.pushing = true
+      await this.draining // a knob already on its way lands before the load replaces the instrument
+      const xml = editor.output
+      const inst = await this.transfer!.push(xml, this.identity!)
+      this.held = flattenXML(xml)
+      // What waited out the copy is in the document just loaded; a knob turned since still goes.
+      for (const [path, { value }] of this.pending) {
+        const hex = this.held.get(path)
+        if (hex !== undefined && isHexParam(hex) && hexToInt(hex) === value) this.pending.delete(path)
+      }
       this.docGen = inst.gen
       this.noteGen(inst)
       this.inst = inst
@@ -823,6 +868,7 @@ class Live extends Activity {
     this.client = null
     this.transfer = null
     this.baseline = null
+    this.held = null
     this.identity = null
     this.linkError = why
     this.status = 'error'
@@ -843,6 +889,7 @@ class Live extends Activity {
     this.transfer = null
     this.identity = null
     this.baseline = null
+    this.held = null
     this.doc = null
     this.inst = null
     this.pending.clear()
