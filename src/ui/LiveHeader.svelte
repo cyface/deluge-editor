@@ -5,6 +5,8 @@
    * what is on its way, and what went wrong. The editor under it is the
    * ordinary one — every control reaches the device, by the fast path or the
    * whole document — so unlike Follow's header this one gates nothing.
+   * It sticks under the top bar: a sample copy runs for minutes, and the
+   * control that started it is usually a page-scroll below the header.
    */
   import Status from './controls/Status.svelte'
   import { LIVE_OTHER_EDITOR_WARNING } from './copy'
@@ -44,7 +46,7 @@
     <span class="inst" data-testid="live-inst">{instLine}</span>
     {#if live.busy}
       <span class="rule" aria-hidden="true"></span>
-      <span class="busy" data-testid="live-busy">{live.busy}…</span>
+      <span class="busy" data-testid="live-busy">{live.busy}…{#if live.progress > 0}{' '}{Math.round(live.progress * 100)}%{/if}</span>
     {/if}
     <span class="counters" data-testid="live-counters">{counters}</span>
   </div>
@@ -70,7 +72,7 @@
 </section>
 
 <style>
-  .hdr { margin: 12px 0 0; border: 1px solid var(--edge); border-radius: 4px; background: linear-gradient(180deg, var(--panel2), var(--panel)); padding: 9px 12px 10px; }
+  .hdr { position: sticky; top: var(--bar-h); z-index: 39; margin: 12px 0 0; border: 1px solid var(--edge); border-radius: 4px; background: linear-gradient(180deg, var(--panel2), var(--panel)); padding: 9px 12px 10px; }
   .row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
   .tag { display: inline-flex; align-items: center; gap: 7px; font-family: var(--cond); font-size: 11px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); }
   .tag.live { color: var(--ok-text); }
