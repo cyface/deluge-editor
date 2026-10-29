@@ -71,6 +71,7 @@ import { errorText } from '../errtext'
 import { Activity } from './activity.svelte'
 import { card } from './card.svelte'
 import { editor } from './editor.svelte'
+import { samples, type CardLink } from './samples.svelte'
 
 /** How long a lease is asked for, seconds; the firmware caps at 120. */
 export const LEASE_SECS = 10
@@ -703,6 +704,11 @@ class Live extends Activity {
     this.pushWanted = false
     this.pushing = true
     try {
+      // Samples first, preset second, as the card store's save does: the
+      // device loads a preset whose samples are absent and plays it silent
+      // (`Source::loadAllSamples`, `processing/source.cpp:105`), and a sample
+      // picked from this computer exists only in the stash until copied.
+      await samples.syncMissingToCard(this.sampleLink(this.client!), (label, p) => this.step(label, p))
       const inst = await this.transfer!.push(editor.output, this.identity!)
       this.docGen = inst.gen
       this.noteGen(inst)
@@ -718,6 +724,15 @@ class Live extends Activity {
       throw e
     } finally {
       this.pushing = false
+    }
+  }
+
+  /** The stash's view of the card, over this mode's own connection (`attachTo` may not be the card store's). */
+  private sampleLink(client: SmsClient): CardLink {
+    return {
+      connected: true,
+      listPath: async (path) => (await client.listDirectory(path)).filter((e) => !e.name.startsWith('.')),
+      writeSampleFile: (path, data, onProgress) => client.writeFile(path, data, onProgress, 'sampled'),
     }
   }
 

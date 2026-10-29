@@ -19,6 +19,7 @@ import { LiveError, NO_REPLY, SmsClient, SysexError } from '../../core/sysex'
 import { flattenXML, setAttr } from '../../core/xml'
 import { card } from './card.svelte'
 import { editor, FALLBACK_FIRMWARE } from './editor.svelte'
+import { samples } from './samples.svelte'
 import { LEASE_SECS, live, NO_LIVE_EDIT, PUSH_RETRY_MS, RENEW_MS } from './live.svelte'
 
 const SYNTH = fixtureText('community-c1.3.0-beta-3f898e9/Default Synth.XML')
@@ -63,6 +64,7 @@ beforeEach(() => {
   editor.firmware = FALLBACK_FIRMWARE
   editor.deviceFirmware = null
   editor.row = 0
+  samples.reset()
 })
 
 afterEach(async () => {
@@ -183,6 +185,28 @@ describe('editor → device', () => {
     // the pushed document is the new baseline: nothing more goes out
     await settle()
     expect(requests(fake, 'load')).toHaveLength(1)
+  })
+
+  it('copies a sample picked from this computer to the card before the preset that names it', async () => {
+    const { fake } = await enterSynth()
+    const wav = new Uint8Array([82, 73, 70, 70, 1, 2, 3, 4])
+    const PAD = 'SAMPLES/Tim/Pad.wav'
+    const writesPad = (r: Record<string, unknown>) => {
+      const open = r.open as { path?: string; write?: number } | undefined
+      return open?.path === `/${PAD}` && Boolean(open.write)
+    }
+    setAttr(editor.preset!.children.find((c) => c.tag === 'osc2')!, 'fileName', PAD)
+    samples.hold([[PAD, wav]])
+    await settle()
+    expect(fake.files.get(`/${PAD}`)).toEqual(wav)
+    const written = fake.requests.findIndex(writesPad)
+    expect(written).toBeGreaterThanOrEqual(0)
+    expect(written).toBeLessThan(fake.requests.findIndex((r) => 'load' in r))
+    // on the card at that size now: the next push copies nothing
+    setAttr(editor.preset!, 'polyphonic', 'mono')
+    await settle()
+    expect(requests(fake, 'load')).toHaveLength(2)
+    expect(fake.requests.filter(writesPad)).toHaveLength(1)
   })
 
   it('a knob turned while a push is pending rides along and is not lost', async () => {

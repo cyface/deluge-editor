@@ -496,8 +496,8 @@ class Card extends Activity {
   /**
    * Live Edit's save: the device writes its instrument, the live store reads
    * the file back and marks the editor saved against it. No sample copy —
-   * the device holds what it plays, and a sample only this computer has is
-   * not something the device's own save can carry. A file that disagrees
+   * every whole-document push has already copied the samples the card was
+   * missing (`live.svelte.ts` `pushOnce`). A file that disagrees
    * with the document is reported as an error, though it is written: the
    * editor and the firmware differ about the preset, and the Changes dock
    * now shows exactly where.

@@ -51,6 +51,7 @@ at the end of its area file and gets a line here.
 - [The row goes both ways, and the device's report is not a pick while ours is in flight](decisions/live.md#the-row-goes-both-ways-and-the-devices-report-is-not-a-pick-while-ours-is-in-flight)
 - [A save on the device is `edited` dropping to 0, and the file becomes `source`](decisions/live.md#a-save-on-the-device-is-edited-dropping-to-0-and-the-file-becomes-source)
 - [A new document leaves Live Edit; it is not sent to the Deluge](decisions/live.md#a-new-document-leaves-live-edit-it-is-not-sent-to-the-deluge)
+- [A whole-document push copies the samples the card is missing first](decisions/live.md#a-whole-document-push-copies-the-samples-the-card-is-missing-first)
 
 ## [Kits, sample ranges and the sample library](decisions/samples.md)
 

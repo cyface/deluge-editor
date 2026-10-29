@@ -152,9 +152,8 @@ The overwrite warning stays the card panel's two-click arming, from its
 listing; the device's `exists` answer is the last word and arms the panel
 when the listing was stale. The menu's Overwrite item is named for what it
 does and always overwrites. No sample copy runs on a live save: the device
-holds what it plays, and a sample only this computer has is not something
-the device's own save can carry — a local sample in live mode is an open
-gap, not a case this path pretends to cover.
+already has every sample, because each whole-document push copies the ones
+it is missing first (below).
 
 A save to a different path renames the device's instrument (`keep: 0`),
 as its own save-as does, and the store adopts the new identity *before* the
@@ -304,3 +303,17 @@ of its own, not a side effect of Open.
 The fake Deluge's `load` now refuses a mismatched root the same way, so the
 tests see what the device does. Before, it accepted a kit over a synth, and
 nothing noticed.
+
+## A whole-document push copies the samples the card is missing first
+
+A sample picked from this computer in Live Edit exists only in the stash
+(`samples.svelte.ts`) until it is copied to the card. Pushing the XML on its
+own leaves the device naming a file it does not have, and it loads that
+preset without complaint and plays the oscillator silent
+(`Source::loadAllSamples` ignores the per-range error, `processing/source.cpp:105`,
+upstream/community). So `pushOnce` runs `samples.syncMissingToCard` before
+`LiveTransfer.push`: the same order and the same rule as the card store's
+save (samples first, preset second, copying only files missing from the card
+or at a different size). It uses the mode's own connection. A push with nothing held
+costs nothing, and once a sample is on the card the next push only lists its folder.
+A sample copy that fails fails the push, which leaves it wanted.
