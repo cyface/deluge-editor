@@ -37,7 +37,7 @@
   const counters = $derived(`${live.received} from Deluge · ${live.sent} to Deluge · ${live.pushed} preset push${live.pushed === 1 ? '' : 'es'} · ${live.resynced} resync${live.resynced === 1 ? '' : 's'}`)
 </script>
 
-<section class="hdr" data-testid="live-header">
+<section class="hdr" class:working={!!live.busy} data-testid="live-header">
   <div class="row">
     <span class="tag" class:live={live.status === 'live'} class:down={live.status === 'error'} data-testid="live-status">
       {#if live.status === 'live'}<span class="dot pulse" aria-hidden="true"></span>{/if}
@@ -46,10 +46,14 @@
     <span class="inst" data-testid="live-inst">{instLine}</span>
     {#if live.busy}
       <span class="rule" aria-hidden="true"></span>
+      <span class="spin" aria-hidden="true"></span>
       <span class="busy" data-testid="live-busy">{live.busy}…{#if live.progress > 0}{' '}{Math.round(live.progress * 100)}%{/if}</span>
     {/if}
     <span class="counters" data-testid="live-counters">{counters}</span>
   </div>
+  {#if live.busy && live.progress > 0}
+    <span class="bar" style:width="{live.progress * 100}%" aria-hidden="true"></span>
+  {/if}
   {#if live.status === 'waiting'}
     <!-- Parked, not broken: the lease holds and the next `^inst` that names a
          synth or kit opens it. The editor keeps whatever it had meanwhile. -->
@@ -72,13 +76,16 @@
 </section>
 
 <style>
-  .hdr { position: sticky; top: var(--bar-h); z-index: 39; margin: 12px 0 0; border: 1px solid var(--edge); border-radius: 4px; background: linear-gradient(180deg, var(--panel2), var(--panel)); padding: 9px 12px 10px; }
+  .hdr { overflow: hidden; position: sticky; top: var(--bar-h); z-index: 39; margin: 12px 0 0; border: 1px solid var(--edge); border-radius: 4px; background: linear-gradient(180deg, var(--panel2), var(--panel)); padding: 9px 12px 10px; }
   .row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
   .tag { display: inline-flex; align-items: center; gap: 7px; font-family: var(--cond); font-size: 11px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); }
   .tag.live { color: var(--ok-text); }
   .tag.down { color: var(--bad-text); }
   .inst { font-family: var(--cond); font-size: 13px; letter-spacing: .05em; color: var(--text-hi); }
-  .busy { font-family: var(--mono); font-size: 10.5px; color: var(--warn-text); }
+  /* A job running is impossible to miss: amber, a turning ring, and a bar along the bottom edge. */
+  .hdr.working { border-color: var(--warn-edge); background: var(--warn-bg); }
+  .busy { font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--warn-text); }
+  .bar { position: absolute; left: 0; bottom: 0; height: 3px; background: var(--warn-text); border-radius: 0 2px 2px 0; transition: width .2s linear; }
   .counters { font-family: var(--mono); font-size: 10.5px; color: var(--muted); margin-left: auto; }
   .rule { width: 1px; height: 17px; background: var(--edge-hi); }
   .hint { margin: 8px 0 0; font-size: 11.5px; line-height: 1.5; color: var(--muted); }

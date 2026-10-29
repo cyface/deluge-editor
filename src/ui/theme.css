@@ -158,6 +158,10 @@ button { font-family: inherit; }
 .dot.pulse { animation: dotpulse 1.2s ease-in-out infinite; }
 @keyframes dotpulse { 0%, 100% { opacity: 1; } 50% { opacity: .25; } }
 
+/* ---------- a job running: a ring that turns ---------- */
+.spin { display: inline-block; width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--warn-edge); border-top-color: var(--warn-text); animation: spin .8s linear infinite; flex: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
 /* ---------- a panel's or a dock's header ---------- */
 .ph { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin: 0 0 4px 4px; min-height: 18px; }
 /* The title never wraps; a long summary gives way (ellipsis) instead. */
