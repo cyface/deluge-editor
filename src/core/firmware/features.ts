@@ -37,12 +37,21 @@ export interface FeatureSupport {
  * all with `VERSION 1.x.0` in CMakeLists.txt) whose serialiser sources actually
  * contain the name (`git grep` at the tag — ancestry alone misses cherry-picks
  * onto release branches, which is how `maxVoices` shipped in 1.1.0), and it was
- * confirmed absent at the previous release tag. Nothing after `release_1_2_1`
- * has a release tag yet: `main` has carried
- * `VERSION 1.3.0` since 53e4d3a7 (2024-09-29), so every nightly/beta build since
- * then writes `c1.3.0`, and the 1.3.0 features below landed across 2024-11 to
- * 2025-07. A preset stamped `c1.3.0` by an early nightly may therefore predate
- * some of them; there is no way to tell from the version string alone.
+ * confirmed absent at the previous release tag.
+ *
+ * Community 1.3.0 "Derbyshire" was released 2026-11-04 as tag `v1.3.0`
+ * (156500e7, branch `release/1.3`; note the tag naming changed from
+ * `release_1_x_y`). Every 1.3.0 entry below was re-checked there on
+ * 2026-11-06: each cited commit is an ancestor of `v1.3.0`, as is the 3f898e95
+ * beta the table was first diffed against, and each XML name `git grep`s at the
+ * tag. The diff of the serialisers from 3f898e95 to `v1.3.0` adds exactly one
+ * preset attribute (`soundCents`) and changes no enum string table.
+ *
+ * `main` has carried `VERSION 1.3.0` since 53e4d3a7 (2024-09-29), so every
+ * nightly/beta build since then writes `c1.3.0` too, and the 1.3.0 features
+ * below landed across 2024-11 to 2026-09. A preset stamped `c1.3.0` by an early
+ * nightly may therefore predate some of them; there is no way to tell from the
+ * version string alone.
  *
  * Commit hashes are on `SynthstromAudible/DelugeFirmware`; `#n` is the PR.
  */
@@ -212,7 +221,7 @@ export const FEATURES = {
     source: 'e6f826a3 #1979 "Feature/parallel compression"; ModControllableAudio::writeTagsToFile writes compBlend.',
   },
 
-  // ---- community 1.3.0 (main since 53e4d3a7; beta 2026-08-29 writes c1.3.0) --
+  // ---- community 1.3.0 (v1.3.0, released 2026-11-04) ---------------------
 
   /** `<envelope3>` and patch source `envelope3`. */
   env3: {
@@ -318,6 +327,19 @@ export const FEATURES = {
       '7759705a #2853 "Add SysEx protocol for file browsing and transfer between the Deluge & the ' +
       "'vuefinder' web application\" (2024-11-11), src/deluge/storage/smsysex.cpp; after release_1_2_1, " +
       'so community 1.3.0 only. Inbound SysEx spanning USB transfers also only works from the 1.3.0 fixes (#4633).',
+  },
+  /**
+   * `<sound cents>`: master transpose gained a fine-tune part. The menu
+   * shows `transpose * 100 + cents` with two decimals, as the oscillator
+   * transposes already do (`MasterTranspose : Transpose`), and the file keeps
+   * the two halves apart.
+   */
+  soundCents: {
+    community: 'c1.3.0',
+    source:
+      '449d6ce1 #4930 "Fix/ Allow decimals in master transpose menu" (2026-09-18, after the 3f898e95 beta); ' +
+      'Sound::writeToFile writes cents after transpose when non-zero, Sound::readTagFromFileOrError reads it ' +
+      '(src/deluge/processing/sound/sound.cpp at v1.3.0); gui/menu_item/master_transpose.h.',
   },
   /** `<arpeggiator kitArp>`: include this row in the kit-level arpeggiator. */
   kitArp: {

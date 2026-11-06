@@ -73,6 +73,14 @@ or artist names. Things to know when comparing captures:
   only decide where an attribute the editor *adds* lands. The editor must not
   infer either order from `firmwareVersion`.
 
+Both betas predate two serialiser changes in the `v1.3.0` release (2026-11-04):
+`<sound cents>` (master transpose fine tune, 449d6ce1 #4930), which they never
+write, and 52ee3623 #4909, before which a range-adjusting cable (one inside
+`<depthControlledBy>`) was saved with its *parent* cable's `polarity`. The only
+such cable here (`Subtractive Many Patch Cables.XML`, `lfo1` on the
+`lfo1 → pitch` cable) has a `bipolar` parent and is `bipolar` itself, so the
+bug leaves no trace.
+
 ## `community-c1.3.0-beta-6e5f2b2/` — DelugEmu, community beta 1.3.0 (2026-09-04)
 
 Firmware: `deluge-v1_3_0-beta+2026_09_04-6e5f2b2.bin` from the rolling `beta`

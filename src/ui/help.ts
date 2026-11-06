@@ -258,6 +258,9 @@ export const HELP: Record<string, string> = {
   'sound.polyphonic': 'Poly plays several notes at once; Mono and Legato play one, Legato without retriggering; Auto is mono until you hold a second key; Choke silences every other choking row in the kit.',
   'sound.maxVoices': 'How many notes this sound may hold at once before it steals from itself. Poly only.',
   'sound.transpose': 'Tuning offset for the whole sound, in semitones.',
+  // Sound::recalculateFineTuner, processing/sound/sound.cpp at v1.3.0: applied
+  // after each oscillator's and modulator's own cents (model/voice/voice.cpp).
+  'sound.cents': 'Fine tuning for the whole sound, in cents, on top of Transpose.',
   'sound.voicePriority': 'Who loses a voice when the Deluge runs out. High is culled last, Low first — it outranks how old the note is.',
   // Unison count and stereo spread: gui/menu_item/unison/count.h, gui/menu_item/unison/stereoSpread.h.
   'unison.num': 'How many copies of the oscillators each note plays.',

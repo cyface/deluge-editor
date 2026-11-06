@@ -24,6 +24,9 @@ export const SOUND_ATTR_ORDER = [
   'sideChainSend',
   'mode',
   'transpose',
+  // Community 1.3.0 release only, after the beta these tables were checked against
+  // (449d6ce1 #4930; `Sound::writeToFile` at `v1.3.0`, straight after `transpose`).
+  'cents',
   'modFXType',
   'lpfMode',
   'hpfMode',

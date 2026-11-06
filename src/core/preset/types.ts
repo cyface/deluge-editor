@@ -65,6 +65,8 @@ export type SoundAttrs = {
   mode?: SynthMode
   /** Only when non-zero. */
   transpose?: Int
+  /** Master transpose fine tune; community 1.3.0 release only, and only when non-zero. */
+  cents?: Int
   modFXType?: ModFxType
   lpfMode?: FilterMode
   hpfMode?: FilterMode

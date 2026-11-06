@@ -68,6 +68,11 @@ describe('release boundaries', () => {
     for (const f of ['patchCablePolarity', 'stutterConfig', 'midiOutput', 'modFxWarble', 'arp3'])
       expect(supports(v('c1.2.1'), f), f).toBe(false)
   })
+  it('the v1.3.0 release adds master transpose cents; no official build or 1.2.x has it', () => {
+    expect(supports(v('c1.3.0'), 'soundCents')).toBe(true)
+    expect(supports(v('c1.2.1'), 'soundCents')).toBe(false)
+    expect(supports(v('4.1.4'), 'soundCents')).toBe(false)
+  })
   it('a pre-release of a version does not count as that version', () => {
     expect(supports(v('c1.3.0-beta'), 'env3')).toBe(false)
     expect(supports(v('c1.3.0-nightly'), 'lfo2Sync')).toBe(true)

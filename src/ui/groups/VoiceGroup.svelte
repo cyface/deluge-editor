@@ -27,6 +27,12 @@
     <NumberField label="Max Voices" name="maxVoices" value={sound.attrs.maxVoices} min={1} max={16} fallback={8} title={HELP['sound.maxVoices']} onchange={set('maxVoices')} />
   {/if}
   <NumberField label="Transpose" name="transpose" value={sound.attrs.transpose} min={-96} max={96} fallback={0} title={HELP['sound.transpose']} onchange={set('transpose')} />
+  {#if editor.supports('soundCents')}
+    <!-- The same split and limits as the oscillators' Transpose/Cents pair
+         (OscGroup); the firmware menu shows both as one decimal,
+         transpose * 100 + cents (gui/menu_item/master_transpose.h, v1.3.0). -->
+    <NumberField label="Cents" name="cents" value={sound.attrs.cents} min={-50} max={50} fallback={0} title={HELP['sound.cents']} onchange={set('cents')} />
+  {/if}
   <Select label="Voice Priority" name="voicePriority" value={sound.attrs.voicePriority} fallback="1" options={voicePriorityOptions()} title={HELP['sound.voicePriority']} onchange={set('voicePriority')} />
 </div>
 <div class="knobrow">
