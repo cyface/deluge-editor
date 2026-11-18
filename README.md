@@ -176,6 +176,11 @@ generate it back, and compare *flattened path → value maps*. Zero values lost,
 changed, or added; second save byte-identical to the first. Fixtures live in
 `tests/fixtures/` — see the README there.
 
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) — start by commenting on the issue
+you want to pick up.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
